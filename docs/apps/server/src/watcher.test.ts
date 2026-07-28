@@ -12,7 +12,7 @@ async function watching() {
   const root = await tempDir()
   const events: VaultEvent[] = []
   const watcher = new VaultWatcher(root, (event) => events.push(event))
-  await delay(300) // chokidar's initial scan
+  await watcher.ready
   return { root, events, watcher, vault: new Vault(root) }
 }
 

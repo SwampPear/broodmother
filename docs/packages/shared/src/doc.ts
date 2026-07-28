@@ -16,6 +16,7 @@ export const SCHEMA_SPEC = {
     'taskItem',
     'codeBlock',
     'math',
+    'mathBlock',
     'blockquote',
     'table',
     'tableRow',
@@ -24,7 +25,9 @@ export const SCHEMA_SPEC = {
     'horizontalRule',
     'image',
   ],
-  marks: ['bold', 'italic', 'code', 'strike', 'link', 'wikiLink'],
+  /** Canonical nesting order, outermost first. Both packages sort to this, so a given
+   *  mark set has exactly one tree spelling. */
+  marks: ['link', 'wikiLink', 'bold', 'italic', 'strike', 'code'],
   headingLevels: [1, 2, 3, 4],
 } as const
 
@@ -34,7 +37,7 @@ export type HeadingLevel = (typeof SCHEMA_SPEC.headingLevels)[number]
 
 export interface DocAttrs {
   /** Raw YAML frontmatter including its `---` fences, verbatim. Never reformatted. */
-  frontmatter?: string
+  frontmatter: string | null
 }
 export interface HeadingAttrs {
   level: HeadingLevel
@@ -47,10 +50,6 @@ export interface TaskItemAttrs {
 }
 export interface CodeBlockAttrs {
   language: string | null
-}
-export interface MathAttrs {
-  /** `$$…$$` when true, `$…$` when false. Body is verbatim LaTeX, never parsed. */
-  display: boolean
 }
 export interface ImageAttrs {
   src: string
@@ -77,7 +76,6 @@ export type NodeAttrs =
   | OrderedListAttrs
   | TaskItemAttrs
   | CodeBlockAttrs
-  | MathAttrs
   | ImageAttrs
   | TableCellAttrs
 

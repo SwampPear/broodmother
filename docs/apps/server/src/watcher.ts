@@ -8,6 +8,8 @@ const SUPPRESS_MS = 2000
 
 /** Watches the vault and drops the echo of the app's own writes. */
 export class VaultWatcher {
+  /** Resolves once chokidar's initial scan is done; before that, events are missed. */
+  readonly ready: Promise<void>
   private readonly watcher: FSWatcher
   private readonly pending = new Map<
     string,
@@ -25,6 +27,7 @@ export class VaultWatcher {
       followSymlinks: false,
       ignored: (target) => target !== root && path.basename(target).startsWith('.'),
     })
+    this.ready = new Promise((resolve) => this.watcher.once('ready', () => resolve()))
     this.watcher.on('add', (p) =>
       this.queue({ type: 'created', path: toVaultPath(root, p) }),
     )

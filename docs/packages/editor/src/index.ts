@@ -1,0 +1,6 @@
+export { collabExtension, type CollabProps } from './collab'
+export { Editor, type EditorProps } from './editor'
+export { Math, MathBlock } from './math'
+export { schemaExtensions } from './schema'
+export { SLASH_ITEMS, SlashMenu, type SlashItem, type SlashState } from './slash-menu'
+export { WikiLink } from './wiki-link'
