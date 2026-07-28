@@ -94,7 +94,7 @@ export const writeDoc = (doc: Y.Doc, node: DocNode): void => {
     fragment.delete(0, fragment.length)
     fragment.insert(0, childrenToY(node.content ?? []))
     const frontmatter = (node.attrs as DocAttrs | undefined)?.frontmatter
-    if (frontmatter === undefined) attrs.delete('frontmatter')
+    if (frontmatter == null) attrs.delete('frontmatter')
     else attrs.set('frontmatter', frontmatter)
   })
 }
@@ -104,7 +104,7 @@ export const readDoc = (doc: Y.Doc): DocNode => {
   const content = childrenFromY(doc.getXmlFragment(FRAGMENT).toArray() as YChild[])
   return {
     type: 'doc',
-    ...(frontmatter === undefined ? {} : { attrs: { frontmatter } }),
+    attrs: { frontmatter: frontmatter ?? null },
     ...(content.length ? { content } : {}),
   }
 }

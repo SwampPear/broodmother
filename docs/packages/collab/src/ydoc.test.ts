@@ -77,6 +77,6 @@ describe('ydoc', () => {
 
     clearDoc(doc)
 
-    expect(readDoc(doc)).toEqual({ type: 'doc' })
+    expect(readDoc(doc)).toEqual({ type: 'doc', attrs: { frontmatter: null } })
   })
 })
