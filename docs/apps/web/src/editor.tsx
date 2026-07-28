@@ -1,10 +1,10 @@
 'use client'
 
-/**
- * `@docs/editor` (plan 02) is still an empty stub, so this stands in for it. When it
- * lands, the body below becomes `export { Editor } from '@docs/editor'` — nothing else in
- * the app imports the editor.
- */
+import { useMemo } from 'react'
+import { Editor as BlockEditor } from '@docs/editor'
+import { parse, serialize } from '@docs/markdown'
+
+/** The app stores markdown, the editor speaks trees. This is the only seam between them. */
 export function Editor({
   markdown,
   onChange,
@@ -12,13 +12,6 @@ export function Editor({
   markdown: string
   onChange: (markdown: string) => void
 }) {
-  return (
-    <textarea
-      className="editor"
-      aria-label="document"
-      spellCheck={false}
-      value={markdown}
-      onChange={(event) => onChange(event.target.value)}
-    />
-  )
+  const value = useMemo(() => parse(markdown), [markdown])
+  return <BlockEditor value={value} onChange={(doc) => onChange(serialize(doc))} />
 }

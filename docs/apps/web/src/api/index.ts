@@ -1,7 +1,6 @@
 import type { ApiClient } from './client'
-import { createMockClient } from './mock'
+import { httpClient } from './http'
 
-/** Swap for `httpClient()` from './http' once plan 04 is up on :3001. */
-export const api: ApiClient = createMockClient()
+export const api: ApiClient = httpClient()
 
 export type { ApiClient, Connection } from './client'
