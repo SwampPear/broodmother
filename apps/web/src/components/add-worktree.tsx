@@ -20,13 +20,20 @@ export function AddWorktree({
 }: {
   existing: Worktree[]
   accent?: string
-  onCreate: (input: { name: string; branch: string; create: boolean }) => void
+  /** Resolves to the reason it failed, or null. Adding a worktree is a git command that
+   *  can be refused — a branch already checked out, a remote that will not answer. */
+  onCreate: (input: {
+    name: string
+    branch: string
+    create: boolean
+  }) => Promise<string | null>
   onClose: () => void
 }) {
   const [name, setName] = useState('')
   const [branch, setBranch] = useState('')
   const [create, setCreate] = useState(true)
   const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
 
   // The folder is usually named after the branch, so typing one fills the other in until
   // you say otherwise.
@@ -47,7 +54,17 @@ export function AddWorktree({
     if (!BRANCH.test(target))
       return setError('That is not a name git will take for a branch.')
 
-    onCreate({ name: folder, branch: target, create })
+    void submitTo({ name: folder, branch: target, create })
+  }
+
+  // `git worktree add` clones a checkout and may fetch first, which is not instant and is
+  // not guaranteed. The button says which of those is happening.
+  const submitTo = async (input: { name: string; branch: string; create: boolean }) => {
+    setBusy(true)
+    setError('')
+    const reason = await onCreate(input)
+    setBusy(false)
+    if (reason) setError(reason)
   }
 
   return (
@@ -64,9 +81,9 @@ export function AddWorktree({
             type="submit"
             form="add-worktree"
             style={accent ? ({ '--accent': accent } as CSSProperties) : undefined}
-            disabled={!name.trim() || !branch.trim()}
+            disabled={!name.trim() || !branch.trim() || busy}
           >
-            create worktree
+            {busy ? 'creating…' : 'create worktree'}
           </button>
         </>
       }

@@ -1,6 +1,6 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { TabStrip, docTab, type Tab } from './tabs'
 
 const tabs: Tab[] = [
@@ -12,6 +12,8 @@ function show(activeId: string | null = tabs[0]!.id) {
   const onPick = vi.fn()
   const onClose = vi.fn()
   const onNew = vi.fn()
+  const onRename = vi.fn()
+  const onCloseMany = vi.fn()
   render(
     <TabStrip
       tabs={tabs}
@@ -19,9 +21,11 @@ function show(activeId: string | null = tabs[0]!.id) {
       onPick={onPick}
       onClose={onClose}
       onNew={onNew}
+      onRename={onRename}
+      onCloseMany={onCloseMany}
     />,
   )
-  return { onPick, onClose, onNew }
+  return { onPick, onClose, onNew, onRename, onCloseMany }
 }
 
 it('names a document tab by its basename, without the extension', () => {
@@ -64,4 +68,52 @@ it('marks nothing active when the route is showing something no tab stands for',
   show(null)
   for (const tab of screen.getAllByRole('tab'))
     expect(tab).toHaveAttribute('aria-selected', 'false')
+})
+
+/* A tab strip you can only close one at a time is a tab strip you drown in. */
+describe('the right-click menu', () => {
+  const open = async (label: RegExp) => {
+    fireEvent.contextMenu(screen.getByRole('tab', { name: label }))
+    return screen.findByRole('menu')
+  }
+
+  it('renames the document a tab stands for', async () => {
+    const { onRename } = show()
+    await open(/Overview/)
+    await userEvent.click(screen.getByRole('menuitem', { name: /Rename/ }))
+    expect(onRename).toHaveBeenCalledWith(
+      expect.objectContaining({ path: 'Handbook/Overview.md' }),
+    )
+  })
+
+  it('closes the one it was opened on', async () => {
+    const { onClose } = show()
+    await open(/Overview/)
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Close' }))
+    expect(onClose).toHaveBeenCalledWith(
+      expect.objectContaining({ path: 'Handbook/Overview.md' }),
+    )
+  })
+
+  it('closes everything to the right, and nothing to the left', async () => {
+    const { onCloseMany } = show()
+    await open(/Overview/)
+    await userEvent.click(screen.getByRole('menuitem', { name: /Close to the right/ }))
+    const closed = onCloseMany.mock.calls[0]![0] as { id: string }[]
+    expect(closed.every((tab) => tab.id !== 'doc:Handbook/Overview.md')).toBe(true)
+  })
+
+  it('closes all of them', async () => {
+    const { onCloseMany } = show()
+    await open(/Overview/)
+    await userEvent.click(screen.getByRole('menuitem', { name: /Close all/ }))
+    expect((onCloseMany.mock.calls[0]![0] as unknown[]).length).toBe(tabs.length)
+  })
+
+  /* A terminal has no file behind it, so there is nothing to rename. */
+  it('offers no rename on a terminal tab', async () => {
+    show()
+    await open(/zsh|terminal|shell/i).catch(() => null)
+    expect(screen.queryByRole('menuitem', { name: /Rename/ })).not.toBeInTheDocument()
+  })
 })

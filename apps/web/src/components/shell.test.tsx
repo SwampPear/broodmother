@@ -170,8 +170,8 @@ it('keeps a tab set per worktree', async () => {
   rerender(tree(client))
   await screen.findByRole('tab', { name: /Overview/ })
 
-  // Switched from the menu, the way it is switched in the app.
-  await userEvent.click(screen.getByRole('button', { name: /handbook/i }))
+  // Switched from the control in the tab bar, the way it is switched in the app.
+  await userEvent.click(screen.getByRole('button', { name: 'Worktree' }))
   await userEvent.click(await screen.findByRole('menuitemradio', { name: /fix/ }))
 
   // The tab belonged to `local`, and that is where it stayed.
@@ -184,8 +184,61 @@ it('opens the new-worktree modal from the menu', async () => {
   show(createMockClient())
   await screen.findByText('the vault')
 
-  await userEvent.click(await screen.findByRole('button', { name: /handbook/i }))
+  await userEvent.click(await screen.findByRole('button', { name: 'Worktree' }))
   await userEvent.click(await screen.findByRole('menuitem', { name: /New worktree/ }))
 
   await screen.findByRole('dialog', { name: 'New worktree' })
+})
+
+/* The route is one route for the whole window, so a switch that changed only the tabs left
+   a document from the branch you just left sitting on screen. */
+it('leaves the document behind when you switch checkout', async () => {
+  const client = createMockClient({
+    worktrees: [
+      { name: 'local', path: '/v/local', branch: 'main', primary: true },
+      { name: 'fix', path: '/v/fix', branch: 'fix', primary: false },
+    ],
+  })
+  const { rerender } = show(client)
+  await screen.findByText('the vault')
+
+  pathname = '/doc/Handbook/Overview.md'
+  rerender(tree(client))
+  await screen.findByRole('tab', { name: /Overview/ })
+
+  await userEvent.click(screen.getByRole('button', { name: 'Worktree' }))
+  await userEvent.click(await screen.findByRole('menuitemradio', { name: /fix/ }))
+
+  // Nothing was open in `fix`, so it goes to the home screen rather than showing a file
+  // that is not on this branch.
+  await waitFor(() => expect(push).toHaveBeenCalledWith('/'))
+})
+
+it('goes back to what was open when you return', async () => {
+  const client = createMockClient({
+    worktrees: [
+      { name: 'local', path: '/v/local', branch: 'main', primary: true },
+      { name: 'fix', path: '/v/fix', branch: 'fix', primary: false },
+    ],
+  })
+  const { rerender } = show(client)
+  await screen.findByText('the vault')
+
+  pathname = '/doc/Handbook/Overview.md'
+  rerender(tree(client))
+  await screen.findByRole('tab', { name: /Overview/ })
+
+  // Away…
+  await userEvent.click(screen.getByRole('button', { name: 'Worktree' }))
+  await userEvent.click(await screen.findByRole('menuitemradio', { name: /fix/ }))
+  await waitFor(() => expect(push).toHaveBeenCalledWith('/'))
+  pathname = '/'
+  rerender(tree(client))
+
+  // …and back.
+  push.mockClear()
+  await userEvent.click(screen.getByRole('button', { name: 'Worktree' }))
+  await userEvent.click(await screen.findByRole('menuitemradio', { name: /local/ }))
+
+  await waitFor(() => expect(push).toHaveBeenCalledWith('/doc/Handbook/Overview.md'))
 })

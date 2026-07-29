@@ -1,8 +1,9 @@
 'use client'
 
 import type { VaultPath } from '@broodmother/shared'
+import { ContextMenu } from './context-menu'
 import { Icon, displayName, iconFor } from './icons'
-import { Menu, type MenuAction } from './menu'
+import { Menu, type MenuAction, type MenuSection } from './menu'
 import { TERMINALS, type TerminalKind } from './terminal-kinds'
 
 export type Tab =
@@ -40,6 +41,8 @@ export function TabStrip({
   onPick,
   onClose,
   onNew,
+  onRename,
+  onCloseMany,
 }: {
   tabs: Tab[]
   /** Null while the route is showing something no tab stands for, like settings. */
@@ -47,37 +50,89 @@ export function TabStrip({
   onPick: (tab: Tab) => void
   onClose: (tab: Tab) => void
   onNew: (what: NewTab) => void
+  /** A tab is a document, so renaming one renames the file it stands for. */
+  onRename: (tab: Tab) => void
+  onCloseMany: (tabs: Tab[]) => void
 }) {
+  /**
+   * What a right click on a tab offers. Closing is about the strip; renaming is about the
+   * document, because a tab has no name of its own to change — it wears the file's.
+   */
+  const menuFor = (tab: Tab, index: number): MenuSection[] => {
+    const rightward = tabs.slice(index + 1)
+    const others = tabs.filter((one) => one.id !== tab.id)
+    return [
+      {
+        actions: [
+          ...(tab.kind === 'doc'
+            ? [
+                {
+                  id: 'rename',
+                  label: 'Rename…',
+                  description: 'the file this tab stands for',
+                  onSelect: () => onRename(tab),
+                },
+              ]
+            : []),
+          { id: 'close', label: 'Close', onSelect: () => onClose(tab) },
+        ],
+      },
+      {
+        actions: [
+          {
+            id: 'close-right',
+            label: 'Close to the right',
+            disabled: rightward.length === 0,
+            onSelect: () => onCloseMany(rightward),
+          },
+          {
+            id: 'close-others',
+            label: 'Close others',
+            disabled: others.length === 0,
+            onSelect: () => onCloseMany(others),
+          },
+          {
+            id: 'close-all',
+            label: 'Close all',
+            danger: true,
+            onSelect: () => onCloseMany(tabs),
+          },
+        ],
+      },
+    ]
+  }
+
   return (
     <div className="tabs" role="tablist" aria-label="Open tabs">
-      {tabs.map((tab) => (
-        <div
-          key={tab.id}
-          className="tab"
-          role="tab"
-          tabIndex={0}
-          aria-selected={tab.id === activeId}
-          data-active={tab.id === activeId || undefined}
-          data-shell={tab.kind === 'terminal' ? tab.shell : undefined}
-          onClick={() => onPick(tab)}
-          onKeyDown={(event) => event.key === 'Enter' && onPick(tab)}
-          // Middle click closes, the way every other tab strip does.
-          onAuxClick={(event) => event.button === 1 && onClose(tab)}
-        >
-          <Icon name={icon(tab)} />
-          <span className="tab-name">{name(tab)}</span>
-          <button
-            type="button"
-            className="tab-close"
-            aria-label={`Close ${name(tab)}`}
-            onClick={(event) => {
-              event.stopPropagation()
-              onClose(tab)
-            }}
+      {tabs.map((tab, index) => (
+        <ContextMenu key={tab.id} label={name(tab)} sections={menuFor(tab, index)}>
+          <div
+            className="tab"
+            role="tab"
+            tabIndex={0}
+            aria-selected={tab.id === activeId}
+            data-active={tab.id === activeId || undefined}
+            data-shell={tab.kind === 'terminal' ? tab.shell : undefined}
+            onClick={() => onPick(tab)}
+            onKeyDown={(event) => event.key === 'Enter' && onPick(tab)}
+            // Middle click closes, the way every other tab strip does.
+            onAuxClick={(event) => event.button === 1 && onClose(tab)}
           >
-            <Icon name="x" />
-          </button>
-        </div>
+            <Icon name={icon(tab)} />
+            <span className="tab-name">{name(tab)}</span>
+            <button
+              type="button"
+              className="tab-close"
+              aria-label={`Close ${name(tab)}`}
+              onClick={(event) => {
+                event.stopPropagation()
+                onClose(tab)
+              }}
+            >
+              <Icon name="x" />
+            </button>
+          </div>
+        </ContextMenu>
       ))}
       {/* The same menu the tree opens on a right click, for the one gesture that has no row
           to sit on: what a new tab could be. */}

@@ -27,7 +27,9 @@ export function ProfilePicker({
   /** The profile in use, so the row that is already yours reads as chosen. */
   current?: string | null
   onSelect: (name: string) => void
-  onCreate: (draft: ProfileDraft) => void
+  /** Resolves to the reason it failed, or null. The modal is the thing that asked, so the
+   *  modal is the thing that says. */
+  onCreate: (draft: ProfileDraft) => Promise<string | null>
   onClose?: () => void
 }) {
   const [form, setForm] = useState<ProfileFormState>({
@@ -35,7 +37,20 @@ export function ProfilePicker({
     presenceColor: opal[0].hex,
   })
   const onState = useCallback((next: ProfileFormState) => setForm(next), [])
+  const [busy, setBusy] = useState(false)
+  const [failed, setFailed] = useState<string | null>(null)
   const first = !onClose && existing.length === 0
+
+  // Writing a profile touches disk and can be refused. Until it comes back the button says
+  // so, and if it comes back a failure that is said here rather than only in the status
+  // line — on first run this modal has no way out, and the line is behind it.
+  const create = async (draft: ProfileDraft) => {
+    setBusy(true)
+    setFailed(null)
+    const reason = await onCreate(draft)
+    setBusy(false)
+    if (reason) setFailed(reason)
+  }
 
   const pick = (name: string) => {
     onSelect(name)
@@ -62,9 +77,9 @@ export function ProfilePicker({
             type="submit"
             form="new-profile"
             style={{ '--accent': form.presenceColor } as CSSProperties}
-            disabled={!form.ready}
+            disabled={!form.ready || busy}
           >
-            {first ? 'create profile' : 'add profile'}
+            {busy ? 'creating…' : first ? 'create profile' : 'add profile'}
           </button>
         </>
       }
@@ -90,9 +105,15 @@ export function ProfilePicker({
         <ProfileForm
           id="new-profile"
           existing={existing}
-          onSubmit={onCreate}
+          onSubmit={(draft) => void create(draft)}
           onState={onState}
         />
+
+        {failed && (
+          <p className="field-error" role="alert">
+            {failed}
+          </p>
+        )}
       </div>
     </Modal>
   )

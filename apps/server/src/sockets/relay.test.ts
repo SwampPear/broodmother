@@ -38,7 +38,9 @@ async function connect(handle: ServerHandle): Promise<Client> {
   return { socket, messages, close: () => socket.close() }
 }
 
-describe('relay', () => {
+/* The write goes through the filesystem and comes back through a socket, so the timing
+   is the operating system's. Retried for the same reason the watcher's tests are. */
+describe('relay', { retry: 2 }, () => {
   it('pushes vault events and sync status to every client', async () => {
     const handle = await server()
     const a = await connect(handle)

@@ -6,7 +6,7 @@ import { createMockClient, type MockClient } from '../api/mock'
 import { AppProvider } from '../state'
 import { DocView } from './doc-view'
 
-/** The real editor is CodeMirror; what this file is about is which markdown reaches it. */
+/** The real editor is Monaco; what this file is about is which markdown reaches it. */
 vi.mock('../editor', () => ({
   Editor: ({
     markdown,
@@ -92,4 +92,24 @@ it('says so when the document it is showing is deleted', async () => {
   await client.request('DELETE /api/doc', { path: PATH })
 
   expect(await screen.findByText(/no such document/)).toBeInTheDocument()
+})
+
+/* A coding agent writing into the vault is the case this has to get right: the file on
+   disk is the truth, and what is on screen follows it without anyone asking. */
+it('follows a second write straight after the first', async () => {
+  const client = await show()
+
+  await client.request('PUT /api/doc', { path: PATH, markdown: '# one\n' })
+  expect(await screen.findByDisplayValue(/one/)).toBeInTheDocument()
+
+  await client.request('PUT /api/doc', { path: PATH, markdown: '# two\n' })
+  expect(await screen.findByDisplayValue(/two/)).toBeInTheDocument()
+})
+
+it('says so when the open document is deleted under it', async () => {
+  const client = await show()
+
+  await client.request('DELETE /api/doc', { path: PATH })
+
+  await waitFor(() => expect(screen.queryByLabelText('document')).not.toBeInTheDocument())
 })

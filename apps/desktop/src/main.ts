@@ -25,6 +25,9 @@ const runtime = app.isPackaged
   ? join(process.resourcesPath, 'runtime')
   : join(__dirname, 'runtime')
 
+/** The logo, copied beside the bundle by `build.mjs`. */
+const icon = join(__dirname, 'icon.png')
+
 const children: ChildProcess[] = []
 let quitting = false
 
@@ -103,6 +106,10 @@ async function createWindow(): Promise<void> {
 }
 
 void app.whenReady().then(async () => {
+  // Packaged, the Dock reads the icon off the bundle. Run from a checkout it is Electron's
+  // own binary down there wearing Electron's own mark, so the app puts its logo there
+  // itself — the app is the same app either way and should look like it.
+  if (!app.isPackaged) app.dock?.setIcon(icon)
   startBackends()
   await createWindow()
   app.on('activate', () => {

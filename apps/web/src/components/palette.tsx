@@ -3,6 +3,7 @@
 import fuzzysort from 'fuzzysort'
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import type { VaultPath } from '@broodmother/shared'
+import { Icon, displayName, fileTag, iconFor, type IconName } from './icons'
 
 export interface FlowCtx {
   paths: VaultPath[]
@@ -17,7 +18,7 @@ export interface FlowCtx {
 }
 
 export type Flow =
-  | { kind: 'commands' }
+  | { kind: 'search' }
   | { kind: 'pick'; label: string; next: (path: VaultPath) => Flow | null }
   | {
       kind: 'input'
@@ -26,6 +27,22 @@ export type Flow =
       next: (value: string) => Flow | null
     }
   | { kind: 'confirm'; label: string; detail: string; next: () => void }
+
+/** A row in the list: what it matches on, what it looks like, and what choosing it does. */
+interface Choice {
+  key: string
+  icon: IconName
+  /** What fuzzy matching sees, and the accessible name of the row. */
+  text: string
+  name: string
+  /** The folder a document sits in, dimmed after its name. Commands have none. */
+  note?: string
+  tag?: string
+  run: () => Flow | null
+}
+
+/** Long lists are scrolled, not read: past this the rest is noise the query narrows down. */
+const LIMIT = 60
 
 export function createFlow(ctx: FlowCtx, parent = ''): Flow {
   const dir = parent.includes('/') ? `${parent.slice(0, parent.lastIndexOf('/'))}/` : ''
@@ -61,7 +78,7 @@ export function deleteFlow(ctx: FlowCtx, path: VaultPath): Flow {
   }
 }
 
-function commands(ctx: FlowCtx): { label: string; run: () => Flow | null }[] {
+function commands(ctx: FlowCtx): Choice[] {
   const pick = (label: string, next: (path: VaultPath) => Flow | null): Flow => ({
     kind: 'pick',
     label,
@@ -71,24 +88,56 @@ function commands(ctx: FlowCtx): { label: string; run: () => Flow | null }[] {
     perform()
     return null
   }
+  const command = (text: string, icon: IconName, run: () => Flow | null): Choice => ({
+    key: `command:${text}`,
+    icon,
+    text,
+    name: text,
+    run,
+  })
   return [
-    {
-      label: 'Open document',
-      run: () => pick('Open', (path) => done(() => ctx.open(path))),
-    },
-    { label: 'Create document', run: () => createFlow(ctx) },
-    {
-      label: 'Move or rename document',
-      run: () => pick('Move', (path) => moveFlow(ctx, path)),
-    },
-    {
-      label: 'Delete document',
-      run: () => pick('Delete', (path) => deleteFlow(ctx, path)),
-    },
-    { label: 'Toggle terminal', run: () => done(() => ctx.toggleTerminal()) },
-    { label: 'Sync now', run: () => done(() => ctx.syncNow()) },
-    { label: 'Switch or create vault', run: () => done(() => ctx.vaults()) },
-    { label: 'Settings', run: () => done(() => ctx.settings()) },
+    command('Create document', 'plus', () => createFlow(ctx)),
+    command('Move or rename document', 'file-text', () =>
+      pick('Move', (path) => moveFlow(ctx, path)),
+    ),
+    command('Delete document', 'x', () =>
+      pick('Delete', (path) => deleteFlow(ctx, path)),
+    ),
+    command('Toggle terminal', 'terminal', () => done(() => ctx.toggleTerminal())),
+    command('Sync now', 'chevrons-up-down', () => done(() => ctx.syncNow())),
+    command('Switch or create vault', 'layout-dashboard', () => done(() => ctx.vaults())),
+    command('Settings', 'settings', () => done(() => ctx.settings())),
+  ]
+}
+
+/** A document, matched on its whole path so a folder narrows the search the way a name does. */
+function documentChoice(path: VaultPath, run: () => Flow | null): Choice {
+  const cut = path.lastIndexOf('/')
+  const base = cut < 0 ? path : path.slice(cut + 1)
+  return {
+    key: `doc:${path}`,
+    icon: iconFor(path),
+    text: path,
+    name: displayName(base),
+    note: cut < 0 ? undefined : path.slice(0, cut),
+    tag: fileTag(base) ?? undefined,
+    run,
+  }
+}
+
+/** Commands and documents in one list: the top level searches both, and a picker asked for
+ *  inside a command searches only documents, because a path is what it came back for. */
+function choices(flow: Flow, ctx: FlowCtx): Choice[] {
+  const docs = (run: (path: VaultPath) => Flow | null) =>
+    ctx.paths.map((path) => documentChoice(path, () => run(path)))
+  if (flow.kind === 'pick') return docs((path) => flow.next(path))
+  if (flow.kind !== 'search') return []
+  return [
+    ...commands(ctx),
+    ...docs((path) => {
+      ctx.open(path)
+      return null
+    }),
   ]
 }
 
@@ -105,6 +154,7 @@ export function Palette({
   const [cursor, setCursor] = useState(0)
   const input = useRef<HTMLInputElement>(null)
   const dialog = useRef<HTMLDivElement>(null)
+  const current = useRef<HTMLLIElement>(null)
 
   useEffect(() => {
     setQuery(flow.kind === 'input' ? flow.initial : '')
@@ -112,19 +162,22 @@ export function Palette({
     ;(input.current ?? dialog.current)?.focus()
   }, [flow])
 
-  const items =
-    flow.kind === 'commands'
-      ? commands(ctx).map((command) => ({ label: command.label, run: command.run }))
-      : flow.kind === 'pick'
-        ? ctx.paths.map((path) => ({ label: path, run: () => flow.next(path) }))
-        : []
+  const items = choices(flow, ctx)
 
+  // With nothing typed the input order stands — commands first, then the vault in tree
+  // order. A query replaces it with how well each row matches, documents and commands
+  // ranked against each other rather than kept in separate piles.
   const matches =
     items.length === 0
       ? []
       : fuzzysort
-          .go(query, items, { key: 'label', all: true })
+          .go(query, items, { key: 'text', all: true, limit: LIMIT })
           .map((result) => result.obj)
+
+  // The cursor walks past what the list shows; the list follows it rather than the reverse.
+  useEffect(() => {
+    current.current?.scrollIntoView({ block: 'nearest' })
+  }, [cursor, query])
 
   const submit = () => {
     if (flow.kind === 'input') {
@@ -154,7 +207,7 @@ export function Palette({
     event.preventDefault()
   }
 
-  const label = flow.kind === 'commands' ? 'Command' : flow.label
+  const label = flow.kind === 'search' ? 'Search' : flow.label
 
   return (
     <div className="palette-backdrop">
@@ -193,6 +246,7 @@ export function Palette({
               autoFocus
               autoComplete="off"
               spellCheck={false}
+              placeholder={flow.kind === 'search' ? 'documents and commands' : undefined}
               value={query}
               onChange={(event) => {
                 setQuery(event.target.value)
@@ -203,13 +257,20 @@ export function Palette({
               <ul role="listbox" aria-label={label}>
                 {matches.map((match, index) => (
                   <li
-                    key={match.label}
+                    key={match.key}
                     role="option"
+                    // The row shows a basename beside its folder; assistive tech gets the
+                    // path whole rather than the two glued together.
+                    aria-label={match.text}
                     aria-selected={index === cursor}
                     data-cursor={index === cursor || undefined}
+                    ref={index === cursor ? current : undefined}
                     onClick={() => setFlow(match.run())}
                   >
-                    {match.label}
+                    <Icon name={match.icon} />
+                    <span className="name">{match.name}</span>
+                    {match.note && <span className="note">{match.note}</span>}
+                    {match.tag && <span className="tag">{match.tag}</span>}
                   </li>
                 ))}
               </ul>

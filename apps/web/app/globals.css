@@ -616,11 +616,72 @@ body[data-resizing='panel'] {
   display: none;
 }
 
+/* The strip and the worktree control share one bar. The border lives on the bar so the two
+   read as one row rather than as a strip with something bolted to the end of it. */
+.tab-bar {
+  display: flex;
+  align-items: stretch;
+  flex: none;
+  height: var(--head);
+  border-bottom: 1px solid var(--line);
+  -webkit-app-region: drag;
+}
+
+.tab-bar .tabs {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border-bottom: none;
+}
+
 /* The strip runs the width of the window and is mostly empty, which makes its background
    the natural place to pick the window up by — the same bargain the tree head makes. The
    tabs and the plus stay clickable; only the space between them drags. */
 .tabs {
   -webkit-app-region: drag;
+}
+
+/* Which checkout the tabs beside it belong to, at the end of the row they belong to. */
+.worktree-menu {
+  display: flex;
+  align-items: center;
+  flex: none;
+  padding: 0 0.45rem 0 0.35rem;
+}
+
+.worktree-anchor {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  max-width: 14rem;
+  padding: 0.2rem 0.45rem;
+  border: 1px solid var(--line);
+  border-radius: var(--row-radius);
+  background: transparent;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  -webkit-app-region: no-drag;
+}
+
+.worktree-anchor:hover,
+.worktree-anchor[data-state='open'] {
+  border-color: var(--line-hover);
+  background: var(--raised);
+  color: var(--white);
+}
+
+.worktree-anchor .name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.worktree-anchor .icon {
+  flex: none;
+  width: 0.85rem;
+  height: 0.85rem;
+  opacity: 0.75;
 }
 
 .tab,
@@ -791,6 +852,40 @@ body[data-resizing='panel'] {
 
 .empty {
   color: var(--muted);
+}
+
+/* A vault with nothing open: the mark over the name over the one hint, in the middle of
+   the pane. It is a sign, not a surface — nothing to select, nothing to drag off. */
+.home {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.1rem;
+  padding: 1.75rem;
+  color: var(--muted);
+  text-align: center;
+  user-select: none;
+  cursor: default;
+}
+
+.home .mark {
+  width: 3.5rem;
+  height: 3.5rem;
+  margin-bottom: 0.9rem;
+  object-fit: contain;
+  -webkit-user-drag: none;
+}
+
+.home h1 {
+  margin: 0;
+  color: var(--white);
+}
+
+.home p {
+  margin: 0;
 }
 
 /* ---------- editor ---------- */
@@ -987,24 +1082,34 @@ body[data-resizing='panel'] {
   color: var(--opal-gold);
 }
 
-/* The branch you are on, said beside the vault it is a branch of — and only when it is not
-   the clone, because "local" is where you are unless you went somewhere. */
-.tree-head .worktree-tag {
-  flex: none;
-  padding: 0.05rem 0.35rem;
-  border: 1px solid var(--line);
-  border-radius: var(--row-radius);
-  color: var(--muted);
-  font-family: var(--mono);
-  font-size: 0.68rem;
-  font-weight: 500;
-  letter-spacing: 0;
-  white-space: nowrap;
+/* A field in this form is a label stacked over its input, which is right for a text box
+   and wrong for a radio: the dot belongs beside what it names, not above it. */
+.fields .choices {
+  display: flex;
+  flex-direction: row;
+  gap: 1.25rem;
+  margin-top: -0.35rem;
 }
 
-/* Two ways of saying one thing, side by side rather than stacked. */
-.fields .choices {
-  gap: 1.1rem;
+.fields .check {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.45rem;
+  color: color-mix(in srgb, var(--white) 82%, transparent);
+  cursor: pointer;
+}
+
+.fields .check input {
+  flex: none;
+  width: auto;
+  margin: 0;
+  accent-color: var(--accent, var(--opal-violet));
+  cursor: pointer;
+}
+
+/* The one that is chosen is the one you are reading about underneath. */
+.fields .check:has(input:checked) {
+  color: var(--white);
 }
 
 /* ---------- images ---------- */
@@ -1387,10 +1492,14 @@ body[data-resizing='panel'] {
   backdrop-filter: blur(3px);
 }
 
+/* The field stays put and the list scrolls under it: with every document in the vault on
+   offer, arrowing down should not carry what you typed off the top of the dialog. */
 .palette {
+  display: flex;
+  flex-direction: column;
   width: min(40rem, 92vw);
   max-height: 68vh;
-  overflow: auto;
+  overflow: hidden;
   align-self: flex-start;
   padding: 0;
   background: var(--panel);
@@ -1400,6 +1509,7 @@ body[data-resizing='panel'] {
 }
 
 .palette-label {
+  flex: none;
   color: var(--muted);
   margin: 0;
   padding: 0.9rem 1rem 0.35rem;
@@ -1425,6 +1535,7 @@ p.palette-label {
 }
 
 .palette input {
+  flex: none;
   width: 100%;
   border: none;
   border-bottom: 1px solid var(--line);
@@ -1439,19 +1550,56 @@ p.palette-label {
 }
 
 .palette ul {
+  overflow: auto;
   list-style: none;
   margin: 0;
   padding: var(--surface-inset);
 }
 
+/* A row names one thing — a command or a document — so it is read the way the tree reads
+   one: an icon, the name, and what qualifies it trailing behind. */
 .palette li {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
   padding: 0.4rem 0.55rem;
   border-radius: var(--row-radius);
   color: color-mix(in srgb, var(--white) 78%, transparent);
   cursor: default;
   white-space: nowrap;
   overflow: hidden;
+}
+
+.palette li .name {
+  flex: 0 1 auto;
+  overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* The folder a document sits in: enough to tell two notes of the same name apart, quiet
+   enough that the name is still what you read. */
+/* Shrinks far faster than the name beside it: a row that runs out of width gives up the
+   folder first, because the name is what was searched for. */
+.palette li .note {
+  flex: 0 8 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--faint);
+  font-size: 0.72rem;
+}
+
+/* The tree's tag, on the same terms: the extension, on everything that isn't a note. */
+.palette li .tag {
+  flex: none;
+  margin-left: auto;
+  padding: 0.1rem 0.34rem;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--white) 9%, transparent);
+  color: var(--muted);
+  font-size: 0.6rem;
+  line-height: 1.2;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
 }
 
 .palette li:hover {
@@ -1462,6 +1610,11 @@ p.palette-label {
 .palette li[data-cursor] {
   background: var(--active);
   color: var(--white);
+}
+
+.palette li:hover .icon,
+.palette li[data-cursor] .icon {
+  color: var(--muted);
 }
 
 /* A yes-or-no question does not need the width a list of documents does, and its buttons
