@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import type { Profile, Project } from '@broodmother/shared'
+import type { Profile, VaultSummary } from '@broodmother/shared'
 import { Icon } from './icons'
 import { Menu, type MenuSection } from './menu'
 import { Modal } from './modal'
@@ -11,13 +11,13 @@ const logo = <img className="logo" src="/logo.png" alt="" width={20} height={20}
 const initial = (name: string) => name.trim().charAt(0).toUpperCase() || '?'
 
 /**
- * The head of the tree, and the only place a project or a profile is chosen. Both live here
+ * The head of the tree, and the only place a vault or a profile is chosen. Both live here
  * because they are one question asked twice: where you are working, and who you are while
  * you do it.
  */
-export function ProjectMenu({
-  projects,
-  activeName,
+export function VaultMenu({
+  vaults,
+  activePath,
   profiles,
   activeProfile,
   onSelect,
@@ -27,12 +27,12 @@ export function ProjectMenu({
   onAddProfile,
   onSettings,
 }: {
-  projects: Project[]
-  activeName: string
+  vaults: VaultSummary[]
+  activePath: string
   profiles: Profile[]
-  /** Name of the profile the active project works as, null until one is picked. */
+  /** Name of the profile the open vault commits as, null until one is picked. */
   activeProfile: string | null
-  onSelect: (name: string) => void
+  onSelect: (path: string) => void
   onAdd: () => void
   onDelete: (name: string) => void
   onSelectProfile: (name: string) => void
@@ -40,12 +40,12 @@ export function ProjectMenu({
   onSettings: () => void
 }) {
   const [open, setOpen] = useState(false)
-  // Double-clicking a project drills into what can be done to that one, in the same
-  // surface: a menu that changed under you reads better than a second menu on top.
-  const [options, setOptions] = useState<Project | null>(null)
-  const [confirming, setConfirming] = useState<Project | null>(null)
+  // Double-clicking a vault drills into what can be done to that one, in the same surface:
+  // a menu that changed under you reads better than a second menu on top.
+  const [options, setOptions] = useState<VaultSummary | null>(null)
+  const [confirming, setConfirming] = useState<VaultSummary | null>(null)
 
-  const active = projects.find((project) => project.name === activeName) ?? projects[0]
+  const active = vaults.find((vault) => vault.path === activePath) ?? vaults[0]
 
   const close = () => {
     setOpen(false)
@@ -59,8 +59,8 @@ export function ProjectMenu({
           actions: [
             {
               id: 'delete',
-              label: 'Delete project…',
-              description: 'Its folder and every vault in it',
+              label: 'Delete vault…',
+              description: 'Its folder and everything in it',
               icon: 'x',
               danger: true,
               onSelect: () => {
@@ -73,17 +73,17 @@ export function ProjectMenu({
       ]
     : [
         {
-          heading: 'Projects',
-          actions: projects.map((project) => ({
-            id: project.name,
-            label: project.name,
-            description: project.profile ?? 'no profile yet',
-            selected: project.name === active?.name,
+          heading: 'Vaults',
+          actions: vaults.map((vault) => ({
+            id: vault.path,
+            label: vault.name,
+            description: vault.profile ?? 'no profile yet',
+            selected: vault.path === active?.path,
             onSelect: () => {
               close()
-              if (project.name !== active?.name) onSelect(project.name)
+              if (vault.path !== active?.path) onSelect(vault.path)
             },
-            onSecondClick: () => setOptions(project),
+            onSecondClick: () => setOptions(vault),
           })),
         },
         {
@@ -104,7 +104,7 @@ export function ProjectMenu({
         },
         {
           actions: [
-            { id: 'add', label: 'Add a project…', icon: 'plus', onSelect: onAdd },
+            { id: 'add', label: 'New vault…', icon: 'plus', onSelect: onAdd },
             {
               id: 'new-profile',
               label: 'New profile…',
@@ -120,7 +120,7 @@ export function ProjectMenu({
     <div className="tree-head project">
       {active ? (
         <Menu
-          label={options ? options.name : 'Projects'}
+          label={options ? options.name : 'Vaults'}
           sections={sections}
           anchorClass="project-anchor"
           open={open}
@@ -140,7 +140,7 @@ export function ProjectMenu({
       {confirming && (
         <Modal
           title={`Delete ${confirming.name}?`}
-          description={`${confirming.path} and every vault inside it are removed from disk. Anything not pushed is gone with them.`}
+          description={`${confirming.path} and everything in it are removed from disk. Anything not pushed is gone with it.`}
           size="small"
           onClose={() => setConfirming(null)}
           footer={
@@ -156,15 +156,16 @@ export function ProjectMenu({
                   setConfirming(null)
                 }}
               >
-                delete project
+                delete vault
               </button>
             </>
           }
         >
           <p className="hint">
-            A project is a folder, so this is the folder going away. Moving it out of your
-            broodmother home by hand does the same thing without deleting anything. The
-            profile it worked as is a file of its own and stays where it is.
+            A vault is a folder, so this is the folder going away — the git history inside
+            it with everything else. What you pushed is still on the remote, and cloning
+            it again makes the vault again. The profile it worked as is a file of its own
+            and stays where it is.
           </p>
         </Modal>
       )}

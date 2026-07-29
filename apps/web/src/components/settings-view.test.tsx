@@ -49,7 +49,7 @@ it('will not let the vault folder or its remote be retyped', async () => {
   await show()
   expect(screen.getByLabelText('Vault path')).toHaveAttribute('readonly')
   expect(screen.getByLabelText('Remote URL')).toHaveAttribute('readonly')
-  expect(screen.getByText(/make a\s+new project/)).toBeInTheDocument()
+  expect(screen.getByText(/make\s+another vault/)).toBeInTheDocument()
 })
 
 it('names the fields the backend had to reset', async () => {

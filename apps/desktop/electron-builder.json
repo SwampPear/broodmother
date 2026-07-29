@@ -3,8 +3,8 @@
   "productName": "broodmother",
   "copyright": "MIT",
   "directories": { "output": "release", "buildResources": "build" },
-  "files": ["dist/main.cjs", "dist/loading.html"],
-  "extraResources": [{ "from": "dist/runtime", "to": "runtime" }],
+  "files": ["dist/main.cjs", "dist/loading.html", "!node_modules/**/*"],
+  "extraResources": [{ "from": "dist/runtime", "to": "runtime", "filter": ["**/*"] }],
   "npmRebuild": false,
   "mac": {
     "category": "public.app-category.productivity",

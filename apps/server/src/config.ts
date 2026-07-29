@@ -18,8 +18,8 @@ const remoteUrl = z
   .nullable()
 
 export const configSchema = z.object({
-  project: z.string().min(1).nullable(),
   vaultPath: z.string().min(1).nullable(),
+  profiles: z.record(z.string().min(1), z.string().min(1)),
   remoteUrl,
   branch: z.string().min(1),
   syncEnabled: z.boolean(),
@@ -32,8 +32,8 @@ export const configSchema = z.object({
  */
 export function defaultConfig(vaultPath: string | null): BroodmotherConfig {
   return {
-    project: null,
     vaultPath,
+    profiles: {},
     remoteUrl: null,
     branch: 'main',
     syncEnabled: false,

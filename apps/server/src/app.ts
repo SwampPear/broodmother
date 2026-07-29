@@ -4,11 +4,10 @@ import type { Context } from 'hono'
 import { z } from 'zod'
 import type { BroodmotherConfig } from '@broodmother/shared'
 import { configSchema } from './config'
-import { NoProfileError, NoProjectError, NoVaultError, type AppContext } from './context'
+import { NoProfileError, NoVaultError, type AppContext } from './context'
 import { ProfileError, identitySchema } from './profiles'
-import { ProjectError } from './projects'
 import { PathError, normalize } from './vault/paths'
-import { VaultError, createVault, listVaults } from './vault/vaults'
+import { VaultError } from './vault/vaults'
 
 export const WEB_ORIGINS = ['http://localhost:6767', 'http://127.0.0.1:6767']
 
@@ -22,11 +21,6 @@ const newVaultBody = z.object({
 })
 const openVaultBody = z.object({ path: z.string().min(1) })
 const newProfileBody = identitySchema.extend({ name: z.string().min(1) })
-const newProjectBody = z.object({
-  name: z.string().min(1),
-  profile: z.string().min(1),
-})
-const nameBody = z.object({ name: z.string().min(1) })
 const pickProfileBody = z.object({ profile: z.string().min(1) })
 
 class BadRequest extends Error {}
@@ -51,70 +45,41 @@ export function createApp(ctx: AppContext): Hono {
   const app = new Hono()
   app.use('/api/*', cors({ origin: WEB_ORIGINS }))
 
-  app.get('/api/projects', async (c) =>
-    c.json({
-      home: ctx.home,
-      projects: await ctx.listProjects(),
-      active: ctx.project,
-    }),
-  )
-
-  app.post('/api/projects', async (c) => {
-    const { name, profile } = await parse(c, newProjectBody)
-    const project = await ctx.addProject(name, profile)
-    return c.json({ project, config: ctx.config })
-  })
-
-  app.post('/api/projects/open', async (c) => {
-    const { name } = await parse(c, nameBody)
-    const project = await ctx.openProject(name)
-    return c.json({ project, config: ctx.config })
-  })
-
-  app.put('/api/projects', async (c) => {
-    const { profile } = await parse(c, pickProfileBody)
-    return c.json({ project: await ctx.selectProfile(profile) })
-  })
-
-  app.delete('/api/projects', async (c) => {
-    const active = await ctx.removeProject(query(c, 'name'))
-    return c.json({ active, config: ctx.config })
-  })
-
   app.get('/api/profiles', async (c) =>
     c.json({ profiles: await ctx.listProfiles(), active: ctx.profile }),
   )
 
   app.post('/api/profiles', async (c) => {
     const profile = await ctx.addProfile(await parse(c, newProfileBody))
-    return c.json({ profile, project: ctx.project })
+    return c.json({ profile, vault: ctx.vault })
   })
 
   app.put('/api/profiles', async (c) =>
     c.json({ profile: await ctx.setIdentity(await parse(c, identitySchema)) }),
   )
 
-  app.get('/api/vaults', async (c) => {
-    const home = ctx.requireProject.path
-    return c.json({ home, vaults: await listVaults(home) })
-  })
+  app.get('/api/vaults', async (c) =>
+    c.json({ home: ctx.home, vaults: await ctx.listVaults(), active: ctx.vault }),
+  )
 
   app.post('/api/vaults', async (c) => {
-    const body = await parse(c, newVaultBody)
-    const vault = await createVault(body, ctx.requireProfile, ctx.requireProject.path)
-    const config = await ctx.setConfig({
-      ...ctx.config,
-      vaultPath: vault.path,
-      remoteUrl: body.remoteUrl,
-      branch: body.branch,
-      syncEnabled: true,
-    })
-    return c.json({ vault, config })
+    const vault = await ctx.addVault(await parse(c, newVaultBody))
+    return c.json({ vault, config: ctx.config })
   })
 
   app.post('/api/vaults/open', async (c) => {
     const { path } = await parse(c, openVaultBody)
     return c.json({ config: await ctx.openVault(path) })
+  })
+
+  app.put('/api/vaults', async (c) => {
+    const { profile } = await parse(c, pickProfileBody)
+    return c.json({ vault: await ctx.selectProfile(profile) })
+  })
+
+  app.delete('/api/vaults', async (c) => {
+    const active = await ctx.removeVault(query(c, 'name'))
+    return c.json({ active, config: ctx.config })
   })
 
   app.get('/api/vault', async (c) => c.json({ entries: await ctx.open.vault.list() }))
@@ -185,17 +150,12 @@ export function createApp(ctx: AppContext): Hono {
   app.onError((error, c) => {
     const code = (error as NodeJS.ErrnoException).code
     if (code === 'ENOENT') return c.json({ error: error.message }, 404)
-    if (
-      error instanceof NoVaultError ||
-      error instanceof NoProjectError ||
-      error instanceof NoProfileError
-    )
+    if (error instanceof NoVaultError || error instanceof NoProfileError)
       return c.json({ error: error.message }, 409)
     if (
       error instanceof BadRequest ||
       error instanceof PathError ||
       error instanceof ProfileError ||
-      error instanceof ProjectError ||
       error instanceof VaultError
     )
       return c.json({ error: error.message }, 400)

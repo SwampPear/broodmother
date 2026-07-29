@@ -1,4 +1,4 @@
-import type { Identity, BroodmotherConfig, Profile, Project } from './config'
+import type { Identity, BroodmotherConfig, Profile } from './config'
 import type { SyncStatus } from './sync'
 import type { VaultEntry, VaultEvent, VaultPath, VaultSummary } from './vault'
 
@@ -19,49 +19,25 @@ export interface MoveResult {
  * exactly these and the web app calls exactly these; nothing else crosses the boundary.
  */
 export interface ApiRoutes {
-  /** `active` is null on a fresh machine — nothing is assumed, the app asks. */
-  'GET /api/projects': {
-    request: null
-    response: { home: string; projects: Project[]; active: Project | null }
-  }
-  'POST /api/projects': {
-    request: { name: string; profile: string }
-    response: { project: Project; config: BroodmotherConfig }
-  }
-  'POST /api/projects/open': {
-    request: { name: string }
-    response: { project: Project; config: BroodmotherConfig }
-  }
-  /** Points the active project at another profile; the name is the folder, so it is not
-   *  editable here. */
-  'PUT /api/projects': {
-    request: { profile: string }
-    response: { project: Project }
-  }
-  /** Removes the project folder and every vault in it. Deleting the active project falls
-   *  back to whatever is left, or to none, which is the first-run state again. */
-  'DELETE /api/projects': {
-    request: { name: string }
-    response: { active: Project | null; config: BroodmotherConfig }
-  }
-  /** `active` is the profile the active project works as — null until both exist. */
+  /** `active` is the profile the open vault commits as — null until both exist. */
   'GET /api/profiles': {
     request: null
     response: { profiles: Profile[]; active: Profile | null }
   }
-  /** Creating a profile from the project menu also selects it, when there is a project to
-   *  select it for; on first run there is not, and the project picks it up at creation. */
+  /** Creating a profile from the vault menu also selects it, when there is a vault to
+   *  select it for; on first run there is not, and the vault picks it up at creation. */
   'POST /api/profiles': {
     request: { name: string } & Identity
-    response: { profile: Profile; project: Project | null }
+    response: { profile: Profile; vault: VaultSummary | null }
   }
   /** Edits the active profile; the name is the file, so it is not editable here. */
   'PUT /api/profiles': { request: Identity; response: { profile: Profile } }
   'GET /api/vault': { request: null; response: { entries: VaultEntry[] } }
-  /** `home` is the active project's folder: its vaults are the folders inside it. */
+  /** `home` is the broodmother home: its vaults are the folders inside it. `active` is null
+   *  on a fresh machine — nothing is assumed, the app asks. */
   'GET /api/vaults': {
     request: null
-    response: { home: string; vaults: VaultSummary[] }
+    response: { home: string; vaults: VaultSummary[]; active: VaultSummary | null }
   }
   /** A vault is always git-backed, so the remote is settled at creation, not after. */
   'POST /api/vaults': {
@@ -71,6 +47,19 @@ export interface ApiRoutes {
   'POST /api/vaults/open': {
     request: { path: string }
     response: { config: BroodmotherConfig }
+  }
+  /** Points the open vault at another profile; the name is the folder, so it is not
+   *  editable here. Null when there is no vault open to bind it to: on first run this only
+   *  settles the identity the first vault gets created as. */
+  'PUT /api/vaults': {
+    request: { profile: string }
+    response: { vault: VaultSummary | null }
+  }
+  /** Removes the vault folder and everything in it. Deleting the open vault falls back to
+   *  whatever is left, or to none, which is the first-run state again. */
+  'DELETE /api/vaults': {
+    request: { name: string }
+    response: { active: VaultSummary | null; config: BroodmotherConfig }
   }
   'GET /api/doc': { request: { path: VaultPath }; response: { markdown: string } }
   'PUT /api/doc': {

@@ -4,8 +4,8 @@ import path from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
 import type { ApiResponse } from '@broodmother/shared'
 import { WEB_ORIGINS } from './app'
+import { defaultConfig } from './config'
 import { createProfile } from './profiles'
-import { createProject } from './projects'
 import { bareRemote, cleanup, cloneOf, git, tempDir } from './test/fixtures'
 import { HOST, type ServerHandle, startServer } from './index'
 
@@ -22,17 +22,21 @@ afterAll(async () => {
   await cleanup()
 })
 
-async function server({
-  profile = 'tester',
-  project = 'tester',
-}: { profile?: string | null; project?: string | null } = {}) {
+async function server({ profile = 'tester' }: { profile?: string | null } = {}) {
   const root = await tempDir()
   await writeFile(path.join(root, 'index.md'), '# index\n\nsee [[Risks]]\n')
   await writeFile(path.join(root, 'Risks.md'), '# Risks\n')
 
   const home = await tempDir()
-  if (profile) await createProfile({ name: profile, ...IDENTITY }, home)
-  if (project) await createProject(project, profile, home)
+  if (profile) {
+    await createProfile({ name: profile, ...IDENTITY }, home)
+    // The vault the server is pointed at commits as this profile. The binding goes in the
+    // config because that is where a vault's profile lives.
+    await writeFile(
+      path.join(home, 'config.json'),
+      JSON.stringify({ ...defaultConfig(root), profiles: { [root]: profile } }),
+    )
+  }
 
   const handle = await startServer({ root, home, port: 0 })
   running.push(handle)
@@ -247,17 +251,16 @@ describe('sync routes', () => {
 })
 
 describe('vaults', () => {
-  it('lists the folders in the active project and nothing else', async () => {
+  it('lists the folders in the home, and never the profiles among them', async () => {
     const home = await tempDir()
     await createProfile({ name: 'tester', ...IDENTITY }, home)
-    const project = await createProject('tester', 'tester', home)
-    await mkdir(path.join(project.path, 'notes'))
+    await mkdir(path.join(home, 'notes'))
     const handle = await startServer({ root: await tempDir(), home, port: 0 })
     running.push(handle)
 
     const response = await fetch(`${handle.url}/api/vaults`)
     const body = (await response.json()) as ApiResponse<'GET /api/vaults'>
-    expect(body.home).toBe(project.path)
+    expect(body.home).toBe(home)
     expect(body.vaults.map((vault) => vault.name)).toEqual(['notes'])
   })
 
@@ -321,40 +324,17 @@ describe('vaults', () => {
   })
 })
 
-describe('projects', () => {
-  it('has none on a fresh machine and refuses vault work until one exists', async () => {
-    const { call } = await server({ profile: null, project: null })
+describe('vault selection', () => {
+  it('has none on a fresh machine, and says so rather than inventing one', async () => {
+    const home = await tempDir()
+    const handle = await startServer({ home, port: 0 })
+    running.push(handle)
 
-    const listed = (await call('GET', '/api/projects'))
-      .body as ApiResponse<'GET /api/projects'>
-    expect(listed.projects).toEqual([])
-    expect(listed.active).toBeNull()
-
-    const vaults = await call('GET', '/api/vaults')
-    expect(vaults.status).toBe(409)
-    expect((vaults.body as { error: string }).error).toMatch(/no project/)
-  })
-
-  it('creates one on disk, working as the profile it was handed', async () => {
-    const { call, home } = await server({ project: null })
-
-    const created = await call('POST', '/api/projects', {
-      name: 'acme',
-      profile: 'tester',
-    })
-    expect(created.status).toBe(200)
-    const body = created.body as ApiResponse<'POST /api/projects'>
-    expect(body.project).toEqual({
-      name: 'acme',
-      path: path.join(home, 'acme'),
-      profile: 'tester',
-    })
-    expect(body.config.project).toBe('acme')
-
-    const written = JSON.parse(
-      await readFile(path.join(home, 'acme', 'project.json'), 'utf8'),
-    )
-    expect(written).toEqual({ profile: 'tester' })
+    const body = (await (
+      await fetch(`${handle.url}/api/vaults`)
+    ).json()) as ApiResponse<'GET /api/vaults'>
+    expect(body.vaults).toEqual([])
+    expect(body.active).toBeNull()
   })
 
   it('picks up a folder dropped into the home by hand, working as nobody yet', async () => {
@@ -364,78 +344,68 @@ describe('projects', () => {
     running.push(handle)
 
     const body = (await (
-      await fetch(`${handle.url}/api/projects`)
-    ).json()) as ApiResponse<'GET /api/projects'>
-    expect(body.projects.map((project) => project.name)).toEqual(['dropped-in'])
+      await fetch(`${handle.url}/api/vaults`)
+    ).json()) as ApiResponse<'GET /api/vaults'>
+    expect(body.vaults.map((vault) => vault.name)).toEqual(['dropped-in'])
     expect(body.active?.profile).toBeNull()
   })
 
-  it('switching project switches to a vault inside it', async () => {
-    const { call, home } = await server()
-    const other = await createProject('work', 'tester', home)
-    await mkdir(path.join(other.path, 'handbook'))
-
-    const opened = await call('POST', '/api/projects/open', { name: 'work' })
-    const body = opened.body as ApiResponse<'POST /api/projects/open'>
-    expect(body.config.project).toBe('work')
-    expect(body.config.vaultPath).toBe(path.join(other.path, 'handbook'))
-
-    expect((await call('POST', '/api/projects/open', { name: 'nowhere' })).status).toBe(
-      400,
-    )
-  })
-
-  it('points at another profile without moving anything', async () => {
-    const { call, home } = await server()
+  it('points the open vault at another profile, in the config and not in the vault', async () => {
+    const { call, home, root } = await server()
     await createProfile(
       { name: 'work', ...IDENTITY, gitAuthor: { name: 'Work', email: 'work@localhost' } },
       home,
     )
 
-    const picked = await call('PUT', '/api/projects', { profile: 'work' })
-    expect((picked.body as ApiResponse<'PUT /api/projects'>).project.profile).toBe('work')
-    expect(
-      JSON.parse(await readFile(path.join(home, 'tester', 'project.json'), 'utf8')),
-    ).toEqual({ profile: 'work' })
+    const picked = await call('PUT', '/api/vaults', { profile: 'work' })
+    expect((picked.body as ApiResponse<'PUT /api/vaults'>).vault?.profile).toBe('work')
 
-    expect((await call('PUT', '/api/projects', { profile: 'nobody' })).status).toBe(400)
+    const written = JSON.parse(await readFile(path.join(home, 'config.json'), 'utf8'))
+    expect(written.profiles[root]).toBe('work')
+    // The vault is a git working tree: the binding must not have landed inside it.
+    await expect(stat(path.join(root, 'project.json'))).rejects.toThrow()
+
+    expect((await call('PUT', '/api/vaults', { profile: 'nobody' })).status).toBe(400)
   })
 
-  it('deletes the folder it stands for, vaults and all', async () => {
+  it('deletes the folder it stands for, and forgets which profile it was', async () => {
     const { call, home } = await server()
-    const other = await createProject('work', 'tester', home)
-    await mkdir(path.join(other.path, 'handbook'))
+    const other = path.join(home, 'work')
+    await mkdir(other)
+    await call('POST', '/api/vaults/open', { path: other })
+    await call('PUT', '/api/vaults', { profile: 'tester' })
 
-    const deleted = await call('DELETE', '/api/projects?name=work')
+    const deleted = await call('DELETE', '/api/vaults?name=work')
 
     expect(deleted.status).toBe(200)
-    expect((deleted.body as ApiResponse<'DELETE /api/projects'>).active?.name).toBe(
-      'tester',
-    )
-    await expect(stat(other.path)).rejects.toThrow()
-    expect((await call('DELETE', '/api/projects?name=work')).status).toBe(400)
+    await expect(stat(other)).rejects.toThrow()
+    const written = JSON.parse(await readFile(path.join(home, 'config.json'), 'utf8'))
+    expect(written.profiles[other]).toBeUndefined()
+    expect((await call('DELETE', '/api/vaults?name=work')).status).toBe(400)
   })
 
   /* Deleting the one you are in is the first-run state again, not a broken app. */
-  it('falls back when the project deleted is the active one', async () => {
+  it('falls back when the vault deleted is the open one', async () => {
     const { call, home } = await server()
-    await createProject('work', 'tester', home)
+    await mkdir(path.join(home, 'work'))
+    await mkdir(path.join(home, 'notes'))
+    await call('POST', '/api/vaults/open', { path: path.join(home, 'work') })
 
-    const first = await call('DELETE', '/api/projects?name=tester')
-    const body = first.body as ApiResponse<'DELETE /api/projects'>
-    expect(body.active?.name).toBe('work')
-    expect(body.config.project).toBe('work')
+    const first = await call('DELETE', '/api/vaults?name=work')
+    const body = first.body as ApiResponse<'DELETE /api/vaults'>
+    expect(body.active?.name).toBe('notes')
+    expect(body.config.vaultPath).toBe(path.join(home, 'notes'))
 
-    const last = await call('DELETE', '/api/projects?name=work')
-    const empty = last.body as ApiResponse<'DELETE /api/projects'>
+    const last = await call('DELETE', '/api/vaults?name=notes')
+    const empty = last.body as ApiResponse<'DELETE /api/vaults'>
     expect(empty.active).toBeNull()
     expect(empty.config.vaultPath).toBeNull()
-    expect((await call('GET', '/api/vaults')).status).toBe(409)
+    expect((await call('GET', '/api/vault')).status).toBe(409)
   })
 })
 
 describe('profiles', () => {
-  it('is a file beside the projects, and never a project itself', async () => {
+  it('is a file beside the vaults, and never a vault itself', async () => {
     const { call, home } = await server()
 
     const listed = (await call('GET', '/api/profiles'))
@@ -445,19 +415,19 @@ describe('profiles', () => {
     ])
     expect(listed.active?.name).toBe('tester')
 
-    const projects = (await call('GET', '/api/projects'))
-      .body as ApiResponse<'GET /api/projects'>
-    expect(projects.projects.map((project) => project.name)).toEqual(['tester'])
+    const vaults = (await call('GET', '/api/vaults'))
+      .body as ApiResponse<'GET /api/vaults'>
+    expect(vaults.vaults.map((vault) => vault.name)).toEqual([])
   })
 
-  it('is created for the project you are in, and picked up by it', async () => {
+  it('is created for the vault you are in, and picked up by it', async () => {
     const { call, home } = await server()
 
     const created = await call('POST', '/api/profiles', { name: 'work', ...IDENTITY })
     expect(created.status).toBe(200)
     const body = created.body as ApiResponse<'POST /api/profiles'>
     expect(body.profile.path).toBe(path.join(home, 'profiles', 'work.json'))
-    expect(body.project?.profile).toBe('work')
+    expect(body.vault?.profile).toBe('work')
 
     expect(
       (await call('POST', '/api/profiles', { name: 'work', ...IDENTITY })).status,

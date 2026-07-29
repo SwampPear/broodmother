@@ -38,15 +38,15 @@ const tree = (client: MockClient) => (
 const show = (client: MockClient) => render(tree(client))
 
 it('opens on an empty home with the setup over it, not on a screen of its own', async () => {
-  show(createMockClient({ profiles: [], projects: [], active: null }))
+  show(createMockClient({ profiles: [], vaults: [], active: null }))
 
   await screen.findByRole('dialog', { name: 'Welcome to broodmother' })
   expect(screen.getByText('the vault')).toBeInTheDocument()
 })
 
 /* The gates read state that arrives a request later than the first paint. Opening them on
-   the way past asks a project that already exists to introduce itself again. */
-it('never asks where you are when a project is already there', async () => {
+   the way past asks a vault that already exists to introduce itself again. */
+it('never asks where you are when a vault is already there', async () => {
   show(createMockClient())
 
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
@@ -55,16 +55,16 @@ it('never asks where you are when a project is already there', async () => {
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
 })
 
-it('asks for a vault once there is a project but nothing to open', async () => {
+it('asks for a vault once there is a profile but nothing to open', async () => {
   show(createMockClient({ config: { vaultPath: null } as never }))
 
   await screen.findByRole('dialog', { name: 'Vaults' })
 })
 
-/* Who you are, then where you work: a project is created working as a profile, so there
-   has to be one to name. */
-it('walks a fresh machine from the first profile to the first project', async () => {
-  const client = createMockClient({ profiles: [], projects: [], active: null })
+/* Who you are, then where you work: a vault is created working as a profile, so there has
+   to be one to name. */
+it('walks a fresh machine from the first profile to the first vault', async () => {
+  const client = createMockClient({ profiles: [], vaults: [], active: null })
   show(client)
   await screen.findByRole('dialog', { name: 'Welcome to broodmother' })
 
@@ -75,35 +75,37 @@ it('walks a fresh machine from the first profile to the first project', async ()
   const { profiles } = await client.request('GET /api/profiles', null)
   expect(profiles.map((profile) => profile.name)).toEqual(['ada'])
 
-  await screen.findByRole('dialog', { name: 'Your first project' })
-  await userEvent.type(screen.getByLabelText('Project name'), 'acme')
-  await userEvent.click(screen.getByRole('button', { name: 'create project' }))
+  await screen.findByRole('dialog', { name: 'Your first vault' })
+  await userEvent.type(screen.getByLabelText('Name'), 'handbook')
+  await userEvent.type(
+    screen.getByLabelText('Git remote'),
+    'git@github.com:you/handbook.git',
+  )
+  await userEvent.click(screen.getByRole('button', { name: 'create vault' }))
 
-  const { projects } = await client.request('GET /api/projects', null)
-  expect(projects).toEqual([
-    { name: 'acme', path: '/Users/you/.broodmother/acme', profile: 'ada' },
-  ])
+  const { vaults } = await client.request('GET /api/vaults', null)
+  expect(vaults.map((vault) => vault.name)).toEqual(['handbook'])
 })
 
 /* A folder dropped into the home by hand has nobody to commit as, and that is the same
    question first run asks — with the profiles you already have to pick from. */
-it('asks who you are in a project that names no profile', async () => {
+it('asks who you are in a vault that names no profile', async () => {
+  const dropped = {
+    name: 'dropped-in',
+    path: '/Users/you/.broodmother/dropped-in',
+    profile: null,
+  }
   const client = createMockClient({
-    projects: [
-      { name: 'dropped-in', path: '/Users/you/.broodmother/dropped-in', profile: null },
-    ],
-    active: {
-      name: 'dropped-in',
-      path: '/Users/you/.broodmother/dropped-in',
-      profile: null,
-    },
+    vaults: [dropped],
+    active: dropped,
+    config: { profiles: {} } as never,
   })
   show(client)
 
   await screen.findByRole('dialog', { name: 'Profiles' })
   await userEvent.click(screen.getByRole('button', { name: /you@example/ }))
 
-  const { active } = await client.request('GET /api/projects', null)
+  const { active } = await client.request('GET /api/vaults', null)
   expect(active?.profile).toBe('you')
 })
 

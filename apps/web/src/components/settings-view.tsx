@@ -68,7 +68,7 @@ export function SettingsView() {
 
       <p className="hint">
         The vault folder and its remote belong to the vault. To work somewhere else, make
-        a new project — its vaults live in its own folder.
+        another vault — every folder in your broodmother home is one.
       </p>
 
       <label>
@@ -114,12 +114,12 @@ export function SettingsView() {
         <fieldset className="profile-settings">
           <legend>
             Profile · {app.profile?.name}
-            {app.project ? ` · ${app.project.name}` : ''}
+            {app.vault ? ` · ${app.vault.name}` : ''}
           </legend>
           <p className="hint">
-            Who you commit and show up as in this project, and the credentials you do it
+            Who you commit and show up as in this vault, and the credentials you do it
             with. It is stored in the profile's own file rather than in this machine's
-            config, so editing it here changes it for every project that picked it.
+            config, so editing it here changes it for every vault that picked it.
           </p>
 
           <label>
@@ -187,7 +187,7 @@ export function SettingsView() {
           </label>
 
           <p className="hint">
-            The key git offers in this project's vaults, and the Claude login its
+            The key git offers in this profile's vaults, and the Claude login their
             terminals run as. Left empty, git and Claude use their own defaults.
           </p>
 

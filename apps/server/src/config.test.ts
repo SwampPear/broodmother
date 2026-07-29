@@ -56,7 +56,7 @@ describe('repair', () => {
     const { config, reset } = repair(
       {
         vaultPath: '/elsewhere',
-        project: 'ada',
+        profiles: { '/elsewhere': 'ada' },
         branch: 42,
         syncIdleMs: 5,
       },
@@ -64,7 +64,7 @@ describe('repair', () => {
     )
     expect(reset.sort()).toEqual(['branch', 'syncIdleMs'])
     expect(config.vaultPath).toBe('/elsewhere')
-    expect(config.project).toBe('ada')
+    expect(config.profiles).toEqual({ '/elsewhere': 'ada' })
     expect(config.branch).toBe(defaults.branch)
     expect(config.syncIdleMs).toBe(defaults.syncIdleMs)
   })

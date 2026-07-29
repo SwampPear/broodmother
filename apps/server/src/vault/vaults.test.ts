@@ -78,7 +78,11 @@ describe('createVault', () => {
       home,
     )
 
-    expect(vault).toEqual({ name: 'docs', path: path.join(home, 'docs') })
+    expect(vault).toEqual({
+      name: 'docs',
+      path: path.join(home, 'docs'),
+      profile: profile.name,
+    })
     expect(await readFile(path.join(vault.path, 'Overview.md'), 'utf8')).toBe(
       '# Overview\n',
     )

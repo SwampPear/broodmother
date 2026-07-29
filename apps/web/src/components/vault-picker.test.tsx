@@ -20,8 +20,8 @@ it('lists every folder in the vault home as a vault', async () => {
     createMockClient({
       home: '/Users/you/.broodmother',
       vaults: [
-        { name: 'notes', path: '/Users/you/.broodmother/notes' },
-        { name: 'handbook', path: '/Users/you/.broodmother/handbook' },
+        { name: 'notes', path: '/Users/you/.broodmother/notes', profile: 'you' },
+        { name: 'handbook', path: '/Users/you/.broodmother/handbook', profile: 'you' },
       ],
     }),
   )
@@ -33,7 +33,7 @@ it('lists every folder in the vault home as a vault', async () => {
 it('opens the vault that was clicked', async () => {
   const client = await show(
     createMockClient({
-      vaults: [{ name: 'notes', path: '/Users/you/.broodmother/notes' }],
+      vaults: [{ name: 'notes', path: '/Users/you/.broodmother/notes', profile: 'you' }],
     }),
   )
 
@@ -72,7 +72,7 @@ it('closes after a vault is chosen', async () => {
   const onClose = vi.fn()
   await show(
     createMockClient({
-      vaults: [{ name: 'notes', path: '/Users/you/.broodmother/notes' }],
+      vaults: [{ name: 'notes', path: '/Users/you/.broodmother/notes', profile: 'you' }],
     }),
     onClose,
   )

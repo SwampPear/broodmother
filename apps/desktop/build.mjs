@@ -11,7 +11,7 @@ const root = resolve(here, '../..')
 const dist = join(here, 'dist')
 const runtime = join(dist, 'runtime')
 
-const bundle = (entry, outfile, external) =>
+const bundle = (entry, outfile, { external = [], plugins = [] } = {}) =>
   build({
     entryPoints: [join(here, 'src', entry)],
     outfile,
@@ -20,26 +20,39 @@ const bundle = (entry, outfile, external) =>
     format: 'cjs',
     target: 'node22',
     external,
+    plugins,
     logLevel: 'warning',
   })
+
+/**
+ * The pty is a native binary, so it cannot be bundled — and it cannot be left to Node's
+ * resolver either, because electron-builder drops any `node_modules` it is handed as a
+ * resource. It ships as a plain directory beside the bundle, reached by a relative require
+ * the resolver never sees. The platform package looks for its own `.node` and spawn-helper
+ * relative to itself, so copying the whole thing keeps it working.
+ */
+const PTY = `node-pty-darwin-${process.arch}`
+const ptyBesideTheBundle = {
+  name: 'pty-beside-the-bundle',
+  setup: (esbuild) =>
+    esbuild.onResolve({ filter: /^@lydell\/node-pty$/ }, () => ({
+      path: './pty/lib/index.js',
+      external: true,
+    })),
+}
 
 await rm(dist, { recursive: true, force: true })
 await mkdir(runtime, { recursive: true })
 
-await bundle('main.ts', join(dist, 'main.cjs'), ['electron'])
+await bundle('main.ts', join(dist, 'main.cjs'), { external: ['electron'] })
 await cp(join(here, 'src/loading.html'), join(dist, 'loading.html'))
 
-// The pty is a native binary; bundling it would mean inlining a `.node` file, so it stays
-// a require against the copy below.
-await bundle('server.ts', join(runtime, 'server/index.cjs'), ['@lydell/node-pty'])
-for (const pkg of ['node-pty', `node-pty-darwin-${process.arch}`])
-  await cp(
-    join(root, 'node_modules/@lydell', pkg),
-    join(runtime, 'node_modules/@lydell', pkg),
-    {
-      recursive: true,
-    },
-  )
+await bundle('server.ts', join(runtime, 'server/index.cjs'), {
+  plugins: [ptyBesideTheBundle],
+})
+await cp(join(root, 'node_modules/@lydell', PTY), join(runtime, 'server/pty'), {
+  recursive: true,
+})
 
 execFileSync('npm', ['run', 'build', '-w', '@broodmother/web'], {
   cwd: root,
