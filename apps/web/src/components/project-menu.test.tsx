@@ -1,18 +1,18 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, it, vi } from 'vitest'
-import type { Profile, Project } from '@mother/shared'
+import type { Profile, Project } from '@broodmother/shared'
 import { ProjectMenu } from './project-menu'
 
 const projects: Project[] = [
-  { name: 'Work', path: '/Users/you/.mother/Work', profile: 'ada' },
-  { name: 'Personal', path: '/Users/you/.mother/Personal', profile: null },
+  { name: 'Work', path: '/Users/you/.broodmother/Work', profile: 'ada' },
+  { name: 'Personal', path: '/Users/you/.broodmother/Personal', profile: null },
 ]
 
 const profiles: Profile[] = [
   {
     name: 'ada',
-    path: '/Users/you/.mother/profiles/ada.json',
+    path: '/Users/you/.broodmother/profiles/ada.json',
     presenceColor: '#c084fc',
     gitAuthor: { name: 'Ada Lovelace', email: 'ada@example.com' },
     sshKeyPath: '~/.ssh/id_work',
@@ -20,7 +20,7 @@ const profiles: Profile[] = [
   },
   {
     name: 'grace',
-    path: '/Users/you/.mother/profiles/grace.json',
+    path: '/Users/you/.broodmother/profiles/grace.json',
     presenceColor: '#34d399',
     gitAuthor: { name: 'Grace Hopper', email: 'grace@example.com' },
     sshKeyPath: null,
@@ -142,7 +142,7 @@ it('deletes only after the folder it is about to remove has been named', async (
   await userEvent.click(screen.getByRole('menuitem', { name: /Delete project/ }))
 
   const dialog = await screen.findByRole('dialog', { name: 'Delete Personal?' })
-  expect(dialog).toHaveTextContent('/Users/you/.mother/Personal')
+  expect(dialog).toHaveTextContent('/Users/you/.broodmother/Personal')
   expect(onDelete).not.toHaveBeenCalled()
 
   await userEvent.click(screen.getByRole('button', { name: 'delete project' }))

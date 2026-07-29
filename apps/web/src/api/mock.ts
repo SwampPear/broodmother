@@ -3,7 +3,7 @@ import type {
   ApiResponse,
   ApiRoute,
   Identity,
-  MotherConfig,
+  BroodmotherConfig,
   Profile,
   Project,
   ServerMessage,
@@ -12,7 +12,7 @@ import type {
   VaultEntry,
   VaultPath,
   VaultSummary,
-} from '@mother/shared'
+} from '@broodmother/shared'
 import type { ApiClient, Connection } from './client'
 
 export interface MockClient extends ApiClient {
@@ -30,9 +30,9 @@ const seedDocs: Record<VaultPath, string> = {
     '# Roadmap\n\n1. Write it down\n2. Share it\n3. Keep it current\n',
 }
 
-const seedConfig: MotherConfig = {
+const seedConfig: BroodmotherConfig = {
   project: 'acme',
-  vaultPath: '/Users/you/.mother/acme/handbook',
+  vaultPath: '/Users/you/.broodmother/acme/handbook',
   remoteUrl: 'git@github.com:you/handbook.git',
   branch: 'main',
   syncEnabled: true,
@@ -41,7 +41,7 @@ const seedConfig: MotherConfig = {
 
 const seedProfile: Profile = {
   name: 'you',
-  path: '/Users/you/.mother/profiles/you.json',
+  path: '/Users/you/.broodmother/profiles/you.json',
   presenceColor: '#c084fc',
   gitAuthor: { name: 'You', email: 'you@example.com' },
   sshKeyPath: null,
@@ -50,7 +50,7 @@ const seedProfile: Profile = {
 
 const seedProject: Project = {
   name: 'acme',
-  path: '/Users/you/.mother/acme',
+  path: '/Users/you/.broodmother/acme',
   profile: 'you',
 }
 
@@ -77,7 +77,7 @@ function tree(paths: VaultPath[]): VaultEntry[] {
 export function createMockClient(
   seed: {
     docs?: Record<VaultPath, string>
-    config?: MotherConfig
+    config?: BroodmotherConfig
     sync?: SyncStatus
     home?: string
     vaults?: VaultSummary[]
@@ -87,7 +87,7 @@ export function createMockClient(
   } = {},
 ): MockClient {
   const docs = { ...seedDocs, ...seed.docs }
-  const home = seed.home ?? '/Users/you/.mother'
+  const home = seed.home ?? '/Users/you/.broodmother'
   const profiles: Profile[] = seed.profiles ?? [seedProfile]
   const projects: Project[] = seed.projects ?? [seedProject]
   let active: Project | null =

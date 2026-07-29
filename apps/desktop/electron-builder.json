@@ -1,0 +1,22 @@
+{
+  "appId": "com.broodmother.app",
+  "productName": "broodmother",
+  "copyright": "MIT",
+  "directories": { "output": "release", "buildResources": "build" },
+  "files": ["dist/main.cjs", "dist/loading.html"],
+  "extraResources": [{ "from": "dist/runtime", "to": "runtime" }],
+  "npmRebuild": false,
+  "mac": {
+    "category": "public.app-category.productivity",
+    "icon": "build/icon.icns",
+    "target": [{ "target": "dmg", "arch": ["arm64"] }],
+    "identity": null
+  },
+  "dmg": {
+    "title": "broodmother",
+    "contents": [
+      { "x": 140, "y": 180, "type": "file" },
+      { "x": 400, "y": 180, "type": "link", "path": "/Applications" }
+    ]
+  }
+}

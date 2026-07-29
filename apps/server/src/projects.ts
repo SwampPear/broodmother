@@ -1,8 +1,8 @@
 import { mkdir, readFile, readdir, rm } from 'node:fs/promises'
 import path from 'node:path'
 import { z } from 'zod'
-import type { Project } from '@mother/shared'
-import { PROFILES_DIR, motherHome } from './profiles'
+import type { Project } from '@broodmother/shared'
+import { PROFILES_DIR, broodmotherHome } from './profiles'
 import { atomicWrite } from './vault/atomic'
 import { nameProblem } from './vault/paths'
 
@@ -34,7 +34,7 @@ async function profileOf(dir: string): Promise<string | null> {
 }
 
 /** Every plain directory in the home is a project, bar the one the profiles live in. */
-export async function listProjects(home = motherHome()): Promise<Project[]> {
+export async function listProjects(home = broodmotherHome()): Promise<Project[]> {
   await mkdir(home, { recursive: true })
   const entries = await readdir(home, { withFileTypes: true })
   const projects = await Promise.all(
@@ -55,7 +55,7 @@ export async function listProjects(home = motherHome()): Promise<Project[]> {
 
 export async function findProject(
   name: string,
-  home = motherHome(),
+  home = broodmotherHome(),
 ): Promise<Project | null> {
   const projects = await listProjects(home)
   return projects.find((project) => project.name === name) ?? null
@@ -75,7 +75,7 @@ export async function setProjectProfile(
 export async function createProject(
   name: string,
   profile: string | null,
-  home = motherHome(),
+  home = broodmotherHome(),
 ): Promise<Project> {
   assertProjectName(name)
   await mkdir(home, { recursive: true })
@@ -93,7 +93,10 @@ export async function createProject(
  * than from the name, so what is removed is always a folder in the home and never whatever
  * a `../` in the name would have reached.
  */
-export async function deleteProject(name: string, home = motherHome()): Promise<void> {
+export async function deleteProject(
+  name: string,
+  home = broodmotherHome(),
+): Promise<void> {
   const project = await findProject(name, home)
   if (!project) throw new ProjectError(`no project named "${name}"`)
   await rm(project.path, { recursive: true, force: true })

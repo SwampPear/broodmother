@@ -2,7 +2,7 @@ import os from 'node:os'
 import path from 'node:path'
 import WebSocket from 'ws'
 import { afterAll, describe, expect, it } from 'vitest'
-import type { TerminalClientMessage, TerminalServerMessage } from '@mother/shared'
+import type { TerminalClientMessage, TerminalServerMessage } from '@broodmother/shared'
 import { createProfile } from '../profiles'
 import { createProject } from '../projects'
 import { cleanup, delay, tempDir, until } from '../test/fixtures'
@@ -63,8 +63,8 @@ describe('terminals', () => {
     const shell = await open(handle)
     await until(() => handle.context.terminals.count === 1)
 
-    shell.send({ type: 'input', data: 'echo mother-$((1 + 0))\r' })
-    await until(() => shell.output().includes('mother-1\r\n'))
+    shell.send({ type: 'input', data: 'echo broodmother-$((1 + 0))\r' })
+    await until(() => shell.output().includes('broodmother-1\r\n'))
   })
 
   it('starts the shell in the project you are working in', async () => {

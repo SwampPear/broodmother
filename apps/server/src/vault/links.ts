@@ -1,4 +1,4 @@
-import type { Backlink, VaultPath } from '@mother/shared'
+import type { Backlink, VaultPath } from '@broodmother/shared'
 import type { Vault } from './vault'
 
 export interface DocLink {

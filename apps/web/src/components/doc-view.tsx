@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import type { VaultEvent } from '@mother/shared'
+import type { VaultEvent } from '@broodmother/shared'
 import { Editor } from '../editor'
 import { useApp } from '../state'
 
@@ -25,7 +25,7 @@ export function DocView({ path }: { path: string }) {
       .catch((cause: Error) => setError(cause.message))
   }, [app.client, path])
 
-  // A write mother did not make — Obsidian, a shell, a sync pull — is the truth about the
+  // A write broodmother did not make — Obsidian, a shell, a sync pull — is the truth about the
   // file, so the open copy follows it. Typing that has not reached disk yet wins, because
   // adopting mid-keystroke throws away what is being typed; that edit lands on top a moment
   // later, which is the last-write-wins the app already had.

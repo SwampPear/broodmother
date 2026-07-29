@@ -6,13 +6,13 @@ frozen, so these are requests, not changes.
 ## 1. The web app cannot build a `RoomId`
 
 `RoomId` is documented as `${repoId}/${vaultPath}`, and nothing the web app can read tells
-it what `repoId` is — `MotherConfig` has no such field and `GET /api/config` returns only the
+it what `repoId` is — `BroodmotherConfig` has no such field and `GET /api/config` returns only the
 config. Right now `join` sends `room: path` and the app treats whatever `room` comes back on
 `ServerMessage.session` as authoritative.
 
 Either is fine:
 
-- add `repoId: string` to `MotherConfig` (or to the `GET /api/config` response), or
+- add `repoId: string` to `BroodmotherConfig` (or to the `GET /api/config` response), or
 - let the server qualify the room itself — `ClientMessage.join` already carries `path`, so
   the server can ignore the client's `room` and echo the real `RoomId` back on the first
   `session` message.

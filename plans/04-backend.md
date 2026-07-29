@@ -15,7 +15,7 @@ argument so you're not blocked on it.
 1. **Hono on `@hono/node-server`, bound to loopback only.** Not `0.0.0.0` — there's no
    auth and full read/write access to the vault, so binding to a network interface would
    hand the whole vault to anyone on the same wifi.
-2. **Vault** — list (skipping `.git`, `.mother`, gitignored), read, write, move, delete,
+2. **Vault** — list (skipping `.git`, `.broodmother`, gitignored), read, write, move, delete,
    attachments. Two things that matter more than they look:
    - **Reject any path that escapes the root** after resolution, symlinks included. Paths
      arrive from a browser; this is the only place that boundary exists.
@@ -31,7 +31,7 @@ argument so you're not blocked on it.
    messages from changed paths (`docs: update Handbook/Overview`). **Conflicts latch:**
    stop all automatic syncing until explicitly cleared, and never guess a resolution.
    Distinguish offline from diverged — collapsing them makes the status line lie.
-6. **Config** — `.mother/config.json` validated with Zod. Defaults complete enough that first
+6. **Config** — `.broodmother/config.json` validated with Zod. Defaults complete enough that first
    run works with no setup. On a malformed file, reset the bad fields, keep the good ones,
    and report what was reset; refusing to start would strand you with no UI to fix it in.
    Reject remotes with embedded credentials.

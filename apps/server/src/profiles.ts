@@ -2,7 +2,7 @@ import { mkdir, readFile, readdir } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { z } from 'zod'
-import type { Identity, Profile } from '@mother/shared'
+import type { Identity, Profile } from '@broodmother/shared'
 import { atomicWrite } from './vault/atomic'
 import { nameProblem } from './vault/paths'
 
@@ -23,11 +23,11 @@ export const identitySchema = z.object({
   claudeConfigDir: credential,
 })
 
-export function motherHome(): string {
-  return process.env.MOTHER_HOME ?? path.join(os.homedir(), '.mother')
+export function broodmotherHome(): string {
+  return process.env.BROODMOTHER_HOME ?? path.join(os.homedir(), '.broodmother')
 }
 
-export const profilesDir = (home = motherHome()) => path.join(home, PROFILES_DIR)
+export const profilesDir = (home = broodmotherHome()) => path.join(home, PROFILES_DIR)
 
 const profileFile = (home: string, name: string) =>
   path.join(profilesDir(home), `${name}.json`)
@@ -68,7 +68,7 @@ async function identityOf(file: string, name: string): Promise<Identity> {
 }
 
 /** Every `.json` in the profiles folder is a profile — drop one in and it is picked up. */
-export async function listProfiles(home = motherHome()): Promise<Profile[]> {
+export async function listProfiles(home = broodmotherHome()): Promise<Profile[]> {
   const dir = profilesDir(home)
   await mkdir(dir, { recursive: true })
   const entries = await readdir(dir, { withFileTypes: true })
@@ -89,7 +89,7 @@ export async function listProfiles(home = motherHome()): Promise<Profile[]> {
 
 export async function findProfile(
   name: string,
-  home = motherHome(),
+  home = broodmotherHome(),
 ): Promise<Profile | null> {
   const profiles = await listProfiles(home)
   return profiles.find((profile) => profile.name === name) ?? null
@@ -105,7 +105,7 @@ export async function writeIdentity(
 
 export async function createProfile(
   { name, ...identity }: { name: string } & Identity,
-  home = motherHome(),
+  home = broodmotherHome(),
 ): Promise<Profile> {
   assertProfileName(name)
   await mkdir(profilesDir(home), { recursive: true })

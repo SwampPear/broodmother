@@ -5,7 +5,7 @@ export interface GitAuthor {
 
 /**
  * Who you commit and show up as, and the credentials you do it with. A profile is a file in
- * `~/.mother/profiles/` — the file name is the profile's name — and it belongs to the
+ * `~/.broodmother/profiles/` — the file name is the profile's name — and it belongs to the
  * machine rather than to any one project, so the same identity serves every project that
  * selects it.
  */
@@ -24,7 +24,7 @@ export interface Profile {
 export type Identity = Omit<Profile, 'name' | 'path'>
 
 /**
- * Where you work. A project is a folder in `~/.mother/` — the folder name is the project's
+ * Where you work. A project is a folder in `~/.broodmother/` — the folder name is the project's
  * name, `project.json` inside it names the profile it works as, and its vaults are the
  * folders beside that file. Renaming a project is renaming the folder.
  */
@@ -35,7 +35,7 @@ export interface Project {
   profile: string | null
 }
 
-export interface MotherConfig {
+export interface BroodmotherConfig {
   /** Name of the active project folder, or null until the first one is set up. */
   project: string | null
   /** Absolute path to the vault working tree, or null when no vault is open yet. */

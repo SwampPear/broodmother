@@ -1,4 +1,9 @@
-import type { GitAuthor, MotherConfig, SyncStatus, VaultPath } from '@mother/shared'
+import type {
+  GitAuthor,
+  BroodmotherConfig,
+  SyncStatus,
+  VaultPath,
+} from '@broodmother/shared'
 import type { Git } from './git'
 
 export function commitMessage(paths: readonly VaultPath[]): string {
@@ -19,7 +24,7 @@ export function commitMessage(paths: readonly VaultPath[]): string {
 
 export interface SyncDeps {
   git: () => Git | null
-  config: () => MotherConfig
+  config: () => BroodmotherConfig
   /** Null until a profile exists: a commit needs someone to commit as. */
   author: () => GitAuthor | null
   onStatus: (status: SyncStatus) => void

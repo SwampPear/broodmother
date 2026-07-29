@@ -1,7 +1,7 @@
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
-import type { VaultEvent } from '@mother/shared'
+import type { VaultEvent } from '@broodmother/shared'
 import { cleanup, delay, tempDir, until } from '../test/fixtures'
 import { Vault } from './vault'
 import { VaultWatcher } from './watcher'
@@ -51,8 +51,8 @@ describe('VaultWatcher', () => {
   it('ignores dotted paths and coalesces a burst into one event', async () => {
     const w = await watching()
     try {
-      await mkdir(path.join(w.root, '.mother'), { recursive: true })
-      await writeFile(path.join(w.root, '.mother/config.json'), '{}')
+      await mkdir(path.join(w.root, '.broodmother'), { recursive: true })
+      await writeFile(path.join(w.root, '.broodmother/config.json'), '{}')
       for (const contents of ['a', 'b', 'c'])
         await writeFile(path.join(w.root, 'burst.md'), contents)
       await until(() => w.events.length > 0)

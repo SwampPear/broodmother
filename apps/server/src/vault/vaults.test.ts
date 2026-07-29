@@ -1,7 +1,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
-import type { Profile } from '@mother/shared'
+import type { Profile } from '@broodmother/shared'
 import { bareRemote, cleanup, git, tempDir } from '../test/fixtures'
 import { Git } from '../git/git'
 import { VaultError, assertVaultName, createVault, listVaults } from './vaults'
@@ -99,7 +99,7 @@ describe('createVault', () => {
     expect(await repo.remoteUrl()).toBe(remote)
     expect((await repo.status()).changed).toEqual([])
     const log = await git(vault.path, 'log', '--oneline')
-    expect(log.stdout).toContain('mother: create vault fresh')
+    expect(log.stdout).toContain('broodmother: create vault fresh')
     expect(await readFile(path.join(vault.path, 'README.md'), 'utf8')).toContain(
       '# fresh',
     )

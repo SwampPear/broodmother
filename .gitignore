@@ -1,7 +1,22 @@
+# dependencies
 node_modules/
+
+# build output
 .next/
-next-env.d.ts
 dist/
+release/
+next-env.d.ts
 *.tsbuildinfo
-.mother/
+public/downloads/
+
+# local data
+.broodmother/
+example-vault/
+.env
+
+# agent config
+.agents/
+.claude/
+
+# os
 .DS_Store

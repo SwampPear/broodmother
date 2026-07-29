@@ -1,7 +1,7 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, it, vi } from 'vitest'
-import type { VaultEntry } from '@mother/shared'
+import type { VaultEntry } from '@broodmother/shared'
 import { FileTree, filePaths } from './file-tree'
 
 const entries: VaultEntry[] = [

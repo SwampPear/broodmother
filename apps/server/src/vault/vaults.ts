@@ -1,6 +1,6 @@
 import { mkdir, readdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import type { Profile, VaultSummary } from '@mother/shared'
+import type { Profile, VaultSummary } from '@broodmother/shared'
 import { Git, classifyRemoteError } from '../git/git'
 import { nameProblem } from './paths'
 
@@ -67,10 +67,10 @@ export async function createVault(
   await git.run(['remote', 'add', 'origin', remoteUrl])
   await writeFile(
     path.join(target, 'README.md'),
-    `# ${name}\n\nA mother vault. Markdown on disk, git for history.\n`,
+    `# ${name}\n\nA broodmother vault. Markdown on disk, git for history.\n`,
   )
   await git.stageAll()
-  const commit = await git.commit(`mother: create vault ${name}`, profile.gitAuthor)
+  const commit = await git.commit(`broodmother: create vault ${name}`, profile.gitAuthor)
   if (!commit.ok) throw new VaultError(commit.message)
   return { name, path: target }
 }

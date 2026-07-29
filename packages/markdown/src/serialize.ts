@@ -9,7 +9,7 @@ import type {
   OrderedListAttrs,
   TaskItemAttrs,
   WikiLinkAttrs,
-} from '@mother/shared'
+} from '@broodmother/shared'
 import { parse, sortMarks } from './parse'
 
 export function serialize(doc: DocNode): string {

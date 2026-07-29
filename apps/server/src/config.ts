@@ -1,7 +1,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { z } from 'zod'
-import type { MotherConfig } from '@mother/shared'
+import type { BroodmotherConfig } from '@broodmother/shared'
 import { atomicWrite } from './vault/atomic'
 
 /** `https://token@host` is a credential in a file we sync; `ssh://git@host` is a username. */
@@ -30,7 +30,7 @@ export const configSchema = z.object({
  * Identity is deliberately absent: who you are lives in a profile on disk, and inventing
  * one from the OS user would be a profile nobody chose.
  */
-export function defaultConfig(vaultPath: string | null): MotherConfig {
+export function defaultConfig(vaultPath: string | null): BroodmotherConfig {
   return {
     project: null,
     vaultPath,
@@ -42,7 +42,7 @@ export function defaultConfig(vaultPath: string | null): MotherConfig {
 }
 
 export interface LoadedConfig {
-  config: MotherConfig
+  config: BroodmotherConfig
   reset: string[]
 }
 
@@ -50,7 +50,7 @@ export interface LoadedConfig {
  * Field-by-field so a malformed file costs only the bad fields — refusing to start would
  * strand the user with no UI to fix the file in.
  */
-export function repair(raw: unknown, defaults: MotherConfig): LoadedConfig {
+export function repair(raw: unknown, defaults: BroodmotherConfig): LoadedConfig {
   const source =
     raw && typeof raw === 'object' && !Array.isArray(raw)
       ? (raw as Record<string, unknown>)
@@ -64,21 +64,21 @@ export function repair(raw: unknown, defaults: MotherConfig): LoadedConfig {
     if (result.success) config[key] = result.data
     else if (!reset.includes(key)) reset.push(key)
   }
-  return { config: config as unknown as MotherConfig, reset }
+  return { config: config as unknown as BroodmotherConfig, reset }
 }
 
 export class ConfigStore {
-  private current: MotherConfig
+  private current: BroodmotherConfig
   private lastReset: string[] = []
 
   constructor(
     readonly file: string,
-    defaults: MotherConfig,
+    defaults: BroodmotherConfig,
   ) {
     this.current = defaults
   }
 
-  get config(): MotherConfig {
+  get config(): BroodmotherConfig {
     return this.current
   }
 
@@ -103,7 +103,7 @@ export class ConfigStore {
     return loaded
   }
 
-  async save(config: MotherConfig): Promise<MotherConfig> {
+  async save(config: BroodmotherConfig): Promise<BroodmotherConfig> {
     const dir = path.dirname(this.file)
     await mkdir(dir, { recursive: true })
     // App state, not vault content: a self-ignoring directory keeps the sync loop from

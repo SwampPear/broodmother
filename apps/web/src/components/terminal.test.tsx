@@ -108,7 +108,7 @@ it('opens a second shell on the claude tab and runs claude in it', async () => {
   const run = written.find((data) => data.startsWith('claude'))
   expect(run).toContain('--dangerously-skip-permissions')
   expect(run).toContain(
-    '--append-system-prompt "You are running in a terminal inside mother',
+    '--append-system-prompt "You are running in a terminal inside broodmother',
   )
   expect(run?.endsWith('"\r')).toBe(true)
   expect(disposed).not.toHaveBeenCalled()

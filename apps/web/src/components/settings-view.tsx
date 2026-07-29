@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import type { Identity, MotherConfig } from '@mother/shared'
+import type { Identity, BroodmotherConfig } from '@broodmother/shared'
 import { opalFrom } from '../colors'
 import { useApp } from '../state'
 
@@ -9,7 +9,7 @@ type TestResult = { ok: boolean; message: string } | null
 
 export function SettingsView() {
   const app = useApp()
-  const [draft, setDraft] = useState<MotherConfig | null>(null)
+  const [draft, setDraft] = useState<BroodmotherConfig | null>(null)
   const [identity, setIdentity] = useState<Identity | null>(null)
   const [remoteResult, setRemoteResult] = useState<TestResult>(null)
 
@@ -26,7 +26,7 @@ export function SettingsView() {
 
   if (!draft) return <div className="empty" />
 
-  const set = <K extends keyof MotherConfig>(key: K, value: MotherConfig[K]) =>
+  const set = <K extends keyof BroodmotherConfig>(key: K, value: BroodmotherConfig[K]) =>
     setDraft({ ...draft, [key]: value })
 
   const testRemote = async () =>
@@ -55,7 +55,7 @@ export function SettingsView() {
       )}
 
       {/* Both are settled when the vault is created and read from it afterwards: retyping
-          them here would point mother at a folder it never cloned. */}
+          them here would point broodmother at a folder it never cloned. */}
       <label>
         Vault path
         <input value={draft.vaultPath ?? ''} readOnly />

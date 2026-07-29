@@ -1,7 +1,7 @@
 import MarkdownIt from 'markdown-it'
 import type Token from 'markdown-it/lib/token.mjs'
-import type { DocNode, HeadingLevel, Mark, WikiLinkAttrs } from '@mother/shared'
-import { SCHEMA_SPEC } from '@mother/shared'
+import type { DocNode, HeadingLevel, Mark, WikiLinkAttrs } from '@broodmother/shared'
+import { SCHEMA_SPEC } from '@broodmother/shared'
 import { math } from './math'
 import { wikilink } from './wikilink'
 

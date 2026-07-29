@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, type KeyboardEvent, type ReactNode } from 'react'
-import type { VaultEntry, VaultPath } from '@mother/shared'
+import type { VaultEntry, VaultPath } from '@broodmother/shared'
 import { ContextMenu } from './context-menu'
 import { Icon, displayName, fileTag, iconFor } from './icons'
 import type { MenuSection } from './menu'

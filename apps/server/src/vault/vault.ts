@@ -1,6 +1,6 @@
 import { mkdir, readFile, readdir, rename, rm, stat } from 'node:fs/promises'
 import path from 'node:path'
-import type { VaultEntry, VaultPath } from '@mother/shared'
+import type { VaultEntry, VaultPath } from '@broodmother/shared'
 import { atomicWrite } from './atomic'
 import { Git } from '../git/git'
 import { PathError, normalize, resolveInVault } from './paths'

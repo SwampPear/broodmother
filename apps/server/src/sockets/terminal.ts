@@ -1,6 +1,6 @@
 import { spawn, type IPty } from '@lydell/node-pty'
 import type { WebSocket } from 'ws'
-import type { TerminalClientMessage, TerminalServerMessage } from '@mother/shared'
+import type { TerminalClientMessage, TerminalServerMessage } from '@broodmother/shared'
 
 const SHELL = process.env.SHELL ?? '/bin/bash'
 const TERM = 'xterm-256color'

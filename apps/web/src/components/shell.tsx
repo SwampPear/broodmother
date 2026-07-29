@@ -9,7 +9,7 @@ import {
   type CSSProperties,
   type ReactNode,
 } from 'react'
-import type { VaultPath } from '@mother/shared'
+import type { VaultPath } from '@broodmother/shared'
 import { useApp } from '../state'
 import { FileTree, filePaths, type TreeCommand } from './file-tree'
 import {
@@ -30,8 +30,8 @@ import { TerminalPanel, TerminalTab } from './terminal'
 import type { TerminalKind } from './terminal-kinds'
 import { VaultPicker } from './vault-picker'
 
-const SIDEBAR_KEY = 'mother.sidebar'
-const TERMINAL_KEY = 'mother.terminal'
+const SIDEBAR_KEY = 'broodmother.sidebar'
+const TERMINAL_KEY = 'broodmother.terminal'
 
 /** Hidden keeps the shell alive behind ⌘J; closed is a shell that exited. */
 type TerminalState = 'closed' | 'open' | 'hidden'

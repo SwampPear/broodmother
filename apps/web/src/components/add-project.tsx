@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, type CSSProperties, type FormEvent } from 'react'
-import type { Profile } from '@mother/shared'
+import type { Profile } from '@broodmother/shared'
 import { Modal } from './modal'
 
 /**
@@ -22,7 +22,7 @@ export function AddProject({
   existing: string[]
   profiles: Profile[]
   defaultProfile?: string | null
-  /** The mother home, named in the first-run copy so the folder is not a surprise. */
+  /** The broodmother home, named in the first-run copy so the folder is not a surprise. */
   home?: string
   onCreate: (input: { name: string; profile: string }) => void
   onClose?: () => void
@@ -51,8 +51,8 @@ export function AddProject({
       title={first ? 'Your first project' : 'Add a project'}
       description={
         first
-          ? `A project is where your vaults live: a folder in ${home || '~/.mother'}, working as one of your profiles.`
-          : 'A project is a folder in your mother home, and its vaults live inside it. Switching project switches to that project’s vaults.'
+          ? `A project is where your vaults live: a folder in ${home || '~/.broodmother'}, working as one of your profiles.`
+          : 'A project is a folder in your broodmother home, and its vaults live inside it. Switching project switches to that project’s vaults.'
       }
       onClose={onClose}
       footer={

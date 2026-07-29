@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, type FormEvent } from 'react'
-import type { Identity, Profile } from '@mother/shared'
+import type { Identity, Profile } from '@broodmother/shared'
 import { opal, opalFrom } from '../colors'
 
 export interface ProfileDraft extends Identity {

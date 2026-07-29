@@ -2,7 +2,7 @@ import { writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import WebSocket from 'ws'
 import { afterAll, describe, expect, it } from 'vitest'
-import type { ServerMessage } from '@mother/shared'
+import type { ServerMessage } from '@broodmother/shared'
 import { cleanup, tempDir, until } from '../test/fixtures'
 import { type ServerHandle, startServer } from '../index'
 
@@ -54,7 +54,7 @@ describe('relay', () => {
     await until(() => a.messages.some((m) => m.type === 'sync'))
   })
 
-  /* The route above broadcasts its own write. This is the other half: a write mother did not
+  /* The route above broadcasts its own write. This is the other half: a write broodmother did not
      make — a shell, another editor, a sync pull — reaching the app through the watcher, which
      is what lets an open document follow the file. */
   it('pushes a write made behind its back, straight to disk', async () => {

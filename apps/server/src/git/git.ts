@@ -1,5 +1,5 @@
 import { execa } from 'execa'
-import type { GitAuthor, VaultPath } from '@mother/shared'
+import type { GitAuthor, VaultPath } from '@broodmother/shared'
 import { expandHome } from '../profiles'
 
 export interface GitStatus {

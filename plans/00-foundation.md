@@ -19,7 +19,7 @@ Plus the empty shell (directory, `package.json`, `tsconfig.json`, stub `src/inde
 
 ## Deliverables
 
-1. **npm workspaces** — `apps/*` and `packages/*`. TypeScript strict, `@mother/*` path
+1. **npm workspaces** — `apps/*` and `packages/*`. TypeScript strict, `@broodmother/*` path
    aliases, Vitest at the root.
 2. **Scaffolds** — the five shells above, each compiling and empty. For `apps/web`, include
    the Next.js skeleton with all route files (`/`, `/doc/[...path]`, `/settings`) already
@@ -35,14 +35,14 @@ Plus the empty shell (directory, `package.json`, `tsconfig.json`, stub `src/inde
    Anyone running `npm install` later rewrites the lockfile under four other agents.
 4. **`packages/shared`** — types only, one file per domain:
 
-   | File        | Contents                                                                                                      |
-   | ----------- | ------------------------------------------------------------------------------------------------------------- |
-   | `vault.ts`  | `VaultPath` (POSIX, relative to root), `VaultEntry`, `VaultEvent`                                             |
-   | `doc.ts`    | `DocNode`, `Mark`, and **`SCHEMA_SPEC`**                                                                      |
-   | `sync.ts`   | `SyncState` — `idle \| syncing \| conflict \| error \| offline`                                               |
-   | `config.ts` | `MotherConfig` — vault path, remote, branch, sync on/off, relay URL, display name, presence color, git author |
-   | `collab.ts` | `RoomId`, `Peer`, `SessionState` — `solo \| connecting \| live \| divergent`                                  |
-   | `api.ts`    | The web↔server wire: route paths with request/response types, plus the websocket message union                |
+   | File        | Contents                                                                                                           |
+   | ----------- | ------------------------------------------------------------------------------------------------------------------ |
+   | `vault.ts`  | `VaultPath` (POSIX, relative to root), `VaultEntry`, `VaultEvent`                                                  |
+   | `doc.ts`    | `DocNode`, `Mark`, and **`SCHEMA_SPEC`**                                                                           |
+   | `sync.ts`   | `SyncState` — `idle \| syncing \| conflict \| error \| offline`                                                    |
+   | `config.ts` | `BroodmotherConfig` — vault path, remote, branch, sync on/off, relay URL, display name, presence color, git author |
+   | `collab.ts` | `RoomId`, `Peer`, `SessionState` — `solo \| connecting \| live \| divergent`                                       |
+   | `api.ts`    | The web↔server wire: route paths with request/response types, plus the websocket message union                     |
 
 5. **`SCHEMA_SPEC`** — the exact markdown subset, and the most important thing in this
    plan. Nodes: `doc`, `paragraph`, `text`, `heading` (1–4), `bulletList`, `orderedList`,
@@ -55,7 +55,7 @@ Plus the empty shell (directory, `package.json`, `tsconfig.json`, stub `src/inde
 ## Done when
 
 - `npm install && npm test` is green at the root with every package empty.
-- `import type { DocNode } from '@mother/shared'` resolves anywhere.
+- `import type { DocNode } from '@broodmother/shared'` resolves anywhere.
 - The other five plans can start without editing a file you own.
 
 ## Not this plan

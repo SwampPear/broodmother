@@ -2,7 +2,7 @@ import { serve, type ServerType } from '@hono/node-server'
 import type { Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { WebSocketServer, type WebSocket } from 'ws'
-import type { WsRoute } from '@mother/shared'
+import type { WsRoute } from '@broodmother/shared'
 import { createApp } from './app'
 import { AppContext, type ContextOptions } from './context'
 

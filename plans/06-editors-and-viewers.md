@@ -43,7 +43,7 @@ listed here so they land in one commit before parts A–C start:
 export type ViewerId = 'markdown' | 'image' | 'pdf' | 'unsupported'
 export type MarkdownMode = 'live' | 'source' | 'reading'
 
-// packages/shared/src/config.ts — added to MotherConfig
+// packages/shared/src/config.ts — added to BroodmotherConfig
 defaultMarkdownMode: MarkdownMode
 readableLineLength: boolean
 
@@ -181,7 +181,7 @@ Add `@codemirror/state@^6.7`, `@codemirror/view@^6.43`, `@codemirror/language@^6
      wave — it gets its own test file.
 
 3. **Modes.** `live` (default) · `source`, the same buffer with the decoration plugin
-   dropped · `reading`, no editor at all, `render(markdown)` from `@mother/markdown` into
+   dropped · `reading`, no editor at all, `render(markdown)` from `@broodmother/markdown` into
    sanitized HTML. `Cmd+E` toggles editing↔reading; a palette command cycles live↔source.
    Per-path mode is remembered in memory for the session, seeded from
    `config.defaultMarkdownMode`.
@@ -208,7 +208,7 @@ Add `@codemirror/state@^6.7`, `@codemirror/view@^6.43`, `@codemirror/language@^6
    `y-codemirror.next` supplies sync, undo, and remote cursors — `packages/editor/src/collab.ts`
    is a handful of lines.
 
-6. **Typography.** `.mother-markdown` scope in `globals.css`: Inter body at a real heading
+6. **Typography.** `.broodmother-markdown` scope in `globals.css`: Inter body at a real heading
    scale, `--measure: 700px` gated on `config.readableLineLength`, Funnel Display on
    headings per the brand, JetBrains Mono inside code, math, and frontmatter.
 

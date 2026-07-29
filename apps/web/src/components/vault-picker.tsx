@@ -39,7 +39,7 @@ export function VaultPicker({ onClose }: { onClose?: () => void }) {
   return (
     <Modal
       title="Vaults"
-      description={`Every folder in ${app.vaultHome || '~/.mother'} is a vault.`}
+      description={`Every folder in ${app.vaultHome || '~/.broodmother'} is a vault.`}
       onClose={onClose}
       footer={
         <>

@@ -1,5 +1,5 @@
 {
-  "name": "@mother/markdown",
+  "name": "@broodmother/markdown",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -12,6 +12,6 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@mother/shared": "*"
+    "@broodmother/shared": "*"
   }
 }

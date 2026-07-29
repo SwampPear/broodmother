@@ -1,6 +1,6 @@
 'use client'
 
-import type { SyncStatus } from '@mother/shared'
+import type { SyncStatus } from '@broodmother/shared'
 
 function syncLabel(sync: SyncStatus): string {
   switch (sync.state) {

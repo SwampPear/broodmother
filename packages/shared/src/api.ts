@@ -1,4 +1,4 @@
-import type { Identity, MotherConfig, Profile, Project } from './config'
+import type { Identity, BroodmotherConfig, Profile, Project } from './config'
 import type { SyncStatus } from './sync'
 import type { VaultEntry, VaultEvent, VaultPath, VaultSummary } from './vault'
 
@@ -26,11 +26,11 @@ export interface ApiRoutes {
   }
   'POST /api/projects': {
     request: { name: string; profile: string }
-    response: { project: Project; config: MotherConfig }
+    response: { project: Project; config: BroodmotherConfig }
   }
   'POST /api/projects/open': {
     request: { name: string }
-    response: { project: Project; config: MotherConfig }
+    response: { project: Project; config: BroodmotherConfig }
   }
   /** Points the active project at another profile; the name is the folder, so it is not
    *  editable here. */
@@ -42,7 +42,7 @@ export interface ApiRoutes {
    *  back to whatever is left, or to none, which is the first-run state again. */
   'DELETE /api/projects': {
     request: { name: string }
-    response: { active: Project | null; config: MotherConfig }
+    response: { active: Project | null; config: BroodmotherConfig }
   }
   /** `active` is the profile the active project works as — null until both exist. */
   'GET /api/profiles': {
@@ -66,11 +66,11 @@ export interface ApiRoutes {
   /** A vault is always git-backed, so the remote is settled at creation, not after. */
   'POST /api/vaults': {
     request: { name: string; remoteUrl: string; branch: string }
-    response: { vault: VaultSummary; config: MotherConfig }
+    response: { vault: VaultSummary; config: BroodmotherConfig }
   }
   'POST /api/vaults/open': {
     request: { path: string }
-    response: { config: MotherConfig }
+    response: { config: BroodmotherConfig }
   }
   'GET /api/doc': { request: { path: VaultPath }; response: { markdown: string } }
   'PUT /api/doc': {
@@ -89,9 +89,12 @@ export interface ApiRoutes {
   'GET /api/config': {
     request: null
     /** `reset` names fields the server had to repair on a malformed config file. */
-    response: { config: MotherConfig; reset: string[] }
+    response: { config: BroodmotherConfig; reset: string[] }
   }
-  'PUT /api/config': { request: MotherConfig; response: { config: MotherConfig } }
+  'PUT /api/config': {
+    request: BroodmotherConfig
+    response: { config: BroodmotherConfig }
+  }
   'POST /api/config/test-remote': {
     request: { remoteUrl: string; branch: string }
     response: { ok: boolean; message: string }

@@ -1,0 +1,43 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>broodmother</title>
+<style>
+  html {
+    color-scheme: dark;
+  }
+  body {
+    margin: 0;
+    height: 100dvh;
+    display: grid;
+    place-content: center;
+    gap: 0.9rem;
+    justify-items: center;
+    background: #000;
+    color: color-mix(in srgb, #fffeee 45%, transparent);
+    font:
+      400 13px/1.5 ui-monospace,
+      'SF Mono',
+      SFMono-Regular,
+      Menlo,
+      monospace;
+    -webkit-app-region: drag;
+  }
+  .dot {
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 50%;
+    background: #c084fc;
+    animation: pulse 1.4s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%,
+    100% {
+      opacity: 0.25;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
+</style>
+<div class="dot"></div>
+<p>opening your vault</p>

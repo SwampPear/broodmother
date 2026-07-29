@@ -2,12 +2,12 @@ import { mkdir, stat } from 'node:fs/promises'
 import path from 'node:path'
 import type {
   Identity,
-  MotherConfig,
+  BroodmotherConfig,
   Profile,
   Project,
   ServerMessage,
   VaultEvent,
-} from '@mother/shared'
+} from '@broodmother/shared'
 import { ConfigStore, defaultConfig } from './config'
 import { Git } from './git/git'
 import { LinkIndex } from './vault/links'
@@ -17,7 +17,7 @@ import {
   expandHome,
   findProfile,
   listProfiles,
-  motherHome,
+  broodmotherHome,
   writeIdentity,
 } from './profiles'
 import {
@@ -79,7 +79,7 @@ export class AppContext {
   }
 
   static async create(options: ContextOptions = {}): Promise<AppContext> {
-    const home = options.home ?? motherHome()
+    const home = options.home ?? broodmotherHome()
     await mkdir(home, { recursive: true })
 
     // App state lives alongside the projects rather than inside one, so the choice of
@@ -109,7 +109,7 @@ export class AppContext {
     return context
   }
 
-  get config(): MotherConfig {
+  get config(): BroodmotherConfig {
     return this.store.config
   }
 
@@ -151,7 +151,7 @@ export class AppContext {
     this.relay.broadcast(message)
   }
 
-  async setConfig(config: MotherConfig): Promise<MotherConfig> {
+  async setConfig(config: BroodmotherConfig): Promise<BroodmotherConfig> {
     const previous = this.config.vaultPath
     if (config.project !== this.config.project) {
       this.activeProject = await resolveProject(config.project, this.home)
@@ -256,7 +256,7 @@ export class AppContext {
   }
 
   /** Opens a vault, adopting the remote that the vault's own clone already points at. */
-  async openVault(vaultPath: string): Promise<MotherConfig> {
+  async openVault(vaultPath: string): Promise<BroodmotherConfig> {
     await this.useVault(vaultPath)
     const remoteUrl = (await this.current?.git.remoteUrl()) ?? null
     return this.store.save({
@@ -337,7 +337,7 @@ async function resolveVault(
   remembered: string | null,
   project: Project | null,
 ): Promise<string | null> {
-  const explicit = root ?? process.env.MOTHER_VAULT
+  const explicit = root ?? process.env.BROODMOTHER_VAULT
   if (explicit) return path.resolve(explicit)
   if (remembered && (await exists(remembered))) return remembered
   if (!project) return null

@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import type { Context } from 'hono'
 import { z } from 'zod'
-import type { MotherConfig } from '@mother/shared'
+import type { BroodmotherConfig } from '@broodmother/shared'
 import { configSchema } from './config'
 import { NoProfileError, NoProjectError, NoVaultError, type AppContext } from './context'
 import { ProfileError, identitySchema } from './profiles'
@@ -169,7 +169,7 @@ export function createApp(ctx: AppContext): Hono {
   app.get('/api/config', (c) => c.json({ config: ctx.config, reset: ctx.store.reset }))
 
   app.put('/api/config', async (c) => {
-    const config = (await parse(c, configSchema)) as MotherConfig
+    const config = (await parse(c, configSchema)) as BroodmotherConfig
     return c.json({ config: await ctx.setConfig(config) })
   })
 

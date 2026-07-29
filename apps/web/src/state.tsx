@@ -10,7 +10,7 @@ import {
 } from 'react'
 import type {
   Identity,
-  MotherConfig,
+  BroodmotherConfig,
   Profile,
   Project,
   SyncStatus,
@@ -18,7 +18,7 @@ import type {
   VaultEvent,
   VaultPath,
   VaultSummary,
-} from '@mother/shared'
+} from '@broodmother/shared'
 import { api, type ApiClient, type Connection } from './api'
 
 export interface App {
@@ -28,7 +28,7 @@ export interface App {
   /** False until config, projects and profiles have answered — the shell gates on all
    *  three, and rendering before they land shows the home screen for a frame. */
   ready: boolean
-  config: MotherConfig | null
+  config: BroodmotherConfig | null
   configReset: string[]
   /** Null until a project exists — the app asks where you work before anything else. */
   project: Project | null
@@ -36,7 +36,7 @@ export interface App {
   /** The profile the active project works as, null until one is picked. */
   profile: Profile | null
   profiles: Profile[]
-  /** The mother home: the folder the projects are folders in. */
+  /** The broodmother home: the folder the projects are folders in. */
   home: string
   vaults: VaultSummary[]
   vaultHome: string
@@ -51,7 +51,7 @@ export interface App {
   save(path: VaultPath, markdown: string): Promise<void>
   syncNow(): Promise<void>
   clearConflict(): Promise<void>
-  saveConfig(config: MotherConfig): Promise<void>
+  saveConfig(config: BroodmotherConfig): Promise<void>
   createVault(input: { name: string; remoteUrl: string; branch: string }): Promise<void>
   openVault(path: string): Promise<void>
   addProject(input: { name: string; profile: string }): Promise<void>
@@ -87,7 +87,7 @@ export function AppProvider({
   const [entries, setEntries] = useState<VaultEntry[]>([])
   const [sync, setSync] = useState<SyncStatus>(idleSync)
   const [ready, setReady] = useState(false)
-  const [config, setConfig] = useState<MotherConfig | null>(null)
+  const [config, setConfig] = useState<BroodmotherConfig | null>(null)
   const [configReset, setConfigReset] = useState<string[]>([])
   const [vaults, setVaults] = useState<VaultSummary[]>([])
   const [vaultHome, setVaultHome] = useState('')

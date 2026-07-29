@@ -1,6 +1,6 @@
 import { watch, type FSWatcher } from 'chokidar'
 import path from 'node:path'
-import type { VaultEvent } from '@mother/shared'
+import type { VaultEvent } from '@broodmother/shared'
 import { toVaultPath } from './paths'
 
 const DEBOUNCE_MS = 100

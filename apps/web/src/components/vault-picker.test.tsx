@@ -18,10 +18,10 @@ async function show(client: MockClient = createMockClient(), onClose?: () => voi
 it('lists every folder in the vault home as a vault', async () => {
   await show(
     createMockClient({
-      home: '/Users/you/.mother',
+      home: '/Users/you/.broodmother',
       vaults: [
-        { name: 'notes', path: '/Users/you/.mother/notes' },
-        { name: 'handbook', path: '/Users/you/.mother/handbook' },
+        { name: 'notes', path: '/Users/you/.broodmother/notes' },
+        { name: 'handbook', path: '/Users/you/.broodmother/handbook' },
       ],
     }),
   )
@@ -32,13 +32,15 @@ it('lists every folder in the vault home as a vault', async () => {
 
 it('opens the vault that was clicked', async () => {
   const client = await show(
-    createMockClient({ vaults: [{ name: 'notes', path: '/Users/you/.mother/notes' }] }),
+    createMockClient({
+      vaults: [{ name: 'notes', path: '/Users/you/.broodmother/notes' }],
+    }),
   )
 
   await userEvent.click(screen.getByRole('button', { name: /notes/ }))
 
   const { config } = await client.request('GET /api/config', null)
-  expect(config.vaultPath).toBe('/Users/you/.mother/notes')
+  expect(config.vaultPath).toBe('/Users/you/.broodmother/notes')
 })
 
 it('creates a vault with the git remote it was given', async () => {
@@ -69,7 +71,9 @@ it('will not submit without a remote, because a vault is always git-backed', asy
 it('closes after a vault is chosen', async () => {
   const onClose = vi.fn()
   await show(
-    createMockClient({ vaults: [{ name: 'notes', path: '/Users/you/.mother/notes' }] }),
+    createMockClient({
+      vaults: [{ name: 'notes', path: '/Users/you/.broodmother/notes' }],
+    }),
     onClose,
   )
 

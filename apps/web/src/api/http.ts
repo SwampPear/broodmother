@@ -7,7 +7,7 @@ import type {
   TerminalClientMessage,
   TerminalServerMessage,
   WsRoute,
-} from '@mother/shared'
+} from '@broodmother/shared'
 import type { ApiClient, Connection } from './client'
 
 const base = process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:3001'

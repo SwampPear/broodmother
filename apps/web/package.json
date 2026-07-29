@@ -1,5 +1,5 @@
 {
-  "name": "@mother/web",
+  "name": "@broodmother/web",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -10,8 +10,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@mother/shared": "*",
-    "@mother/editor": "*",
-    "@mother/markdown": "*"
+    "@broodmother/shared": "*",
+    "@broodmother/editor": "*",
+    "@broodmother/markdown": "*"
   }
 }

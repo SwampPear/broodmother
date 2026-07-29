@@ -1,4 +1,4 @@
-import { isInlineMath } from '@mother/shared'
+import { isInlineMath } from '@broodmother/shared'
 import { WidgetType } from '@codemirror/view'
 import katex from 'katex'
 

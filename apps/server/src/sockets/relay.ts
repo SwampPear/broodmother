@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import type { WebSocket } from 'ws'
-import type { ServerMessage } from '@mother/shared'
+import type { ServerMessage } from '@broodmother/shared'
 
 interface Connection {
   id: string

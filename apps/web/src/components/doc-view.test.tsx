@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, it, vi } from 'vitest'
-import type { ApiRoute } from '@mother/shared'
+import type { ApiRoute } from '@broodmother/shared'
 import { createMockClient, type MockClient } from '../api/mock'
 import { AppProvider } from '../state'
 import { DocView } from './doc-view'

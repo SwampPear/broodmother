@@ -1,7 +1,7 @@
 import { writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
-import type { MotherConfig, SyncStatus } from '@mother/shared'
+import type { BroodmotherConfig, SyncStatus } from '@broodmother/shared'
 import { defaultConfig } from '../config'
 import { bareRemote, cleanup, cloneOf, git, tempDir } from '../test/fixtures'
 import { Git } from './git'
@@ -9,7 +9,7 @@ import { SyncLoop, commitMessage } from './sync'
 
 afterAll(cleanup)
 
-async function harness(overrides: Partial<MotherConfig> = {}) {
+async function harness(overrides: Partial<BroodmotherConfig> = {}) {
   const remote = await bareRemote()
   const dir = await cloneOf(remote)
   await writeFile(path.join(dir, 'index.md'), '# index\n')
@@ -19,7 +19,7 @@ async function harness(overrides: Partial<MotherConfig> = {}) {
 
   let clock = 1_000_000
   const statuses: SyncStatus[] = []
-  const config: MotherConfig = {
+  const config: BroodmotherConfig = {
     ...defaultConfig(dir),
     remoteUrl: remote,
     branch: 'main',

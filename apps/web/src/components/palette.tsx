@@ -2,7 +2,7 @@
 
 import fuzzysort from 'fuzzysort'
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
-import type { VaultPath } from '@mother/shared'
+import type { VaultPath } from '@broodmother/shared'
 
 export interface FlowCtx {
   paths: VaultPath[]

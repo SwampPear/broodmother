@@ -15,7 +15,7 @@ afterAll(cleanup)
 
 async function store(contents?: string) {
   const root = await tempDir()
-  const file = path.join(root, '.mother/config.json')
+  const file = path.join(root, '.broodmother/config.json')
   if (contents !== undefined) {
     await mkdir(path.dirname(file), { recursive: true })
     await writeFile(file, contents)
@@ -100,7 +100,7 @@ describe('ConfigStore', () => {
     expect(config.syncIdleMs).toBe(10_000)
   })
 
-  it('keeps .mother out of git so the sync loop never commits app state', async () => {
+  it('keeps .broodmother out of git so the sync loop never commits app state', async () => {
     const configStore = await store()
     const vault = path.dirname(path.dirname(configStore.file))
     await initRepo(vault)

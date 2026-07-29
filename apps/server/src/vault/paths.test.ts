@@ -26,7 +26,7 @@ describe('normalize', () => {
     'notes\\..\\..\\x',
     'a\0b',
     '.git/config',
-    '.mother/config.json',
+    '.broodmother/config.json',
     'nested/.git/hooks/pre-commit',
   ])('rejects %j', (input) => {
     expect(() => normalize(input)).toThrow(PathError)

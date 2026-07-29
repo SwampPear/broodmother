@@ -10,10 +10,10 @@ afterAll(cleanup)
 async function seed(): Promise<Vault> {
   const root = await tempDir()
   await mkdir(path.join(root, 'Handbook/Overview'), { recursive: true })
-  await mkdir(path.join(root, '.mother'), { recursive: true })
+  await mkdir(path.join(root, '.broodmother'), { recursive: true })
   await writeFile(path.join(root, 'index.md'), '# index')
   await writeFile(path.join(root, 'Handbook/Overview/Overview.md'), '# wp')
-  await writeFile(path.join(root, '.mother/config.json'), '{}')
+  await writeFile(path.join(root, '.broodmother/config.json'), '{}')
   return new Vault(root)
 }
 

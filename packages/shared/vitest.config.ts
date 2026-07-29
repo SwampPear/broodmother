@@ -2,7 +2,7 @@ import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
   test: {
-    name: '@mother/shared',
+    name: '@broodmother/shared',
     environment: 'node',
     passWithNoTests: true,
   },

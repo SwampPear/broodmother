@@ -3,7 +3,7 @@ import { Shell } from '../src/components/shell'
 import { AppProvider } from '../src/state'
 import './globals.css'
 
-export const metadata = { title: 'Mother' }
+export const metadata = { title: 'Broodmother' }
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (

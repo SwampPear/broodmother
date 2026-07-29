@@ -4,7 +4,7 @@ import { defineConfig } from 'vitest/config'
 export default defineConfig({
   plugins: [react()],
   test: {
-    name: '@mother/editor',
+    name: '@broodmother/editor',
     environment: 'jsdom',
     setupFiles: ['./src/__tests__/setup.ts'],
     passWithNoTests: true,

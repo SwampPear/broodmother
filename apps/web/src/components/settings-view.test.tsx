@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, it } from 'vitest'
-import type { ApiRoute } from '@mother/shared'
+import type { ApiRoute } from '@broodmother/shared'
 import { createMockClient } from '../api/mock'
 import { AppProvider } from '../state'
 import { SettingsView } from './settings-view'
@@ -44,7 +44,7 @@ it('reports failure when there is no remote to test', async () => {
   )
 })
 
-/* Pointing the config at a folder mother never cloned is not a setting, it is a break. */
+/* Pointing the config at a folder broodmother never cloned is not a setting, it is a break. */
 it('will not let the vault folder or its remote be retyped', async () => {
   await show()
   expect(screen.getByLabelText('Vault path')).toHaveAttribute('readonly')
@@ -71,7 +71,7 @@ it('opens the palette on the colour the profile already is', async () => {
       profiles: [
         {
           name: 'you',
-          path: '/Users/you/.mother/profiles/you.json',
+          path: '/Users/you/.broodmother/profiles/you.json',
           presenceColor: '#fbbf24',
           gitAuthor: { name: 'You', email: 'you@example.com' },
           sshKeyPath: null,

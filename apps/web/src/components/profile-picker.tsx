@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useState, type CSSProperties } from 'react'
-import type { Profile } from '@mother/shared'
+import type { Profile } from '@broodmother/shared'
 import { opal } from '../colors'
 import { Modal } from './modal'
 import { ProfileForm, type ProfileDraft, type ProfileFormState } from './profile-form'
@@ -22,7 +22,7 @@ export function ProfilePicker({
   onClose,
 }: {
   existing: Profile[]
-  /** The mother home, named in the first-run copy so the folder is not a surprise. */
+  /** The broodmother home, named in the first-run copy so the folder is not a surprise. */
   home?: string
   /** The profile in use, so the row that is already yours reads as chosen. */
   current?: string | null
@@ -44,10 +44,10 @@ export function ProfilePicker({
 
   return (
     <Modal
-      title={first ? 'Welcome to mother' : 'Profiles'}
+      title={first ? 'Welcome to broodmother' : 'Profiles'}
       description={
         first
-          ? `A profile is who you commit as, and the credentials you do it with. It is a file in ${home || '~/.mother'}/profiles, and every project picks one.`
+          ? `A profile is who you commit as, and the credentials you do it with. It is a file in ${home || '~/.broodmother'}/profiles, and every project picks one.`
           : 'A profile is who you commit as. It lives on this machine rather than in a project, so the same one serves every project that picks it.'
       }
       onClose={onClose}

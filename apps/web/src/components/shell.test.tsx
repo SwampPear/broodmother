@@ -40,7 +40,7 @@ const show = (client: MockClient) => render(tree(client))
 it('opens on an empty home with the setup over it, not on a screen of its own', async () => {
   show(createMockClient({ profiles: [], projects: [], active: null }))
 
-  await screen.findByRole('dialog', { name: 'Welcome to mother' })
+  await screen.findByRole('dialog', { name: 'Welcome to broodmother' })
   expect(screen.getByText('the vault')).toBeInTheDocument()
 })
 
@@ -66,7 +66,7 @@ it('asks for a vault once there is a project but nothing to open', async () => {
 it('walks a fresh machine from the first profile to the first project', async () => {
   const client = createMockClient({ profiles: [], projects: [], active: null })
   show(client)
-  await screen.findByRole('dialog', { name: 'Welcome to mother' })
+  await screen.findByRole('dialog', { name: 'Welcome to broodmother' })
 
   await userEvent.type(screen.getByLabelText('Profile name'), 'ada')
   await userEvent.type(screen.getByLabelText('Git author email'), 'ada@example.com')
@@ -81,7 +81,7 @@ it('walks a fresh machine from the first profile to the first project', async ()
 
   const { projects } = await client.request('GET /api/projects', null)
   expect(projects).toEqual([
-    { name: 'acme', path: '/Users/you/.mother/acme', profile: 'ada' },
+    { name: 'acme', path: '/Users/you/.broodmother/acme', profile: 'ada' },
   ])
 })
 
@@ -90,9 +90,13 @@ it('walks a fresh machine from the first profile to the first project', async ()
 it('asks who you are in a project that names no profile', async () => {
   const client = createMockClient({
     projects: [
-      { name: 'dropped-in', path: '/Users/you/.mother/dropped-in', profile: null },
+      { name: 'dropped-in', path: '/Users/you/.broodmother/dropped-in', profile: null },
     ],
-    active: { name: 'dropped-in', path: '/Users/you/.mother/dropped-in', profile: null },
+    active: {
+      name: 'dropped-in',
+      path: '/Users/you/.broodmother/dropped-in',
+      profile: null,
+    },
   })
   show(client)
 

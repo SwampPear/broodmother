@@ -1,7 +1,7 @@
 'use client'
 
-import { Editor as MarkdownEditor, type EditMode } from '@mother/editor'
-import { render } from '@mother/markdown'
+import { Editor as MarkdownEditor, type EditMode } from '@broodmother/editor'
+import { render } from '@broodmother/markdown'
 import { useEffect, useMemo, useState } from 'react'
 
 export type Mode = EditMode | 'reading'
@@ -34,13 +34,13 @@ export function Editor({
   if (mode === 'reading')
     return (
       <div
-        className="mother-editor mother-reading"
+        className="broodmother-editor broodmother-reading"
         dangerouslySetInnerHTML={{ __html: html }}
       />
     )
 
   return (
-    <div className="mother-editor">
+    <div className="broodmother-editor">
       <MarkdownEditor markdown={markdown} onChange={onChange} mode={mode} />
     </div>
   )

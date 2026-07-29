@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import type { Profile, Project } from '@mother/shared'
+import type { Profile, Project } from '@broodmother/shared'
 import { Icon } from './icons'
 import { Menu, type MenuSection } from './menu'
 import { Modal } from './modal'
@@ -163,8 +163,8 @@ export function ProjectMenu({
         >
           <p className="hint">
             A project is a folder, so this is the folder going away. Moving it out of your
-            mother home by hand does the same thing without deleting anything. The profile
-            it worked as is a file of its own and stays where it is.
+            broodmother home by hand does the same thing without deleting anything. The
+            profile it worked as is a file of its own and stays where it is.
           </p>
         </Modal>
       )}

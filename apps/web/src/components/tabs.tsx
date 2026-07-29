@@ -1,6 +1,6 @@
 'use client'
 
-import type { VaultPath } from '@mother/shared'
+import type { VaultPath } from '@broodmother/shared'
 import { Icon, displayName, iconFor } from './icons'
 import { Menu, type MenuAction } from './menu'
 import { TERMINALS, type TerminalKind } from './terminal-kinds'

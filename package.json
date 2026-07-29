@@ -1,13 +1,13 @@
 {
-  "name": "@mother/root",
+  "name": "@broodmother/root",
   "private": true,
   "version": "0.1.0",
-  "description": "A local-first documentation app — a cross between Obsidian and Notion",
+  "description": "Local markdown optimized for collaboration between people and agents.",
   "license": "MIT",
-  "homepage": "https://github.com/Proprium-Bioscience/mother#readme",
+  "homepage": "https://github.com/SwampPear/broodmother#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Proprium-Bioscience/mother.git"
+    "url": "git+https://github.com/SwampPear/broodmother.git"
   },
   "keywords": [
     "markdown",
@@ -27,15 +27,13 @@
   ],
   "scripts": {
     "setup": "npm install && npm link",
-    "dev": "concurrently -k -n server,web -c magenta,cyan \"npm run dev -w @mother/server\" \"npm run dev -w @mother/web\"",
-    "start": "concurrently -k -n server,web -c magenta,cyan \"npm run start -w @mother/server\" \"npm run start -w @mother/web\"",
-    "build": "npm run typecheck && npm run build -w @mother/web",
+    "dev": "concurrently -k -n server,web -c magenta,cyan \"npm run dev -w @broodmother/server\" \"npm run dev -w @broodmother/web\"",
+    "start": "concurrently -k -n server,web -c magenta,cyan \"npm run start -w @broodmother/server\" \"npm run start -w @broodmother/web\"",
+    "build": "npm run typecheck && npm run build -w @broodmother/web",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "check": "npm run typecheck && npm run test",
-    "format": "prettier --write .",
-    "build:npm": "node scripts/build-npm.mjs",
-    "publish:npm": "npm run build:npm && npm publish ./dist-npm"
+    "format": "prettier --write ."
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^7.0.0",
@@ -86,6 +84,6 @@
     "zod": "^4.4.3"
   },
   "bin": {
-    "mother": "./scripts/mother.mjs"
+    "broodmother": "./scripts/broodmother.mjs"
   }
 }

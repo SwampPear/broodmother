@@ -237,7 +237,7 @@ function Session({
       />
       {active && lost && (
         <p className="terminal-lost" role="status">
-          disconnected from the backend — is <code>mother</code> still running?
+          disconnected from the backend — is <code>broodmother</code> still running?
         </p>
       )}
     </>

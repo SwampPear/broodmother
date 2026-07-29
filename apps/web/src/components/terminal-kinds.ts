@@ -14,9 +14,9 @@ export type TerminalKind = 'shell' | 'claude'
  * few lines, and free of quotes and $ so it survives the shell as a single argument.
  */
 const BRIEF =
-  'You are running in a terminal inside mother, a documentation app: a local ' +
-  'website (not a desktop app) that edits a git repo of markdown as an Obsidian-style ' +
-  'vault. The working directory is a mother project and each folder in it is a vault, a ' +
+  'You are running in a terminal inside broodmother, a documentation app: a desktop app ' +
+  'that edits a git repo of markdown as a vault of linked notes. The working directory ' +
+  'is a broodmother project and each folder in it is a vault, a ' +
   'clone of a docs repo. The .md files on disk are the source of truth and git is the ' +
   'history, so edit the files directly rather than reaching for a database or an API. ' +
   'Someone may have the same file open in the browser editor while you work: it follows ' +

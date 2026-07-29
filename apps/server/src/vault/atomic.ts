@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto'
 import { mkdir, open, rename, unlink } from 'node:fs/promises'
 import path from 'node:path'
 
-export const TEMP_SUFFIX = '.mothertmp'
+export const TEMP_SUFFIX = '.broodmothertmp'
 
 /**
  * Temp file, fsync, rename. The editor saves on a 500ms debounce, so a crash lands

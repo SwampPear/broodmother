@@ -351,9 +351,19 @@ body[data-resizing='panel'] {
 /* ---------- sidebar ---------- */
 
 /* The trigger is the whole row, so its hover and open states fill it instead of starting
-   partway across. It owns the head's padding, which is why this outranks .tree-head. */
+   partway across. It owns the head's padding, which is why this outranks .tree-head.
+
+   In the desktop app the window's close/minimise/zoom buttons land on exactly this row,
+   so the app declares how much room they take and the project starts after them. The gap
+   they leave is the one part of the row that is not a button, which makes it the place to
+   drag the window by. In a browser tab the variable is unset and neither applies. */
 .tree-head.project {
-  padding: 0;
+  padding: 0 0 0 var(--titlebar-inset, 0px);
+  -webkit-app-region: drag;
+}
+
+.project-anchor {
+  -webkit-app-region: no-drag;
 }
 
 .tree-head .logo {
@@ -753,7 +763,7 @@ body[data-resizing='panel'] {
 
 /* ---------- editor ---------- */
 
-.mother-editor {
+.broodmother-editor {
   font-size: 1rem;
   line-height: 1.7;
 }
@@ -903,40 +913,40 @@ body[data-resizing='panel'] {
 
 /* ---------- reading mode ---------- */
 
-.mother-reading h1,
-.mother-reading h2,
-.mother-reading h3 {
+.broodmother-reading h1,
+.broodmother-reading h2,
+.broodmother-reading h3 {
   font-family: var(--display);
 }
 
-.mother-reading pre {
+.broodmother-reading pre {
   padding: 0.75rem 0.9rem;
   background: var(--raised);
   overflow-x: auto;
 }
 
-.mother-reading code {
+.broodmother-reading code {
   font-family: var(--mono);
 }
 
-.mother-reading blockquote {
+.broodmother-reading blockquote {
   margin: 0.8rem 0;
   padding-left: 0.9rem;
   border-left: 2px solid var(--line);
   color: var(--muted);
 }
 
-.mother-reading table {
+.broodmother-reading table {
   border-collapse: collapse;
 }
 
-.mother-reading th,
-.mother-reading td {
+.broodmother-reading th,
+.broodmother-reading td {
   border: 1px solid var(--line);
   padding: 0.3rem 0.6rem;
 }
 
-.mother-reading img {
+.broodmother-reading img {
   max-width: 100%;
 }
 

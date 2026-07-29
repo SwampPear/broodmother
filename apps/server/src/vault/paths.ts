@@ -1,10 +1,10 @@
 import { realpath } from 'node:fs/promises'
 import path from 'node:path'
-import type { VaultPath } from '@mother/shared'
+import type { VaultPath } from '@broodmother/shared'
 
 export class PathError extends Error {}
 
-const RESERVED = new Set(['.git', '.mother'])
+const RESERVED = new Set(['.git', '.broodmother'])
 
 export function normalize(input: string): VaultPath {
   if (typeof input !== 'string' || input.length === 0) throw new PathError('empty path')
@@ -25,7 +25,7 @@ export function normalize(input: string): VaultPath {
 
 /**
  * A project is a folder, a vault is a folder, a profile is a file — every name typed into
- * mother becomes one of the two. Returns the complaint to put after the noun, or null if
+ * broodmother becomes one of the two. Returns the complaint to put after the noun, or null if
  * the name is fine.
  */
 export function nameProblem(name: string): string | null {

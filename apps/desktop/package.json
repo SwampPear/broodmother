@@ -1,0 +1,18 @@
+{
+  "name": "@broodmother/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "broodmother as a Mac app — the backend and the site, packaged and launched together",
+  "author": "broodmother",
+  "type": "module",
+  "main": "dist/main.cjs",
+  "scripts": {
+    "build": "node build.mjs",
+    "dist": "node build.mjs && electron-builder --mac --config electron-builder.json",
+    "start": "node build.mjs && electron dist/main.cjs"
+  },
+  "devDependencies": {
+    "electron": "43.2.0",
+    "electron-builder": "26.15.3"
+  }
+}

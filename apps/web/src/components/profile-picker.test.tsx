@@ -1,13 +1,13 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, it, vi } from 'vitest'
-import type { Profile } from '@mother/shared'
+import type { Profile } from '@broodmother/shared'
 import { ProfilePicker } from './profile-picker'
 
 const existing: Profile[] = [
   {
     name: 'Work',
-    path: '/Users/you/.mother/profiles/Work.json',
+    path: '/Users/you/.broodmother/profiles/Work.json',
     presenceColor: '#c084fc',
     gitAuthor: { name: 'Ada Lovelace', email: 'ada@example.com' },
     sshKeyPath: null,
@@ -159,7 +159,7 @@ it('is the welcome when there is nobody on the machine yet', () => {
   const onCreate = vi.fn()
   render(<ProfilePicker existing={[]} onCreate={onCreate} onSelect={vi.fn()} />)
 
-  expect(screen.getByRole('dialog')).toHaveAccessibleName('Welcome to mother')
+  expect(screen.getByRole('dialog')).toHaveAccessibleName('Welcome to broodmother')
   expect(screen.queryByRole('button', { name: 'cancel' })).not.toBeInTheDocument()
 })
 
