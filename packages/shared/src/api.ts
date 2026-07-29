@@ -1,11 +1,4 @@
 import type { Identity, MotherConfig, Profile, Project } from './config'
-import type {
-  DivergenceChoice,
-  DivergenceReport,
-  Peer,
-  RoomId,
-  SessionState,
-} from './collab'
 import type { SyncStatus } from './sync'
 import type { VaultEntry, VaultEvent, VaultPath, VaultSummary } from './vault'
 
@@ -103,10 +96,6 @@ export interface ApiRoutes {
     request: { remoteUrl: string; branch: string }
     response: { ok: boolean; message: string }
   }
-  'POST /api/config/test-relay': {
-    request: { relayUrl: string }
-    response: { ok: boolean; message: string }
-  }
   'GET /api/sync': { request: null; response: SyncStatus }
   'POST /api/sync/now': { request: null; response: SyncStatus }
   'POST /api/sync/clear-conflict': { request: null; response: SyncStatus }
@@ -122,19 +111,8 @@ export interface ApiError {
 
 export type WsRoute = '/ws' | '/terminal'
 
-/** `update` and `awareness` are base64-encoded Yjs payloads — the socket carries JSON. */
-export type ClientMessage =
-  | { type: 'join'; room: RoomId; path: VaultPath }
-  | { type: 'leave'; room: RoomId }
-  | { type: 'resolveDivergence'; room: RoomId; choice: DivergenceChoice }
-  | { type: 'update'; room: RoomId; update: string }
-  | { type: 'awareness'; room: RoomId; awareness: string }
-
+/** `/ws` is server-to-client only: the vault and the sync loop report, nobody asks. */
 export type ServerMessage =
   | { type: 'vault'; event: VaultEvent }
   | { type: 'sync'; status: SyncStatus }
-  | { type: 'session'; room: RoomId; state: SessionState; peers: Peer[] }
-  | { type: 'divergence'; report: DivergenceReport }
-  | { type: 'update'; room: RoomId; update: string }
-  | { type: 'awareness'; room: RoomId; awareness: string }
   | { type: 'error'; message: string }

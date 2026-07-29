@@ -10,7 +10,6 @@ export interface FlowCtx {
   create(path: VaultPath): void
   move(from: VaultPath, to: VaultPath): void
   remove(path: VaultPath): void
-  share(path: VaultPath): void
   syncNow(): void
   settings(): void
   toggleTerminal(): void
@@ -85,10 +84,6 @@ function commands(ctx: FlowCtx): { label: string; run: () => Flow | null }[] {
     {
       label: 'Delete document',
       run: () => pick('Delete', (path) => deleteFlow(ctx, path)),
-    },
-    {
-      label: 'Share document',
-      run: () => pick('Share', (path) => done(() => ctx.share(path))),
     },
     { label: 'Toggle terminal', run: () => done(() => ctx.toggleTerminal()) },
     { label: 'Sync now', run: () => done(() => ctx.syncNow()) },

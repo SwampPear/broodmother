@@ -12,7 +12,6 @@ export function SettingsView() {
   const [draft, setDraft] = useState<MotherConfig | null>(null)
   const [identity, setIdentity] = useState<Identity | null>(null)
   const [remoteResult, setRemoteResult] = useState<TestResult>(null)
-  const [relayResult, setRelayResult] = useState<TestResult>(null)
 
   useEffect(() => setDraft(app.config), [app.config])
   useEffect(() => {
@@ -35,13 +34,6 @@ export function SettingsView() {
       await app.client.request('POST /api/config/test-remote', {
         remoteUrl: draft.remoteUrl ?? '',
         branch: draft.branch,
-      }),
-    )
-
-  const testRelay = async () =>
-    setRelayResult(
-      await app.client.request('POST /api/config/test-relay', {
-        relayUrl: draft.relayUrl ?? '',
       }),
     )
 
@@ -115,25 +107,6 @@ export function SettingsView() {
           onChange={(event) => set('syncIdleMs', Number(event.target.value))}
         />
       </label>
-
-      <label>
-        Relay URL
-        <input
-          value={draft.relayUrl ?? ''}
-          onChange={(event) => set('relayUrl', event.target.value || null)}
-        />
-      </label>
-
-      <div className="row">
-        <button type="button" onClick={() => void testRelay()}>
-          test relay
-        </button>
-        {relayResult && (
-          <span className="result" data-ok={relayResult.ok}>
-            {relayResult.ok ? 'ok' : 'failed'} · {relayResult.message}
-          </span>
-        )}
-      </div>
 
       <button type="submit">save</button>
 

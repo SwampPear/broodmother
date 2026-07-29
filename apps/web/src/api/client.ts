@@ -2,13 +2,12 @@ import type {
   ApiRequest,
   ApiResponse,
   ApiRoute,
-  ClientMessage,
   ServerMessage,
   TerminalClientMessage,
   TerminalServerMessage,
 } from '@mother/shared'
 
-export interface Connection<Message = ClientMessage> {
+export interface Connection<Message = never> {
   send(message: Message): void
   close(): void
 }

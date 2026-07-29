@@ -130,8 +130,8 @@ it('refuses an email that is not one', async () => {
   expect(onCreate).not.toHaveBeenCalled()
 })
 
-/* Presence colours are how you tell each other apart in a live session; handing out one
-   already taken defeats the point. */
+/* A profile's colour is how you tell profiles apart at a glance; handing out one already
+   taken defeats the point. */
 it('offers a colour nobody is using yet', async () => {
   const { onCreate } = show()
   await fill('Personal', 'you@example.com')

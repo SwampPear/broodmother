@@ -37,7 +37,6 @@ const seedConfig: MotherConfig = {
   branch: 'main',
   syncEnabled: true,
   syncIdleMs: 10_000,
-  relayUrl: 'ws://127.0.0.1:3001/ws',
 }
 
 const seedProfile: Profile = {
@@ -230,10 +229,6 @@ export function createMockClient(
         ok: Boolean(remoteUrl),
         message: remoteUrl ? `reached ${remoteUrl} (${branch})` : 'no remote configured',
       }),
-      'POST /api/config/test-relay': async ({ relayUrl }) => ({
-        ok: Boolean(relayUrl),
-        message: relayUrl ? `relay answered at ${relayUrl}` : 'no relay configured',
-      }),
       'GET /api/sync': async () => sync,
       'POST /api/sync/now': async () => {
         sync = { state: 'idle', lastSyncedAt: Date.now(), conflicted: [], message: null }
@@ -256,27 +251,7 @@ export function createMockClient(
     connect(onMessage): Connection {
       listener = onMessage
       return {
-        send(message) {
-          if (message.type === 'join') {
-            emit({ type: 'session', room: message.room, state: 'connecting', peers: [] })
-            emit({
-              type: 'session',
-              room: message.room,
-              state: 'live',
-              peers: [
-                {
-                  id: 'you',
-                  displayName: profileOf(active)?.name ?? 'someone',
-                  color: profileOf(active)?.presenceColor ?? '#8fb8d8',
-                  selection: null,
-                },
-              ],
-            })
-          }
-          if (message.type === 'leave') {
-            emit({ type: 'session', room: message.room, state: 'solo', peers: [] })
-          }
-        },
+        send() {},
         close() {
           listener = null
         },

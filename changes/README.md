@@ -28,7 +28,9 @@ here should be corrected.
 | [13](13-tabs-and-profile-options.md)   | Tabs, delete a profile              | `d4ca390`                               |
 | [14](14-projects-and-profiles.md)      | Projects, profiles with keys        | `d4ca390`                               |
 | [15](15-open-documents-follow-disk.md) | Documents follow disk, terminal fix | `d4ca390`                               |
-| [16](16-open-source-scrub.md)          | Open-source scrub                   | _uncommitted_                           |
+| [16](16-open-source-scrub.md)          | Open-source scrub                   | `92224ac`                               |
+| [17](17-npm-package.md)                | npm package, publish workflow       | _uncommitted_                           |
+| [18](18-collaboration-off-main.md)     | Collaboration off main              | _uncommitted_                           |
 
 ## Where it landed
 
@@ -37,21 +39,20 @@ touching disk, and a Next.js site on `127.0.0.1:3000`. Markdown files in a git w
 are the source of truth.
 
 ```
-apps/server    hono, vault, git sync, config, backlinks, relay, pty     167 tests
-apps/web       next app, shell, tabs, tree, palette, settings, terminal 124 tests
+apps/server    hono, vault, git sync, config, backlinks, sockets, pty  157 tests
+apps/web       next app, shell, tabs, tree, palette, settings, terminal 113 tests
 packages/markdown   markdown ⇄ document codec                           95 tests
 packages/editor     codemirror editor, live preview, math               27 tests
-packages/collab     yjs session, divergence, disk flush                 19 tests
 packages/shared     types every side shares                             —
 ```
 
-432 tests across 35 files. `npm run check` runs the typechecker and the suite;
+392 tests across 32 files. `npm run check` runs the typechecker and the suite;
 `npm run build` also builds the site.
 
 ## Still open
 
-- Live collaboration is built and tested as a package but is **not wired into the app** —
-  editing is local-only.
+- Live collaboration is not built. A first pass lives on the `collab` branch and was cut
+  from `main` in [18](18-collaboration-off-main.md); editing is local-only.
 - `apps/server/CONTRACT-REQUEST.md` and `apps/web/CONTRACT-REQUEST.md` record contract gaps
   raised during the build. The config-location ambiguity in the server's §5 was resolved by
   [08](08-vault-home.md); the `repoId` question is still open.

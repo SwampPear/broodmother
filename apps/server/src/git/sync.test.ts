@@ -18,7 +18,6 @@ async function harness(overrides: Partial<MotherConfig> = {}) {
   await git(dir, 'push', 'origin', 'HEAD:main')
 
   let clock = 1_000_000
-  let live = false
   const statuses: SyncStatus[] = []
   const config: MotherConfig = {
     ...defaultConfig(dir),
@@ -31,7 +30,6 @@ async function harness(overrides: Partial<MotherConfig> = {}) {
     git: () => new Git(dir),
     config: () => config,
     author: () => ({ name: 'Test', email: 'test@localhost' }),
-    hasLiveSession: () => live,
     onStatus: (status) => statuses.push(status),
     now: () => clock,
   })
@@ -43,7 +41,6 @@ async function harness(overrides: Partial<MotherConfig> = {}) {
     statuses,
     config,
     advance: (ms: number) => (clock += ms),
-    setLive: (value: boolean) => (live = value),
     remoteLog: async () => (await git(remote, 'log', '--oneline')).stdout,
   }
 }
@@ -85,21 +82,6 @@ describe('SyncLoop', () => {
     const status = await h.loop.tick()
     expect(status.state).toBe('idle')
     expect(status.lastSyncedAt).not.toBeNull()
-    expect(await h.remoteLog()).toContain('docs: update note')
-  })
-
-  it('does not sync while a session is live', async () => {
-    const h = await harness()
-    await writeFile(path.join(h.dir, 'note.md'), 'body\n')
-    h.loop.noteEdit()
-    h.advance(60_000)
-    h.setLive(true)
-
-    expect((await h.loop.tick()).state).toBe('idle')
-    expect(await h.remoteLog()).not.toContain('docs: update note')
-
-    h.setLive(false)
-    await h.loop.tick()
     expect(await h.remoteLog()).toContain('docs: update note')
   })
 

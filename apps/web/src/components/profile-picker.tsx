@@ -47,8 +47,8 @@ export function ProfilePicker({
       title={first ? 'Welcome to mother' : 'Profiles'}
       description={
         first
-          ? `A profile is who you commit and collaborate as, and the credentials you do it with. It is a file in ${home || '~/.mother'}/profiles, and every project picks one.`
-          : 'A profile is who you commit and collaborate as. It lives on this machine rather than in a project, so the same one serves every project that picks it.'
+          ? `A profile is who you commit as, and the credentials you do it with. It is a file in ${home || '~/.mother'}/profiles, and every project picks one.`
+          : 'A profile is who you commit as. It lives on this machine rather than in a project, so the same one serves every project that picks it.'
       }
       onClose={onClose}
       footer={

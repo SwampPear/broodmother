@@ -22,14 +22,13 @@ export interface SyncDeps {
   config: () => MotherConfig
   /** Null until a profile exists: a commit needs someone to commit as. */
   author: () => GitAuthor | null
-  hasLiveSession: () => boolean
   onStatus: (status: SyncStatus) => void
   now?: () => number
 }
 
 /**
- * Pull, commit, push once the vault has been quiet for `syncIdleMs` and no session is
- * live. A conflict latches: nothing syncs again until it is explicitly cleared.
+ * Pull, commit, push once the vault has been quiet for `syncIdleMs`. A conflict latches:
+ * nothing syncs again until it is explicitly cleared.
  */
 export class SyncLoop {
   private status: SyncStatus = {
@@ -77,7 +76,7 @@ export class SyncLoop {
     const config = this.deps.config()
     if (this.status.state === 'conflict' || !config.syncEnabled || !config.remoteUrl)
       return this.state
-    if (this.deps.hasLiveSession() || this.lastEditAt === null) return this.state
+    if (this.lastEditAt === null) return this.state
     if (this.now() - this.lastEditAt < config.syncIdleMs) return this.state
     return this.sync()
   }

@@ -225,19 +225,6 @@ describe('config routes', () => {
     })
     expect(missing.body).toMatchObject({ ok: false })
   })
-
-  it('POST /api/config/test-relay connects to a relay', async () => {
-    const { call, handle } = await server()
-    expect(
-      await call('POST', '/api/config/test-relay', {
-        relayUrl: `ws://${HOST}:${handle.port}/ws`,
-      }),
-    ).toEqual({ status: 200, body: { ok: true, message: 'relay reachable' } })
-    const bad = await call('POST', '/api/config/test-relay', {
-      relayUrl: 'http://example.test',
-    })
-    expect(bad.body).toMatchObject({ ok: false })
-  })
 })
 
 describe('sync routes', () => {

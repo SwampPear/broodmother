@@ -3,7 +3,6 @@ import type {
   ApiRequest,
   ApiResponse,
   ApiRoute,
-  ClientMessage,
   ServerMessage,
   TerminalClientMessage,
   TerminalServerMessage,
@@ -59,7 +58,7 @@ export function httpClient(): ApiClient {
       return payload as ApiResponse<R>
     },
 
-    connect: (onMessage) => open<ClientMessage, ServerMessage>('/ws', onMessage),
+    connect: (onMessage) => open<never, ServerMessage>('/ws', onMessage),
 
     terminal: (onMessage, onClose) =>
       open<TerminalClientMessage, TerminalServerMessage>('/terminal', onMessage, onClose),

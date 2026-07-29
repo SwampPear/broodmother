@@ -52,23 +52,17 @@ it('will not let the vault folder or its remote be retyped', async () => {
   expect(screen.getByText(/make a\s+new project/)).toBeInTheDocument()
 })
 
-it('reports a specific result from the relay test', async () => {
-  await show()
-  await userEvent.click(screen.getByRole('button', { name: 'test relay' }))
-  expect(await screen.findByText(/relay answered at/)).toHaveAttribute('data-ok', 'true')
-})
-
 it('names the fields the backend had to reset', async () => {
   const client = createMockClient()
   const request = client.request.bind(client)
   client.request = (async (route: ApiRoute, body: never) => {
     const result = await request(route, body)
     return route === 'GET /api/config'
-      ? { ...result, reset: ['branch', 'relayUrl'] }
+      ? { ...result, reset: ['branch', 'syncIdleMs'] }
       : result
   }) as typeof client.request
   await show(client)
-  expect(screen.getByRole('alert')).toHaveTextContent('branch, relayUrl')
+  expect(screen.getByRole('alert')).toHaveTextContent('branch, syncIdleMs')
 })
 
 it('opens the palette on the colour the profile already is', async () => {

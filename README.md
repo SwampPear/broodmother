@@ -1,7 +1,6 @@
 # mother
 
-**A local-first documentation app — a cross between Obsidian and Notion, with live
-collaborative editing.**
+**A local-first documentation app — a cross between Obsidian and Notion.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D22-brightgreen.svg)](https://nodejs.org)
@@ -13,9 +12,10 @@ against a local clone of a vault repo. Markdown files on disk are the source of 
 is the history and the backup. A config page points it at a remote and it syncs
 automatically.
 
-The one thing Obsidian can't do — and the reason this exists — is **live collaborative
-editing**. Today we export to Google Docs to work on something together and then paste it
-back. That round trip goes away.
+The thing it is being built towards, and the reason it exists, is **live collaborative
+editing** — the one thing Obsidian can't do. Editing something together today means
+exporting to Google Docs and pasting the result back. That round trip is what goes away.
+It is not built yet; see [Planned](#planned).
 
 ## Contents
 
@@ -34,8 +34,7 @@ back. That round trip goes away.
 - **Files, not a database.** Plain `.md` in a plain git repo. Obsidian, `grep`, and any
   editor keep working on the same folder.
 - **Local-first.** Everything works offline. The network is only for sharing.
-- **Small.** One process, one dependency-light UI, no accounts, no server to babysit
-  except a stateless relay.
+- **Small.** One process, one dependency-light UI, no accounts, nothing to babysit.
 - **Keyboard-first.** Dense, monospace, command-palette driven — closer to a CLI than to
   a document suite.
 
@@ -47,7 +46,7 @@ vault/  (git clone on disk)           <-- source of truth
    Hono backend (localhost:3001)  -- the only thing that touches disk
       |     |
       |     +-- git remote          async sync: pull, commit, push
-      |     +-- relay (websocket)   live sync: CRDT updates + presence, nothing stored
+      |     +-- websocket            vault and sync events, pushed to the open tab
       |
    Next.js website (localhost:3000)  -- open in a browser tab
 ```
@@ -63,9 +62,7 @@ the network.
 ## Getting started
 
 ```bash
-git clone git@github.com:you/mother.git
-cd mother
-npm run setup            # install dependencies and put `mother` on your PATH
+npm install -g @mother/cli
 ```
 
 Then run it from anywhere:
@@ -78,7 +75,18 @@ mother ~/path/to/vault   # ... or point it straight at one vault
 Your browser opens at <http://127.0.0.1:3000> once the site is ready. On a fresh machine
 mother asks who you are before anything else, then where you want to work.
 
-From inside this directory, `npm run dev` does the same thing without installing anything
+The package ships the local app — the site and the backend that reads your vault. Live
+collaboration is not in it; see [Planned](#planned).
+
+To run it from a checkout instead — which is how you work on it:
+
+```bash
+git clone git@github.com:you/mother.git
+cd mother
+npm run setup            # install dependencies and put `mother` on your PATH
+```
+
+From inside that directory, `npm run dev` does the same thing without installing anything
 onto your `PATH`.
 
 ### Environment variables
@@ -140,11 +148,10 @@ or set `MOTHER_VAULT`; `MOTHER_HOME` moves the home itself.
 Local editing works end to end: vault tree, open, edit, save to disk, git sync, settings,
 command palette. Files on disk stay the source of truth in both directions — a write from a
 shell, from Obsidian or from a sync pull shows up in the open document, not just in the
-tree. Live collaboration is built and tested as a package but is **not yet wired into the
-app** — editing is currently local-only.
+tree. Editing is local-only: collaboration is not built.
 
-Everything targets one laptop. No deployment, no hosting, no CI — `npm run dev` and a
-browser tab.
+Everything targets one laptop. Nothing is hosted and nothing is deployed — `npm run dev` and
+a browser tab. The only CI is the workflow that publishes the package.
 
 - [plans/](plans/README.md) — six implementation plans, partitioned so they can be built in
   parallel without collisions
@@ -152,8 +159,10 @@ browser tab.
 
 ### Planned
 
-- **Live collaborative editing** — wire the CRDT session in `packages/collab` into the
-  editor: shared cursors, presence, and concurrent edits over the websocket relay
+- **Live collaborative editing** — a CRDT session under the editor: shared cursors,
+  presence, and concurrent edits over a websocket relay. A first pass lives on the
+  [`collab`](../../tree/collab) branch, built and tested but never wired into the app; it
+  was taken off `main` to keep what ships to what works.
 - **Server hosting** — run the relay, and optionally the vault, on a machine everyone can
   reach, so collaboration works beyond one laptop
 
@@ -163,10 +172,9 @@ browser tab.
 
 ```
 apps/
-├── server/     Hono backend — vault I/O, git sync, websocket relay, terminals
+├── server/     Hono backend — vault I/O, git sync, event socket, terminals
 └── web/        Next.js site — the UI you open in a browser tab
 packages/
-├── collab/     CRDT session: Yjs documents, presence, update transport
 ├── editor/     CodeMirror setup, live preview, keymaps
 ├── markdown/   Markdown codec — parse and serialise, round-trip safe
 └── shared/     Types and contracts both sides depend on
@@ -182,6 +190,14 @@ packages/
 | `npm run build`     | Typecheck, then build the site                  |
 | `npm run check`     | Typecheck and test — run this before committing |
 | `npm run format`    | Prettier over everything                        |
+| `npm run build:npm` | Assemble the publishable package in `dist-npm/` |
+
+### Releasing
+
+`@mother/cli` is published by [`.github/workflows/publish.yml`](.github/workflows/publish.yml)
+on a push to main whose root `version` is not on the registry yet. Bump it, commit, push —
+any other push to main is a no-op. The workflow needs an `NPM_TOKEN` secret with publish
+rights on the `@mother` scope. `npm run publish:npm` does the same thing by hand.
 
 ## Contributing
 

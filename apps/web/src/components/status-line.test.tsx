@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import type { Peer, SessionState, SyncStatus } from '@mother/shared'
+import type { SyncStatus } from '@mother/shared'
 import { StatusLine } from './status-line'
 
 const sync = (status: Partial<SyncStatus> = {}): SyncStatus => ({
@@ -12,14 +12,12 @@ const sync = (status: Partial<SyncStatus> = {}): SyncStatus => ({
   ...status,
 })
 
-function show(status: SyncStatus, session: SessionState = 'solo', peers: Peer[] = []) {
+function show(status: SyncStatus) {
   const onClearConflict = vi.fn()
   const onDismissNotice = vi.fn()
   render(
     <StatusLine
       sync={status}
-      session={session}
-      peers={peers}
       notice={null}
       onClearConflict={onClearConflict}
       onDismissNotice={onDismissNotice}
@@ -65,40 +63,11 @@ describe('SyncState', () => {
   })
 })
 
-describe('SessionState', () => {
-  const peer: Peer = { id: 'a', displayName: 'ada', color: '#c084fc', selection: null }
-
-  it('renders solo', () => {
-    show(sync(), 'solo')
-    expect(screen.getByText('solo')).toBeInTheDocument()
-  })
-
-  it('renders connecting', () => {
-    show(sync(), 'connecting')
-    expect(screen.getByText('connecting…')).toBeInTheDocument()
-  })
-
-  it('renders live with peers in their presence colors', () => {
-    show(sync(), 'live', [peer])
-    expect(screen.getByText('live · 1 here')).toBeInTheDocument()
-    expect(screen.getByText('● ada')).toHaveStyle({ color: 'rgb(192, 132, 252)' })
-  })
-
-  it('renders divergent', () => {
-    show(sync(), 'divergent')
-    expect(
-      screen.getByText(/divergent · your file differs from the room/),
-    ).toBeInTheDocument()
-  })
-})
-
 it('dismisses a notice', async () => {
   const onDismissNotice = vi.fn()
   render(
     <StatusLine
       sync={sync()}
-      session="solo"
-      peers={[]}
       notice="moved to a.md · 3 links rewritten"
       onClearConflict={vi.fn()}
       onDismissNotice={onDismissNotice}

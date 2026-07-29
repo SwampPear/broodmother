@@ -9,15 +9,10 @@ import {
   type ReactNode,
 } from 'react'
 import type {
-  DivergenceChoice,
-  DivergenceReport,
   Identity,
   MotherConfig,
-  Peer,
   Profile,
   Project,
-  RoomId,
-  SessionState,
   SyncStatus,
   VaultEntry,
   VaultEvent,
@@ -25,13 +20,6 @@ import type {
   VaultSummary,
 } from '@mother/shared'
 import { api, type ApiClient, type Connection } from './api'
-
-export interface Session {
-  room: RoomId
-  path: VaultPath
-  state: SessionState
-  peers: Peer[]
-}
 
 export interface App {
   client: ApiClient
@@ -52,8 +40,6 @@ export interface App {
   home: string
   vaults: VaultSummary[]
   vaultHome: string
-  session: Session | null
-  divergence: DivergenceReport | null
   /** The last change the vault reported, so an open document can follow a write it did not
    *  make itself. */
   vaultEvent: VaultEvent | null
@@ -74,8 +60,6 @@ export interface App {
   addProfile(input: { name: string } & Identity): Promise<void>
   selectProfile(name: string): Promise<void>
   saveIdentity(identity: Identity): Promise<void>
-  share(path: VaultPath): void
-  resolveDivergence(choice: DivergenceChoice): void
 }
 
 const idleSync: SyncStatus = {
@@ -92,10 +76,6 @@ export function useApp(): App {
   if (!app) throw new Error('useApp outside AppProvider')
   return app
 }
-
-/** The relay keys rooms by `${repoId}/${path}`; the web app has no way to learn repoId
- *  yet, so it sends the path and lets the server qualify it — see CONTRACT-REQUEST.md. */
-const roomFor = (path: VaultPath): RoomId => path
 
 export function AppProvider({
   client = api,
@@ -116,12 +96,9 @@ export function AppProvider({
   const [profile, setProfile] = useState<Profile | null>(null)
   const [profiles, setProfiles] = useState<Profile[]>([])
   const [home, setHome] = useState('')
-  const [session, setSession] = useState<Session | null>(null)
-  const [divergence, setDivergence] = useState<DivergenceReport | null>(null)
   const [vaultEvent, setVaultEvent] = useState<VaultEvent | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const connection = useRef<Connection | null>(null)
-  const sharing = useRef<VaultPath | null>(null)
 
   const loadVault = () =>
     client
@@ -175,17 +152,6 @@ export function AppProvider({
         case 'sync':
           setSync(message.status)
           break
-        case 'session':
-          setSession({
-            room: message.room,
-            path: sharing.current ?? message.room,
-            state: message.state,
-            peers: message.peers,
-          })
-          break
-        case 'divergence':
-          setDivergence(message.report)
-          break
         case 'error':
           setNotice(message.message)
           break
@@ -217,8 +183,6 @@ export function AppProvider({
     home,
     vaults,
     vaultHome,
-    session,
-    divergence,
     vaultEvent,
     notice,
     dismissNotice: () => setNotice(null),
@@ -325,23 +289,6 @@ export function AppProvider({
         await loadProfiles()
         return 'profile saved'
       }),
-
-    share: (path) => {
-      sharing.current = path
-      setSession({ room: roomFor(path), path, state: 'connecting', peers: [] })
-      connection.current?.send({ type: 'join', room: roomFor(path), path })
-    },
-
-    resolveDivergence: (choice) => {
-      if (!divergence) return
-      connection.current?.send({
-        type: 'resolveDivergence',
-        room: divergence.room,
-        choice,
-      })
-      setDivergence(null)
-      if (choice === 'keepLocal') setSession(null)
-    },
   }
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>

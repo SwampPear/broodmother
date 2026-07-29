@@ -11,7 +11,6 @@ import {
 } from 'react'
 import type { VaultPath } from '@mother/shared'
 import { useApp } from '../state'
-import { DivergenceDialog } from './divergence-dialog'
 import { FileTree, filePaths, type TreeCommand } from './file-tree'
 import {
   createFlow,
@@ -141,7 +140,6 @@ export function Shell({ children }: { children: ReactNode }) {
     create: (path) => void app.create(path).then(() => router.push(`/doc/${path}`)),
     move: (from, to) => void app.move(from, to),
     remove: (path) => void app.remove(path),
-    share: (path) => app.share(path),
     syncNow: () => void app.syncNow(),
     settings: () => router.push('/settings'),
     vaults: () => setPicker(true),
@@ -229,8 +227,6 @@ export function Shell({ children }: { children: ReactNode }) {
       )}
       <StatusLine
         sync={app.sync}
-        session={app.session?.state ?? 'solo'}
-        peers={app.session?.peers ?? []}
         notice={app.notice}
         onClearConflict={() => void app.clearConflict()}
         onDismissNotice={app.dismissNotice}
@@ -268,9 +264,6 @@ export function Shell({ children }: { children: ReactNode }) {
         <VaultPicker onClose={needsVault ? undefined : () => setPicker(false)} />
       )}
       {flow && <Palette flow={flow} ctx={ctx} setFlow={setFlow} />}
-      {app.divergence && (
-        <DivergenceDialog report={app.divergence} onChoose={app.resolveDivergence} />
-      )}
     </div>
   )
 }

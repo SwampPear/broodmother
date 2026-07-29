@@ -1,5 +1,4 @@
 export * from './api'
-export * from './collab'
 export * from './config'
 export * from './doc'
 export * from './math'

@@ -1,6 +1,6 @@
 'use client'
 
-import type { Peer, SessionState, SyncStatus } from '@mother/shared'
+import type { SyncStatus } from '@mother/shared'
 
 function syncLabel(sync: SyncStatus): string {
   switch (sync.state) {
@@ -19,30 +19,13 @@ function syncLabel(sync: SyncStatus): string {
   }
 }
 
-function sessionLabel(state: SessionState, peers: Peer[]): string {
-  switch (state) {
-    case 'solo':
-      return 'solo'
-    case 'connecting':
-      return 'connecting…'
-    case 'live':
-      return `live · ${peers.length} here`
-    case 'divergent':
-      return 'divergent · your file differs from the room'
-  }
-}
-
 export function StatusLine({
   sync,
-  session,
-  peers,
   notice,
   onClearConflict,
   onDismissNotice,
 }: {
   sync: SyncStatus
-  session: SessionState
-  peers: Peer[]
   notice: string | null
   onClearConflict: () => void
   onDismissNotice: () => void
@@ -66,14 +49,6 @@ export function StatusLine({
         <span className="sync" data-state={sync.state}>
           {syncLabel(sync)}
         </span>
-        <span className="session" data-state={session}>
-          {sessionLabel(session, peers)}
-        </span>
-        {peers.map((peer) => (
-          <span key={peer.id} className="peer" style={{ color: peer.color }}>
-            ● {peer.displayName}
-          </span>
-        ))}
         {notice && (
           <button type="button" className="notice" onClick={onDismissNotice}>
             {notice} ✕

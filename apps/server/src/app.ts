@@ -1,7 +1,6 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import type { Context } from 'hono'
-import { WebSocket } from 'ws'
 import { z } from 'zod'
 import type { MotherConfig } from '@mother/shared'
 import { configSchema } from './config'
@@ -16,7 +15,6 @@ export const WEB_ORIGINS = ['http://localhost:3000', 'http://127.0.0.1:3000']
 const docBody = z.object({ path: z.string(), markdown: z.string() })
 const moveBody = z.object({ from: z.string(), to: z.string() })
 const remoteBody = z.object({ remoteUrl: z.string(), branch: z.string() })
-const relayBody = z.object({ relayUrl: z.string() })
 const newVaultBody = z.object({
   name: z.string().min(1),
   remoteUrl: z.string().min(1),
@@ -180,11 +178,6 @@ export function createApp(ctx: AppContext): Hono {
     return c.json(await ctx.open.git.testRemote(remoteUrl, branch))
   })
 
-  app.post('/api/config/test-relay', async (c) => {
-    const { relayUrl } = await parse(c, relayBody)
-    return c.json(await testRelay(relayUrl))
-  })
-
   app.get('/api/sync', (c) => c.json(ctx.sync.state))
   app.post('/api/sync/now', async (c) => c.json(await ctx.sync.syncNow()))
   app.post('/api/sync/clear-conflict', (c) => c.json(ctx.sync.clearConflict()))
@@ -210,20 +203,4 @@ export function createApp(ctx: AppContext): Hono {
   })
 
   return app
-}
-
-async function testRelay(relayUrl: string): Promise<{ ok: boolean; message: string }> {
-  if (!/^wss?:\/\//.test(relayUrl))
-    return { ok: false, message: 'relay URL must be ws:// or wss://' }
-  return new Promise((resolve) => {
-    const socket = new WebSocket(relayUrl)
-    const finish = (ok: boolean, message: string) => {
-      clearTimeout(timer)
-      socket.close()
-      resolve({ ok, message })
-    }
-    const timer = setTimeout(() => finish(false, 'timed out after 5s'), 5000)
-    socket.on('open', () => finish(true, 'relay reachable'))
-    socket.on('error', (error) => finish(false, error.message))
-  })
 }

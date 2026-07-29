@@ -16,8 +16,8 @@ export interface ProfileFormState {
 }
 
 /**
- * The fields a profile is made of: who you commit as, how you show up in a live session,
- * and the credentials you work with. The submit button lives with the caller's chrome and
+ * The fields a profile is made of: who you commit as, the colour you are shown in, and
+ * the credentials you work with. The submit button lives with the caller's chrome and
  * reaches the form through `form={id}`.
  */
 export function ProfileForm({

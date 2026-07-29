@@ -24,7 +24,6 @@ export const configSchema = z.object({
   branch: z.string().min(1),
   syncEnabled: z.boolean(),
   syncIdleMs: z.number().int().min(1000),
-  relayUrl: z.string().min(1).nullable(),
 })
 
 /**
@@ -39,7 +38,6 @@ export function defaultConfig(vaultPath: string | null): MotherConfig {
     branch: 'main',
     syncEnabled: false,
     syncIdleMs: 10_000,
-    relayUrl: null,
   }
 }
 

@@ -66,10 +66,7 @@ export class AppContext {
     readonly store: ConfigStore,
     readonly home: string,
   ) {
-    this.relay = new Relay(
-      () => this.config,
-      () => this.activeProfile,
-    )
+    this.relay = new Relay()
     // The project folder while there is one; the home is only where you stand on first run,
     // when there is no project to stand in yet.
     this.terminals = new Terminals(() => this.session())
@@ -77,7 +74,6 @@ export class AppContext {
       git: () => this.current?.git ?? null,
       config: () => this.config,
       author: () => this.activeProfile?.gitAuthor ?? null,
-      hasLiveSession: () => this.relay.hasLiveSession(),
       onStatus: (status) => this.broadcast({ type: 'sync', status }),
     })
   }

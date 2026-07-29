@@ -43,7 +43,6 @@ export interface MotherConfig {
   remoteUrl: string | null
   branch: string
   syncEnabled: boolean
-  /** Quiet period of no local edits and no live session before a sync runs. */
+  /** Quiet period of no local edits before a sync runs. */
   syncIdleMs: number
-  relayUrl: string | null
 }

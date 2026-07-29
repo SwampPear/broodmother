@@ -14,14 +14,13 @@ export type TerminalKind = 'shell' | 'claude'
  * few lines, and free of quotes and $ so it survives the shell as a single argument.
  */
 const BRIEF =
-  'You are running in a terminal inside mother, an in-house documentation app: a local ' +
+  'You are running in a terminal inside mother, a documentation app: a local ' +
   'website (not a desktop app) that edits a git repo of markdown as an Obsidian-style ' +
-  'vault, with live collaborative editing on top. The working directory is a mother ' +
-  'project and each folder in it is a vault, a clone of a docs repo. The .md files on disk ' +
-  'are the source of truth and git is the history, so edit the files directly rather than ' +
-  'reaching for a database or an API. Someone may have the same file open in the browser ' +
-  'editor while you work: your writes land in their editor live, so prefer small edits over ' +
-  'rewriting a document out from under them.'
+  'vault. The working directory is a mother project and each folder in it is a vault, a ' +
+  'clone of a docs repo. The .md files on disk are the source of truth and git is the ' +
+  'history, so edit the files directly rather than reaching for a database or an API. ' +
+  'Someone may have the same file open in the browser editor while you work: it follows ' +
+  'the file on disk, so prefer small edits over rewriting a document out from under them.'
 
 export const TERMINALS: Record<
   TerminalKind,

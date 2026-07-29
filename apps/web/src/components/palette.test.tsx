@@ -11,7 +11,6 @@ function ctx(): FlowCtx {
     create: vi.fn(),
     move: vi.fn(),
     remove: vi.fn(),
-    share: vi.fn(),
     syncNow: vi.fn(),
     settings: vi.fn(),
     toggleTerminal: vi.fn(),
@@ -29,7 +28,7 @@ function open(flowCtx: FlowCtx, initial: Flow = { kind: 'commands' }) {
 
 it('lists every command and fuzzy-matches typing', async () => {
   open(ctx())
-  expect(screen.getAllByRole('option')).toHaveLength(9)
+  expect(screen.getAllByRole('option')).toHaveLength(8)
   await userEvent.keyboard('snw')
   expect(screen.getAllByRole('option').map((item) => item.textContent)).toEqual([
     'Sync now',
@@ -104,11 +103,4 @@ it('cancels a delete on escape without removing anything', async () => {
   await userEvent.keyboard('delete{Enter}readme{Enter}{Escape}')
   expect(flowCtx.remove).not.toHaveBeenCalled()
   expect(screen.getByText('closed')).toBeInTheDocument()
-})
-
-it('shares the picked document', async () => {
-  const flowCtx = ctx()
-  open(flowCtx)
-  await userEvent.keyboard('share{Enter}roadmap{Enter}')
-  expect(flowCtx.share).toHaveBeenCalledWith('Business/Roadmap.md')
 })
