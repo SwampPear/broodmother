@@ -38,6 +38,8 @@ function detect(): Platform {
   return /mac/i.test(hints) ? 'mac' : 'other'
 }
 
+/** The floor is Electron's, not ours: it is `LSMinimumSystemVersion` in the built app's
+ *  Info.plist, and it moves when Electron is upgraded. Read it there before changing it. */
 export function Wizard({
   file,
   version,
@@ -93,7 +95,7 @@ export function Wizard({
         ))}
       </ol>
       <p className="fine">
-        broodmother {version} · {size} · Apple silicon · requires macOS 11 or newer
+        broodmother {version} · {size} · Apple silicon · requires macOS 12 or newer
       </p>
     </div>
   )
