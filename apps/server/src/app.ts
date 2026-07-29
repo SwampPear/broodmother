@@ -1,8 +1,9 @@
+import { readFile } from 'node:fs/promises'
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import type { Context } from 'hono'
 import { z } from 'zod'
-import type { BroodmotherConfig } from '@broodmother/shared'
+import { imageTypeOf, type BroodmotherConfig } from '@broodmother/shared'
 import { configSchema } from './config'
 import { NoProfileError, NoVaultError, type AppContext } from './context'
 import { ProfileError, identitySchema } from './profiles'
@@ -83,6 +84,25 @@ export function createApp(ctx: AppContext): Hono {
   })
 
   app.get('/api/vault', async (c) => c.json({ entries: await ctx.open.vault.list() }))
+
+  /**
+   * The bytes of a file, for the things in a vault that are not text. `/api/doc` reads as
+   * UTF-8, which turns a PNG into replacement characters — and turns saving it back into
+   * losing it. The path goes through the vault's own resolution, so this reaches nothing a
+   * document could not.
+   */
+  app.get('/api/file', async (c) => {
+    const path = query(c, 'path')
+    const type = imageTypeOf(path)
+    if (!type) throw new BadRequest('not a file this serves')
+    const bytes = await readFile(await ctx.open.vault.resolve(path))
+    return c.body(bytes.buffer as ArrayBuffer, 200, {
+      'content-type': type,
+      // The vault is on disk and the watcher reports writes, so the answer is only good
+      // until something changes it.
+      'cache-control': 'no-cache',
+    })
+  })
 
   app.get('/api/doc', async (c) =>
     c.json({ markdown: await ctx.open.vault.read(query(c, 'path')) }),

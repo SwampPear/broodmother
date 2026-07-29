@@ -1,7 +1,7 @@
 {
   "name": "@broodmother/root",
   "private": true,
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Local markdown optimized for collaboration between people and agents.",
   "license": "MIT",
   "homepage": "https://github.com/SwampPear/broodmother#readme",
@@ -69,6 +69,7 @@
     "@radix-ui/react-context-menu": "^2.3.7",
     "@radix-ui/react-dialog": "^1.1.23",
     "@radix-ui/react-dropdown-menu": "^2.1.24",
+    "@shikijs/monaco": "^4.3.1",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0",
     "chokidar": "^5.0.0",
@@ -77,9 +78,11 @@
     "hono": "^4.12.32",
     "katex": "^0.18.1",
     "markdown-it": "^14.3.0",
+    "monaco-editor": "^0.56.0",
     "next": "^16.2.12",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
+    "shiki": "^4.3.1",
     "ws": "^8.21.1",
     "zod": "^4.4.3"
   },

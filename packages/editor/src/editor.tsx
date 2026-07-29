@@ -1,16 +1,12 @@
 'use client'
 
-import { markdown, markdownLanguage } from '@codemirror/lang-markdown'
-import { languages } from '@codemirror/language-data'
-import { syntaxHighlighting } from '@codemirror/language'
-import { history, historyKeymap, defaultKeymap } from '@codemirror/commands'
-import { searchKeymap } from '@codemirror/search'
-import { Compartment, EditorState, Prec } from '@codemirror/state'
-import { EditorView, keymap } from '@codemirror/view'
 import { useEffect, useRef, useState } from 'react'
-import { type Command, type Trigger, toggleWrap, triggerAt } from './commands'
-import { livePreview } from './live-preview'
-import { markdownHighlight } from './syntax'
+import type * as Monaco from 'monaco-editor'
+import { COMMANDS, toggleWrap, triggerAt, type Command, type Trigger } from './commands'
+import { DARK, LIGHT, useLanguage } from './highlighter'
+import { languageForPath } from './languages'
+import { loadMonaco, type MonacoApi } from './monaco'
+import { LivePreview } from './preview'
 
 export type EditMode = 'live' | 'source'
 
@@ -18,160 +14,277 @@ export interface EditorProps {
   markdown: string
   onChange: (markdown: string) => void
   mode?: EditMode
+  /** The vault path, which is what decides the language. Markdown when nothing is given. */
+  path?: string
+  theme?: 'dark' | 'light'
 }
 
-const preview = new Compartment()
+const SHARED: Monaco.editor.IStandaloneEditorConstructionOptions = {
+  automaticLayout: true,
+  wordWrap: 'on',
+  smoothScrolling: true,
+  cursorBlinking: 'smooth',
+  scrollBeyondLastLine: false,
+  tabSize: 2,
+}
 
-export function Editor({ markdown: value, onChange, mode = 'live' }: EditorProps) {
+/** A source file is a source file, so it gets the editor VS Code would have given it. */
+const CODE: Monaco.editor.IStandaloneEditorConstructionOptions = {
+  ...SHARED,
+  minimap: { enabled: true },
+  lineNumbers: 'on',
+  folding: true,
+  renderWhitespace: 'selection',
+  bracketPairColorization: { enabled: true },
+  fontLigatures: true,
+  padding: { top: 12, bottom: 12 },
+}
+
+/**
+ * Markdown is prose, and prose is not code. Everything that makes a code editor legible —
+ * the line numbers, the minimap, the ruler, the current-line band, the indent guides — is
+ * furniture around a document you are reading, so a note gets none of it. What is left is
+ * the text, in the app's own face, at the app's own measure.
+ */
+const PROSE: Monaco.editor.IStandaloneEditorConstructionOptions = {
+  ...SHARED,
+  minimap: { enabled: false },
+  lineNumbers: 'off',
+  folding: false,
+  glyphMargin: false,
+  lineDecorationsWidth: 0,
+  lineNumbersMinChars: 0,
+  renderLineHighlight: 'none',
+  occurrencesHighlight: 'off',
+  selectionHighlight: false,
+  matchBrackets: 'never',
+  bracketPairColorization: { enabled: false },
+  guides: { indentation: false, bracketPairs: false, highlightActiveIndentation: false },
+  renderWhitespace: 'none',
+  overviewRulerLanes: 0,
+  overviewRulerBorder: false,
+  hideCursorInOverviewRuler: true,
+  scrollbar: { vertical: 'auto', horizontal: 'hidden', verticalScrollbarSize: 8 },
+  quickSuggestions: false,
+  suggestOnTriggerCharacters: false,
+  contextmenu: false,
+  fontFamily: 'var(--sans)',
+  fontSize: 16,
+  lineHeight: 1.7,
+  padding: { top: 48, bottom: 96 },
+}
+
+const isProse = (language: string) => language === 'markdown'
+
+const optionsFor = (language: string) => (isProse(language) ? PROSE : CODE)
+
+export function Editor({
+  markdown: value,
+  onChange,
+  mode = 'live',
+  path = 'untitled.md',
+  theme = 'dark',
+}: EditorProps) {
   const host = useRef<HTMLDivElement>(null)
-  const view = useRef<EditorView | null>(null)
+  const editor = useRef<Monaco.editor.IStandaloneCodeEditor | null>(null)
+  const preview = useRef<LivePreview | null>(null)
+  const api = useRef<MonacoApi | null>(null)
   const emit = useRef(onChange)
   const emitted = useRef(value)
-  const menu = useRef<(Trigger & { index: number }) | null>(null)
-  const [open, setOpen] = useState<{
+  const trigger = useRef<(Trigger & { index: number }) | null>(null)
+  const [menu, setMenu] = useState<{
     trigger: Trigger
     index: number
     top: number
     left: number
   } | null>(null)
+  const [prose, setProse] = useState(true)
   emit.current = onChange
 
   useEffect(() => {
-    if (!host.current) return
+    let live = true
+    let created: Monaco.editor.IStandaloneCodeEditor | null = null
 
-    const close = () => {
-      menu.current = null
-      setOpen(null)
-    }
+    void loadMonaco().then(async (monaco) => {
+      if (!live || !host.current) return
+      api.current = monaco
 
-    const run = (command: Command) => {
-      const current = menu.current
-      if (!current || !view.current) return false
-      close()
-      command.run(view.current, current.from, current.to)
-      return true
-    }
+      const language = languageForPath(monaco, path)
+      await useLanguage(monaco, language)
+      if (!live || !host.current) return
 
-    const menuKeys = keymap.of([
-      {
-        key: 'ArrowDown',
-        run: () => {
-          const current = menu.current
-          if (!current) return false
-          const index = (current.index + 1) % current.items.length
-          menu.current = { ...current, index }
-          setOpen((was) => (was ? { ...was, index } : was))
-          return true
-        },
-      },
-      {
-        key: 'ArrowUp',
-        run: () => {
-          const current = menu.current
-          if (!current) return false
-          const index = (current.index + current.items.length - 1) % current.items.length
-          menu.current = { ...current, index }
-          setOpen((was) => (was ? { ...was, index } : was))
-          return true
-        },
-      },
-      {
-        key: 'Enter',
-        run: () => {
-          const current = menu.current
-          return current ? run(current.items[current.index]) : false
-        },
-      },
-      {
-        key: 'Escape',
-        run: () => {
-          if (!menu.current) return false
-          close()
-          return true
-        },
-      },
-    ])
+      created = monaco.editor.create(host.current, {
+        ...optionsFor(language),
+        value: emitted.current,
+        language,
+        theme: theme === 'dark' ? DARK : LIGHT,
+      })
+      setProse(isProse(language))
+      editor.current = created
+      preview.current = new LivePreview(created, monaco)
+      preview.current.setEnabled(mode === 'live')
 
-    const watch = EditorView.updateListener.of((update) => {
-      if (update.docChanged) {
-        emitted.current = update.state.doc.toString()
-        emit.current(emitted.current)
-      }
-      if (!update.docChanged && !update.selectionSet) return
-
-      const trigger = triggerAt(update.state)
-      if (!trigger) return close()
-
-      const index = menu.current?.from === trigger.from ? menu.current.index : 0
-      menu.current = { ...trigger, index: Math.min(index, trigger.items.length - 1) }
-      const at = update.view.coordsAtPos(trigger.from)
-      setOpen(
-        at ? { trigger, index: menu.current.index, top: at.bottom, left: at.left } : null,
+      created.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyB, () =>
+        toggleWrap(created!, '**'),
       )
+      created.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyI, () =>
+        toggleWrap(created!, '*'),
+      )
+
+      created.onDidChangeModelContent(() => {
+        const model = created!.getModel()
+        if (!model) return
+        emitted.current = model.getValue()
+        emit.current(emitted.current)
+        updateMenu()
+      })
+      created.onDidChangeCursorSelection(updateMenu)
+      created.onDidBlurEditorText(close)
+
+      function close() {
+        trigger.current = null
+        setMenu(null)
+      }
+
+      function updateMenu() {
+        const model = created!.getModel()
+        const selection = created!.getSelection()
+        if (!model || !selection || !selection.isEmpty()) return close()
+        if (model.getLanguageId() !== 'markdown') return close()
+
+        const caret = model.getOffsetAt(selection.getPosition())
+        const found = triggerAt(model.getValue(), caret)
+        if (!found) return close()
+
+        const index = trigger.current?.from === found.from ? trigger.current.index : 0
+        trigger.current = { ...found, index: Math.min(index, found.items.length - 1) }
+
+        const at = created!.getScrolledVisiblePosition(model.getPositionAt(found.from))
+        const box = host.current?.getBoundingClientRect()
+        setMenu(
+          at && box
+            ? {
+                trigger: found,
+                index: trigger.current.index,
+                top: box.top + at.top + at.height,
+                left: box.left + at.left,
+              }
+            : null,
+        )
+      }
     })
 
-    const editor = new EditorView({
-      state: EditorState.create({
-        doc: value,
-        extensions: [
-          history(),
-          Prec.highest(menuKeys),
-          keymap.of([
-            { key: 'Mod-b', run: toggleWrap('**') },
-            { key: 'Mod-i', run: toggleWrap('*') },
-            ...defaultKeymap,
-            ...historyKeymap,
-            ...searchKeymap,
-          ]),
-          markdown({ base: markdownLanguage, codeLanguages: languages }),
-          syntaxHighlighting(markdownHighlight),
-          preview.of(mode === 'live' ? livePreview : []),
-          EditorView.lineWrapping,
-          watch,
-        ],
-      }),
-      parent: host.current,
-    })
-    view.current = editor
     return () => {
-      editor.destroy()
-      view.current = null
+      live = false
+      preview.current?.dispose()
+      preview.current = null
+      created?.dispose()
+      editor.current = null
     }
-    // The document is reconciled below; rebuilding on every keystroke would lose the cursor.
+    // The document, language and theme are reconciled below; rebuilding the editor on every
+    // keystroke would lose the cursor, the undo stack and the scroll position.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // The command menu owns the arrow keys only while it is open, so the editor keeps them
+  // the rest of the time. Monaco's own keybindings are bypassed by listening on capture.
   useEffect(() => {
-    view.current?.dispatch({
-      effects: preview.reconfigure(mode === 'live' ? livePreview : []),
-    })
+    if (!menu) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      const current = trigger.current
+      if (!current) return
+      const move = (step: number) => {
+        event.preventDefault()
+        event.stopPropagation()
+        const index = (current.index + step + current.items.length) % current.items.length
+        trigger.current = { ...current, index }
+        setMenu((was) => (was ? { ...was, index } : was))
+      }
+      if (event.key === 'ArrowDown') return move(1)
+      if (event.key === 'ArrowUp') return move(-1)
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        trigger.current = null
+        return setMenu(null)
+      }
+      if (event.key === 'Enter') {
+        event.preventDefault()
+        event.stopPropagation()
+        run(current.items[current.index]!, current)
+      }
+    }
+    window.addEventListener('keydown', onKeyDown, true)
+    return () => window.removeEventListener('keydown', onKeyDown, true)
+  }, [menu])
+
+  const run = (command: Command, current: Trigger) => {
+    const instance = editor.current
+    if (!instance) return
+    trigger.current = null
+    setMenu(null)
+    command.run(instance, current.from, current.to)
+  }
+
+  useEffect(() => {
+    preview.current?.setEnabled(mode === 'live')
   }, [mode])
 
-  // A value that did not come from this editor is a write from somewhere else — another
-  // window, an editor on disk, a shell. Replacing the whole document would map the cursor to
-  // one end of it, so the caret is put back where it was, clamped to what is now there.
   useEffect(() => {
-    const editor = view.current
-    if (!editor || value === emitted.current) return
+    const monaco = api.current
+    if (monaco) monaco.editor.setTheme(theme === 'dark' ? DARK : LIGHT)
+  }, [theme])
+
+  // Opening another document is a new language, possibly a grammar nobody has loaded, and
+  // possibly a move between prose and code — which is a different editor, not a different
+  // colour scheme.
+  useEffect(() => {
+    const monaco = api.current
+    const instance = editor.current
+    const model = instance?.getModel()
+    if (!monaco || !instance || !model) return
+    const language = languageForPath(monaco, path)
+    if (language === model.getLanguageId()) return
+    monaco.editor.setModelLanguage(model, language)
+    instance.updateOptions(optionsFor(language))
+    setProse(isProse(language))
+    void useLanguage(monaco, language).then(() => preview.current?.refresh())
+  }, [path])
+
+  // A value that did not come from this editor is a write from somewhere else — another
+  // window, an editor on disk, a shell. Replacing the whole document would drop the undo
+  // stack and put the caret at one end, so the edit is applied as an edit.
+  useEffect(() => {
+    const instance = editor.current
+    const model = instance?.getModel()
+    if (!instance || !model || value === emitted.current) return
     emitted.current = value
-    const head = Math.min(editor.state.selection.main.head, value.length)
-    editor.dispatch({
-      changes: { from: 0, to: editor.state.doc.length, insert: value },
-      selection: { anchor: head },
-    })
+    const selections = instance.getSelections()
+    model.pushEditOperations(
+      selections,
+      [{ range: model.getFullModelRange(), text: value }],
+      () => selections,
+    )
   }, [value])
 
   return (
-    <div className="cm-host">
-      <div ref={host} />
-      {open && (
+    <div className={prose ? 'monaco-host prose' : 'monaco-host'}>
+      <div className="monaco-mount" ref={host} />
+      {menu && (
         <ul
-          className="cm-commands"
+          className="monaco-commands"
           role="listbox"
-          style={{ position: 'fixed', top: open.top, left: open.left }}
+          style={{ position: 'fixed', top: menu.top, left: menu.left }}
         >
-          {open.trigger.items.map((command, index) => (
-            <li key={command.title} role="option" aria-selected={index === open.index}>
+          {menu.trigger.items.map((command, index) => (
+            <li
+              key={command.title}
+              role="option"
+              aria-selected={index === menu.index}
+              onMouseDown={(event) => {
+                event.preventDefault()
+                run(command, menu.trigger)
+              }}
+            >
               <span className="title">{command.title}</span>
               <span className="hint">{command.hint}</span>
             </li>
@@ -181,3 +294,5 @@ export function Editor({ markdown: value, onChange, mode = 'live' }: EditorProps
     </div>
   )
 }
+
+export { COMMANDS }

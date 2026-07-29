@@ -70,6 +70,9 @@
 
   --ground: #000000;
   --panel: #0a0a0a;
+  /* One ground under every document, prose or source: switching between a note and a
+     source file must not change the colour of the page. */
+  --editor-ground: color-mix(in srgb, var(--white) 4%, var(--ground));
   --raised: color-mix(in srgb, var(--white) 6%, transparent);
   --active: color-mix(in srgb, var(--white) 10%, transparent);
   --muted: color-mix(in srgb, var(--white) 45%, transparent);
@@ -366,6 +369,13 @@ body[data-resizing='panel'] {
   -webkit-app-region: no-drag;
 }
 
+/* The inset the app declares is the whole distance to the logo, so the anchor does not add
+   its own padding on top of it — otherwise the gap after the window buttons is that much
+   wider than the one before them, and the logo reads as pushed off to one side. */
+.tree-head.project .project-anchor {
+  padding-left: 0;
+}
+
 .tree-head .logo {
   flex: none;
   width: 1.25rem;
@@ -606,6 +616,28 @@ body[data-resizing='panel'] {
   display: none;
 }
 
+/* The strip runs the width of the window and is mostly empty, which makes its background
+   the natural place to pick the window up by — the same bargain the tree head makes. The
+   tabs and the plus stay clickable; only the space between them drags. */
+.tabs {
+  -webkit-app-region: drag;
+}
+
+.tab,
+.tab-new,
+.tab-close {
+  -webkit-app-region: no-drag;
+}
+
+/* A tab is a control, not a passage of text: dragging across one should move the window,
+   not paint a selection over the filename. */
+.tabs,
+.tab,
+.tab-name {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
 .tab {
   display: flex;
   align-items: center;
@@ -768,146 +800,279 @@ body[data-resizing='panel'] {
   line-height: 1.7;
 }
 
-.cm-host {
+/* Monaco brings its own scrolling and its own viewport, so the pane around it stops
+   scrolling and stops padding: two scrollbars over one document is one too many. */
+.doc-body:has(.monaco-host) {
+  padding: 0;
+  overflow: hidden;
+}
+
+.doc-body:has(.monaco-host) > * {
+  max-width: none;
+}
+
+/* Monaco measures the box it is given, so the height has to reach it from the pane: every
+   link in the chain fills, or the editor mounts one pixel tall. */
+.broodmother-editor:has(.monaco-host) {
+  height: 100%;
+}
+
+.monaco-host {
   position: relative;
+  height: 100%;
 }
 
-.cm-editor {
-  background: transparent;
-  color: var(--white);
+.monaco-mount {
+  height: 100%;
 }
 
-.cm-editor.cm-focused {
-  outline: none;
+/* Prose is set to the same measure as the rest of the app. Monaco lays out to the box it
+   is given, so the measure is the box rather than a max-width on the text inside it. */
+.monaco-host.prose .monaco-mount {
+  max-width: calc(var(--measure) + 4rem);
+  margin-inline: auto;
 }
 
-.cm-editor .cm-scroller {
-  font-family: var(--sans);
-  line-height: inherit;
-  overflow: visible;
+/* A note has no gutter to leave room for. */
+.monaco-host.prose .monaco-editor .margin {
+  display: none;
 }
 
-.cm-editor .cm-content {
-  padding: 0;
-  caret-color: var(--white);
+.monaco-host.prose .monaco-editor .cursors-layer .cursor {
+  background: var(--white);
+  border-color: var(--white);
 }
 
-.cm-editor .cm-line {
-  padding: 0;
+/* The editor paints its own ground from the theme, which is where the minimap and the
+   gutter take theirs from too. What is left here is the box around it. */
+.monaco-host {
+  background: var(--editor-ground);
 }
 
-.cm-editor .cm-cursor {
-  border-left-color: var(--white);
+/* The pane behind the editor is the same ground, so the measure gutters either side of a
+   note are not a different colour from the note. */
+.doc-body:has(.monaco-host) {
+  background: var(--editor-ground);
 }
 
-.cm-editor .cm-selectionBackground,
-.cm-editor.cm-focused .cm-selectionBackground,
-.cm-editor ::selection {
-  background: color-mix(in srgb, var(--opal-violet) 28%, transparent);
+/* ---------- markdown, drawn as what it means ---------- */
+
+/* The one decoration that removes rather than styles. Everything the live preview hides —
+   `##`, `**`, `](url)` — is hidden by this and comes back by losing it. */
+.monaco-editor .md-hidden {
+  display: none;
 }
 
-/* Headings keep their line box, so hiding `##` never reflows the document. */
-.cm-h1,
-.cm-h2,
-.cm-h3,
-.cm-h4,
-.cm-h5,
-.cm-h6 {
+.monaco-editor .md-h1,
+.monaco-editor .md-h2,
+.monaco-editor .md-h3,
+.monaco-editor .md-h4,
+.monaco-editor .md-h5,
+.monaco-editor .md-h6 {
   font-family: var(--display);
   font-weight: 650;
   letter-spacing: -0.018em;
+  color: var(--white);
 }
 
-.cm-h1 {
-  font-size: 1.75em;
+.monaco-editor .md-h1 {
+  font-size: 1.6em;
 }
-.cm-h2 {
-  font-size: 1.4em;
+.monaco-editor .md-h2 {
+  font-size: 1.32em;
 }
-.cm-h3 {
-  font-size: 1.18em;
+.monaco-editor .md-h3 {
+  font-size: 1.15em;
 }
-.cm-h4 {
-  font-size: 1.05em;
+.monaco-editor .md-h4 {
+  font-size: 1.04em;
 }
-.cm-h5,
-.cm-h6 {
+.monaco-editor .md-h5,
+.monaco-editor .md-h6 {
   font-size: 1em;
   color: var(--muted);
 }
 
-.cm-strong {
+.monaco-editor .md-strong {
   font-weight: 700;
+  color: var(--white);
 }
 
-.cm-emphasis {
+.monaco-editor .md-emphasis {
   font-style: italic;
 }
 
-.cm-strike {
+.monaco-editor .md-strike {
   text-decoration: line-through;
   color: var(--muted);
 }
 
-.cm-code,
-.cm-editor .cm-line .cm-code {
+/* Code in a note is set in the same mono the terminal and the rest of the interface use,
+   not in whatever the editor happens to be set in. */
+.monaco-editor .md-code,
+.monaco-host.prose .monaco-editor .md-code {
   font-family: var(--mono);
-  font-size: 0.88em;
+  font-size: 0.9em;
+  color: var(--opal-mint);
 }
 
-.cm-link,
-.cm-wikilink {
+/* A fenced block is code too, and Shiki colours it — but the face is ours. */
+.monaco-editor .md-fence {
+  font-family: var(--mono);
+  font-size: 0.9em;
+}
+
+.monaco-editor .md-link,
+.monaco-editor .md-wikilink {
   color: var(--opal-indigo);
   cursor: pointer;
 }
 
-.cm-url {
-  color: var(--faint);
-}
-
-.cm-quote {
+.monaco-editor .md-quote {
   color: var(--muted);
-}
-
-.cm-mark {
-  color: var(--faint);
-}
-
-.cm-keyword {
-  color: var(--opal-violet);
-}
-.cm-string {
-  color: var(--opal-mint);
-}
-.cm-number {
-  color: var(--opal-gold);
-}
-.cm-comment {
-  color: var(--faint);
   font-style: italic;
 }
-.cm-type,
-.cm-variable {
-  color: var(--opal-cyan);
+
+/* The `-` and the `[x]` are drawn as the thing they mean. The character underneath is
+   still there and still what gets saved — it is only given no room to show itself, and
+   Monaco is told the width changed so the caret lands where the text is. */
+.monaco-editor .md-bullet,
+.monaco-editor .md-task {
+  font-size: 0;
+  letter-spacing: 0;
 }
 
-.cm-bullet {
+.monaco-editor .md-bullet::before {
+  content: '\2022';
+  font-size: 1rem;
   color: var(--opal-violet);
 }
 
-.cm-task {
-  accent-color: var(--opal-violet);
-  margin: 0 0.35rem 0 0;
+/* A real box rather than a glyph: drawn, so it is the right size at any font, and square
+   with the corners taken off the way every other small control in the app is. */
+.monaco-editor .md-task::before {
+  content: '';
+  display: inline-block;
+  width: 0.82rem;
+  height: 0.82rem;
   vertical-align: -0.1em;
+  border: 1.5px solid var(--line-hover);
+  border-radius: 0.25rem;
+  background: transparent;
+  cursor: pointer;
+  transition:
+    background 120ms ease,
+    border-color 120ms ease;
 }
 
-.cm-math {
+.monaco-editor .md-task:hover::before {
+  border-color: var(--opal-violet);
+}
+
+/* Checked is the box filled, and nothing else. At this size a tick is three grey pixels
+   that read as dirt; the fill is unambiguous on its own. */
+.monaco-editor .md-task-done::before {
+  background: var(--opal-violet);
+  border-color: var(--opal-violet);
+}
+
+/* Done is said in the text as well as in the box. */
+.monaco-editor .md-done {
+  text-decoration: line-through;
+  color: var(--faint);
+}
+
+.monaco-editor .md-math-inline {
+  font-family: var(--mono);
+  color: var(--opal-gold);
+}
+
+/* ---------- images ---------- */
+
+.image-view {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  height: 100%;
+  padding: 2rem;
+  background: var(--editor-ground);
+}
+
+.image-view img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: var(--surface-radius);
+  /* A transparent PNG on a dark ground is a picture of nothing, so it is given one. */
+  background: repeating-conic-gradient(var(--raised) 0% 25%, transparent 0% 50%) 50% /
+    16px 16px;
+}
+
+.image-meta {
+  margin: 0;
+  color: var(--faint);
+  font-family: var(--mono);
+  font-size: 0.75rem;
+}
+
+/* A table drawn where its pipes were. It reads as the app's own table, not as a code
+   editor's idea of one — same rules, same lines, same restraint. */
+.md-table-zone {
+  display: flex;
+  justify-content: flex-start;
+  padding: 0.35rem 0;
+  overflow-x: auto;
+  cursor: text;
+  border-radius: var(--row-radius);
+}
+
+.md-table-zone:hover {
+  background: var(--raised);
+}
+
+.md-table {
+  border-collapse: collapse;
+  font-size: 0.95em;
+}
+
+.md-table th,
+.md-table td {
+  padding: 0.3rem 0.7rem;
+  border: 1px solid var(--line);
+  text-align: left;
+  white-space: pre-wrap;
+}
+
+.md-table th {
+  font-weight: 650;
+  background: var(--raised);
   color: var(--white);
 }
 
-.cm-math-block {
+.md-table td {
+  color: color-mix(in srgb, var(--white) 88%, transparent);
+}
+
+/* A display equation is drawn under its source: Monaco can put rendered DOM between lines,
+   but it has no public way to take the source lines' room back. */
+.md-math-zone {
+  display: flex;
+  justify-content: center;
+  padding: 0.25rem 0;
+  color: var(--white);
+  cursor: text;
+  border-radius: var(--row-radius);
+}
+
+/* It is a thing you can put a caret in, and it says so on the way past. */
+.md-math-zone:hover {
+  background: var(--raised);
+}
+
+.md-math-block {
   display: block;
-  margin: 0.4rem 0;
   text-align: center;
 }
 
@@ -954,7 +1119,7 @@ body[data-resizing='panel'] {
 
 /* The slash menu is anchored to a caret rather than to a control, but it is the same
    surface and the same rows as every other menu. */
-.cm-commands {
+.monaco-commands {
   z-index: 20;
   min-width: 15rem;
   margin: 0.25rem 0 0;
@@ -966,7 +1131,7 @@ body[data-resizing='panel'] {
   box-shadow: var(--surface-shadow);
 }
 
-.cm-commands li {
+.monaco-commands li {
   display: flex;
   align-items: baseline;
   gap: 0.6rem;
@@ -975,12 +1140,12 @@ body[data-resizing='panel'] {
   color: color-mix(in srgb, var(--white) 82%, transparent);
 }
 
-.cm-commands li[aria-selected='true'] {
+.monaco-commands li[aria-selected='true'] {
   background: var(--active);
   color: var(--white);
 }
 
-.cm-commands .hint {
+.monaco-commands .hint {
   margin-left: auto;
   padding: 0;
   border: none;

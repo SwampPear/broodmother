@@ -10,7 +10,10 @@ import type {
 } from '@broodmother/shared'
 import type { ApiClient, Connection } from './client'
 
-const base = process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:3001'
+/** Where the backend is. Exported because bytes are fetched by the browser directly —
+ *  an `<img src>` is a request this client does not make. */
+export const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:3001'
+const base = API_BASE
 
 /** Sends made before the socket opens are held, not dropped — the first is a resize. */
 function open<Send, Receive>(

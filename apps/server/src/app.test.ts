@@ -168,6 +168,49 @@ describe('vault routes', () => {
   })
 })
 
+/* A vault holds more than markdown, and a PNG read as UTF-8 is a PNG destroyed. */
+describe('file routes', () => {
+  /** The smallest real PNG: an 8-bit greyscale pixel. */
+  const PNG = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAAAAAA6fptVAAAACklEQVR4nGP4DwABAQEAGF7VqQAAAABJRU5ErkJggg==',
+    'base64',
+  )
+
+  it('serves the bytes as they are on disk, with the type', async () => {
+    const { call, root, handle } = await server()
+    await writeFile(path.join(root, 'shot.png'), PNG)
+
+    const response = await fetch(`${handle.url}/api/file?path=shot.png`)
+    expect(response.status).toBe(200)
+    expect(response.headers.get('content-type')).toContain('image/png')
+    expect(Buffer.from(await response.arrayBuffer()).equals(PNG)).toBe(true)
+
+    // The same file through the document route is the corruption this route exists to
+    // avoid: what comes back cannot be written to disk again as the file that was read.
+    const asText = await call('GET', '/api/doc?path=shot.png')
+    const roundTripped = Buffer.from(
+      (asText.body as { markdown: string }).markdown,
+      'utf8',
+    )
+    expect(roundTripped.equals(PNG)).toBe(false)
+  })
+
+  it('refuses a file it has no business serving', async () => {
+    const { call } = await server()
+    expect((await call('GET', '/api/file?path=index.md')).status).toBe(400)
+  })
+
+  it('refuses a path that would escape the vault', async () => {
+    const { call } = await server()
+    expect((await call('GET', '/api/file?path=../escape.png')).status).toBe(400)
+  })
+
+  it('404s on an image that is not there', async () => {
+    const { call } = await server()
+    expect((await call('GET', '/api/file?path=missing.png')).status).toBe(404)
+  })
+})
+
 describe('config routes', () => {
   it('GET /api/config reports what it had to repair', async () => {
     const { call } = await server()
