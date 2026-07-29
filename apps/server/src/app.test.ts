@@ -23,7 +23,11 @@ afterAll(async () => {
 })
 
 async function server({ profile = 'tester' }: { profile?: string | null } = {}) {
-  const root = await tempDir()
+  // A vault is a folder of checkouts, and documents live in one of them. `local` is the
+  // one every vault has.
+  const vault = await tempDir()
+  const root = path.join(vault, 'local')
+  await mkdir(root, { recursive: true })
   await writeFile(path.join(root, 'index.md'), '# index\n\nsee [[Risks]]\n')
   await writeFile(path.join(root, 'Risks.md'), '# Risks\n')
 
@@ -34,11 +38,11 @@ async function server({ profile = 'tester' }: { profile?: string | null } = {}) 
     // config because that is where a vault's profile lives.
     await writeFile(
       path.join(home, 'config.json'),
-      JSON.stringify({ ...defaultConfig(root), profiles: { [root]: profile } }),
+      JSON.stringify({ ...defaultConfig(vault), profiles: { [vault]: profile } }),
     )
   }
 
-  const handle = await startServer({ root, home, port: 0 })
+  const handle = await startServer({ root: vault, home, port: 0 })
   running.push(handle)
 
   const call = async (method: string, url: string, body?: unknown) => {
@@ -49,7 +53,7 @@ async function server({ profile = 'tester' }: { profile?: string | null } = {}) 
     })
     return { status: response.status, body: await response.json() }
   }
-  return { root, home, handle, call }
+  return { root, vault, home, handle, call }
 }
 
 describe('binding', () => {
@@ -242,8 +246,10 @@ describe('config routes', () => {
     const { call } = await server()
     const { config } = (await call('GET', '/api/config'))
       .body as ApiResponse<'GET /api/config'>
+    // Another vault is another folder of checkouts, so the document goes in its `local`.
     const elsewhere = await tempDir()
-    await writeFile(path.join(elsewhere, 'other.md'), 'other')
+    await mkdir(path.join(elsewhere, 'local'), { recursive: true })
+    await writeFile(path.join(elsewhere, 'local', 'other.md'), 'other')
 
     await call('PUT', '/api/config', { ...config, vaultPath: elsewhere })
     const { entries } = (await call('GET', '/api/vault'))
@@ -394,7 +400,7 @@ describe('vault selection', () => {
   })
 
   it('points the open vault at another profile, in the config and not in the vault', async () => {
-    const { call, home, root } = await server()
+    const { call, home, root, vault } = await server()
     await createProfile(
       { name: 'work', ...IDENTITY, gitAuthor: { name: 'Work', email: 'work@localhost' } },
       home,
@@ -404,7 +410,8 @@ describe('vault selection', () => {
     expect((picked.body as ApiResponse<'PUT /api/vaults'>).vault?.profile).toBe('work')
 
     const written = JSON.parse(await readFile(path.join(home, 'config.json'), 'utf8'))
-    expect(written.profiles[root]).toBe('work')
+    // Keyed by the vault, which is the folder of checkouts rather than one of them.
+    expect(written.profiles[vault]).toBe('work')
     // The vault is a git working tree: the binding must not have landed inside it.
     await expect(stat(path.join(root, 'project.json'))).rejects.toThrow()
 

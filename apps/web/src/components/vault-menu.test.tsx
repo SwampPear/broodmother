@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { expect, it, vi } from 'vitest'
-import type { Profile, VaultSummary } from '@broodmother/shared'
+import { describe, expect, it, vi } from 'vitest'
+import type { Profile, VaultSummary, Worktree } from '@broodmother/shared'
 import { VaultMenu } from './vault-menu'
 
 const vaults: VaultSummary[] = [
@@ -28,19 +28,42 @@ const profiles: Profile[] = [
   },
 ]
 
-function show(activePath = '/Users/you/.broodmother/Work') {
+const worktrees: Worktree[] = [
+  {
+    name: 'local',
+    path: '/Users/you/.broodmother/Work/local',
+    branch: 'main',
+    primary: true,
+  },
+  {
+    name: 'fix-login',
+    path: '/Users/you/.broodmother/Work/fix-login',
+    branch: 'fix-login',
+    primary: false,
+  },
+]
+
+function show(activePath = '/Users/you/.broodmother/Work', activeWorktree = 'local') {
   const onSelect = vi.fn()
   const onAdd = vi.fn()
   const onDelete = vi.fn()
   const onSelectProfile = vi.fn()
   const onAddProfile = vi.fn()
   const onSettings = vi.fn()
+  const onSelectWorktree = vi.fn()
+  const onAddWorktree = vi.fn()
+  const onDeleteWorktree = vi.fn()
   render(
     <VaultMenu
       vaults={vaults}
       activePath={activePath}
       profiles={profiles}
       activeProfile="ada"
+      worktrees={worktrees}
+      activeWorktree={activeWorktree}
+      onSelectWorktree={onSelectWorktree}
+      onAddWorktree={onAddWorktree}
+      onDeleteWorktree={onDeleteWorktree}
       onSelect={onSelect}
       onAdd={onAdd}
       onDelete={onDelete}
@@ -49,7 +72,17 @@ function show(activePath = '/Users/you/.broodmother/Work') {
       onSettings={onSettings}
     />,
   )
-  return { onSelect, onAdd, onDelete, onSelectProfile, onAddProfile, onSettings }
+  return {
+    onSelect,
+    onAdd,
+    onDelete,
+    onSelectProfile,
+    onAddProfile,
+    onSettings,
+    onSelectWorktree,
+    onAddWorktree,
+    onDeleteWorktree,
+  }
 }
 
 const open = () => userEvent.click(screen.getByRole('button', { name: /Work|Personal/ }))
@@ -188,4 +221,52 @@ it('wraps past the last row back onto the first', async () => {
 
   expect(onSettings).toHaveBeenCalled()
   expect(onAdd).not.toHaveBeenCalled()
+})
+
+describe('worktrees', () => {
+  it('lists every checkout with the branch it is on', async () => {
+    show()
+    await open()
+    const rows = screen.getAllByRole('menuitemradio')
+    expect(rows.some((row) => row.textContent?.includes('fix-login'))).toBe(true)
+    expect(screen.getByRole('menuitemradio', { name: /local/ })).toHaveTextContent('main')
+  })
+
+  it('switches on pick and closes', async () => {
+    const { onSelectWorktree } = show()
+    await open()
+    await userEvent.click(screen.getByRole('menuitemradio', { name: /fix-login/ }))
+    await waitFor(() => expect(onSelectWorktree).toHaveBeenCalledWith('fix-login'))
+  })
+
+  it('does not re-open the worktree already active', async () => {
+    const { onSelectWorktree } = show()
+    await open()
+    await userEvent.click(screen.getByRole('menuitemradio', { name: /local/ }))
+    expect(onSelectWorktree).not.toHaveBeenCalled()
+  })
+
+  it('opens the new-worktree flow from its own row', async () => {
+    const { onAddWorktree } = show()
+    await open()
+    await userEvent.click(screen.getByRole('menuitem', { name: /New worktree/ }))
+    expect(onAddWorktree).toHaveBeenCalled()
+  })
+
+  it('names the branch you are on beside the vault, unless it is local', async () => {
+    const { unmount } = render(<div />)
+    unmount()
+    show('/Users/you/.broodmother/Work', 'fix-login')
+    expect(screen.getByRole('button')).toHaveTextContent('fix-login')
+  })
+
+  /* The clone is the repository the others point into, so there is nothing to remove. */
+  it('offers to remove a worktree but never the clone', async () => {
+    const { onDeleteWorktree } = show()
+    await open()
+
+    await userEvent.dblClick(screen.getByRole('menuitemradio', { name: /fix-login/ }))
+    await userEvent.click(await screen.findByRole('button', { name: 'remove worktree' }))
+    expect(onDeleteWorktree).toHaveBeenCalledWith('fix-login')
+  })
 })

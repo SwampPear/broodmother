@@ -1,6 +1,6 @@
 import type { Identity, BroodmotherConfig, Profile } from './config'
 import type { SyncStatus } from './sync'
-import type { VaultEntry, VaultEvent, VaultPath, VaultSummary } from './vault'
+import type { VaultEntry, VaultEvent, VaultPath, VaultSummary, Worktree } from './vault'
 
 export interface Backlink {
   from: VaultPath
@@ -33,6 +33,25 @@ export interface ApiRoutes {
   /** Edits the active profile; the name is the file, so it is not editable here. */
   'PUT /api/profiles': { request: Identity; response: { profile: Profile } }
   'GET /api/vault': { request: null; response: { entries: VaultEntry[] } }
+  /** The checkouts in the open vault. `local` is the clone; the rest are its branches. */
+  'GET /api/worktrees': {
+    request: null
+    response: { worktrees: Worktree[]; active: string }
+  }
+  /** `create` cuts the branch fresh off the primary; otherwise it is one that exists. */
+  'POST /api/worktrees': {
+    request: { name: string; branch: string; create: boolean }
+    response: { worktree: Worktree; config: BroodmotherConfig }
+  }
+  'POST /api/worktrees/open': {
+    request: { name: string }
+    response: { config: BroodmotherConfig }
+  }
+  /** Removing the one you are in falls back to the vault's own checkout. */
+  'DELETE /api/worktrees': {
+    request: { name: string }
+    response: { worktrees: Worktree[]; config: BroodmotherConfig }
+  }
   /** `home` is the broodmother home: its vaults are the folders inside it. `active` is null
    *  on a fresh machine — nothing is assumed, the app asks. */
   'GET /api/vaults': {

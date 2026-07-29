@@ -987,6 +987,26 @@ body[data-resizing='panel'] {
   color: var(--opal-gold);
 }
 
+/* The branch you are on, said beside the vault it is a branch of — and only when it is not
+   the clone, because "local" is where you are unless you went somewhere. */
+.tree-head .worktree-tag {
+  flex: none;
+  padding: 0.05rem 0.35rem;
+  border: 1px solid var(--line);
+  border-radius: var(--row-radius);
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  font-weight: 500;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
+/* Two ways of saying one thing, side by side rather than stacked. */
+.fields .choices {
+  gap: 1.1rem;
+}
+
 /* ---------- images ---------- */
 
 .image-view {

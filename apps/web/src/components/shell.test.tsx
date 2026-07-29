@@ -153,3 +153,39 @@ it('gives a terminal tab the whole pane, and hands it back on the way out', asyn
   await userEvent.click(screen.getByRole('button', { name: 'Close terminal' }))
   expect(screen.getByText('the vault')).toBeVisible()
 })
+
+/* A file open in two worktrees is two files, on two branches. Switching between them keeps
+   each set where it was rather than carrying one into the other. */
+it('keeps a tab set per worktree', async () => {
+  const client = createMockClient({
+    worktrees: [
+      { name: 'local', path: '/v/local', branch: 'main', primary: true },
+      { name: 'fix', path: '/v/fix', branch: 'fix', primary: false },
+    ],
+  })
+  const { rerender } = show(client)
+  await screen.findByText('the vault')
+
+  pathname = '/doc/Handbook/Overview.md'
+  rerender(tree(client))
+  await screen.findByRole('tab', { name: /Overview/ })
+
+  // Switched from the menu, the way it is switched in the app.
+  await userEvent.click(screen.getByRole('button', { name: /handbook/i }))
+  await userEvent.click(await screen.findByRole('menuitemradio', { name: /fix/ }))
+
+  // The tab belonged to `local`, and that is where it stayed.
+  await waitFor(() =>
+    expect(screen.queryByRole('tab', { name: /Overview/ })).not.toBeInTheDocument(),
+  )
+})
+
+it('opens the new-worktree modal from the menu', async () => {
+  show(createMockClient())
+  await screen.findByText('the vault')
+
+  await userEvent.click(await screen.findByRole('button', { name: /handbook/i }))
+  await userEvent.click(await screen.findByRole('menuitem', { name: /New worktree/ }))
+
+  await screen.findByRole('dialog', { name: 'New worktree' })
+})

@@ -1,4 +1,4 @@
-import { writeFile } from 'node:fs/promises'
+import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import WebSocket from 'ws'
 import { afterAll, describe, expect, it } from 'vitest'
@@ -13,8 +13,11 @@ afterAll(async () => {
 })
 
 async function server() {
-  const root = await tempDir()
-  const handle = await startServer({ root, home: await tempDir(), port: 0 })
+  // A vault is a folder of checkouts; the watcher watches the one that is open.
+  const vault = await tempDir()
+  const root = path.join(vault, 'local')
+  await mkdir(root, { recursive: true })
+  const handle = await startServer({ root: vault, home: await tempDir(), port: 0 })
   running.push(handle)
   return Object.assign(handle, { root })
 }
