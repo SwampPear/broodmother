@@ -64,13 +64,22 @@ execFileSync('npm', ['run', 'build', '-w', '@broodmother/web'], {
 })
 // `standalone` traces the server and its dependencies but copies neither the client bundles
 // nor public/ — Next expects whoever ships it to put those two back.
+//
+// `dereference` because the trace leaves symlinks behind that point at absolute paths on
+// the machine that built it. Copied as links they are broken everywhere else, and codesign
+// refuses a bundle holding a link that leaves it — which is how they were found.
 const web = join(runtime, 'web/apps/web')
 await cp(join(root, 'apps/web/.next/standalone'), join(runtime, 'web'), {
   recursive: true,
+  dereference: true,
 })
 await cp(join(root, 'apps/web/.next/static'), join(web, '.next/static'), {
   recursive: true,
+  dereference: true,
 })
-await cp(join(root, 'apps/web/public'), join(web, 'public'), { recursive: true })
+await cp(join(root, 'apps/web/public'), join(web, 'public'), {
+  recursive: true,
+  dereference: true,
+})
 
 console.log(`built ${dist}`)

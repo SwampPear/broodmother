@@ -8,10 +8,10 @@ import { ProfileForm, type ProfileDraft, type ProfileFormState } from './profile
 
 /**
  * Who you work as: pick one of the profiles on this machine, or make one. Profiles are
- * shared by every project, so this lists what is already there before offering to add to it.
+ * shared by every vault, so this lists what is already there before offering to add to it.
  *
  * The same modal is first run: with no `onClose` there is no cancel, no escape and no
- * click-away, because a project with nobody to commit as has nothing to go back to.
+ * click-away, because a vault with nobody to commit as has nothing to go back to.
  */
 export function ProfilePicker({
   existing,
@@ -62,8 +62,8 @@ export function ProfilePicker({
       title={first ? 'Welcome to broodmother' : 'Profiles'}
       description={
         first
-          ? `A profile is who you commit as, and the credentials you do it with. It is a file in ${home || '~/.broodmother'}/profiles, and every project picks one.`
-          : 'A profile is who you commit as. It lives on this machine rather than in a project, so the same one serves every project that picks it.'
+          ? `A profile is who you commit as, and the credentials you do it with. It is a file in ${home || '~/.broodmother'}/profiles, and every vault picks one.`
+          : 'A profile is who you commit as. It lives on this machine rather than in a vault, so the same one serves every vault that picks it.'
       }
       onClose={onClose}
       footer={

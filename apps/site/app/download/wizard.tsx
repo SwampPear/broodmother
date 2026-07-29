@@ -7,6 +7,10 @@ import { Apple } from '../apple'
  * Four steps because the first launch of an unsigned app is genuinely four steps, and the
  * one that trips people — Gatekeeper refusing an app it cannot check — is the one nobody
  * warns them about until they are already staring at the dialog.
+ *
+ * The way past it changed: macOS 15 removed the right-click → Open shortcut, so the only
+ * route now is System Settings. Saying the old one first would send most people to a menu
+ * item that is not there.
  */
 const STEPS = [
   {
@@ -19,7 +23,7 @@ const STEPS = [
   },
   {
     title: 'Open it the first time',
-    body: 'broodmother is not signed by Apple yet, so double-clicking it gets you a warning and nothing else. Right-click the app in Applications and choose Open — the same warning now has an Open button on it. Once only.',
+    body: 'broodmother is not signed by Apple yet, so the first double-click gets a warning and nothing else. Open System Settings → Privacy & Security, scroll to the note saying broodmother was blocked, and click Open Anyway. Once only. On macOS 14 and earlier you can right-click the app and choose Open instead — macOS 15 removed that shortcut.',
   },
   {
     title: 'Point it at a vault',
