@@ -42,9 +42,10 @@ npm run setup          # install dependencies and put `docs` on your PATH
 docs ~/path/to/vault   # start the backend and the site; ctrl-c stops both
 ```
 
-Then open http://127.0.0.1:3000. With no argument `docs` treats the current directory as
-the vault, and prints which one it picked. Both processes bind loopback only — the vault
-is unauthenticated, so nothing is served to the network.
+Your browser opens at http://127.0.0.1:3000 once the site is ready. With no argument,
+`docs` treats the current directory as the vault, and prints which one it picked. Both
+processes bind loopback only — the vault is unauthenticated, so nothing is served to the
+network.
 
 From inside this directory, `npm run dev` does the same thing without installing anything.
 `npm test` runs every package, `npm run build` typechecks and builds the site.
