@@ -21,6 +21,9 @@ import type {
 } from '@broodmother/shared'
 import { api, type ApiClient, type Connection } from './api'
 
+/** Why an action failed, or null when it did not. */
+export type Failure = string | null
+
 export interface App {
   client: ApiClient
   entries: VaultEntry[]
@@ -46,23 +49,30 @@ export interface App {
   vaultEvent: VaultEvent | null
   notice: string | null
   dismissNotice(): void
-  create(path: VaultPath): Promise<void>
-  move(from: VaultPath, to: VaultPath): Promise<void>
-  remove(path: VaultPath): Promise<void>
-  save(path: VaultPath, markdown: string): Promise<void>
-  syncNow(): Promise<void>
-  clearConflict(): Promise<void>
-  saveConfig(config: BroodmotherConfig): Promise<void>
-  createVault(input: { name: string; remoteUrl: string; branch: string }): Promise<void>
-  openVault(path: string): Promise<void>
-  deleteVault(name: string): Promise<void>
-  addWorktree(input: { name: string; branch: string; create: boolean }): Promise<void>
-  openWorktree(name: string): Promise<void>
-  deleteWorktree(name: string): Promise<void>
-  addProfile(input: { name: string } & Identity): Promise<void>
-  selectProfile(name: string): Promise<void>
-  saveIdentity(identity: Identity): Promise<void>
+  create(path: VaultPath): Promise<Failure>
+  move(from: VaultPath, to: VaultPath): Promise<Failure>
+  remove(path: VaultPath): Promise<Failure>
+  save(path: VaultPath, markdown: string): Promise<Failure>
+  syncNow(): Promise<Failure>
+  clearConflict(): Promise<Failure>
+  saveConfig(config: BroodmotherConfig): Promise<Failure>
+  createVault(input: {
+    name: string
+    remoteUrl: string
+    branch: string
+  }): Promise<Failure>
+  openVault(path: string): Promise<Failure>
+  deleteVault(name: string): Promise<Failure>
+  addWorktree(input: { name: string; branch: string; create: boolean }): Promise<Failure>
+  openWorktree(name: string): Promise<Failure>
+  deleteWorktree(name: string): Promise<Failure>
+  addProfile(input: { name: string } & Identity): Promise<Failure>
+  selectProfile(name: string): Promise<Failure>
+  saveIdentity(identity: Identity): Promise<Failure>
 }
+
+/** Long enough to collect a burst of writes, short enough to feel like no wait at all. */
+const TREE_COALESCE_MS = 60
 
 const idleSync: SyncStatus = {
   state: 'idle',
@@ -101,12 +111,26 @@ export function AppProvider({
   const [vaultEvent, setVaultEvent] = useState<VaultEvent | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const connection = useRef<Connection | null>(null)
+  const treeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const loadVault = () =>
     client
       .request('GET /api/vault', null)
       .then((result) => setEntries(result.entries))
       .catch(() => setEntries([]))
+
+  /**
+   * The tree is the whole tree, so it is fetched once for a burst rather than once per file
+   * in it. An agent laying down a directory of notes is dozens of events in a moment, and
+   * each one asking for the same answer would be dozens of reads of the same disk.
+   */
+  const reloadTree = () => {
+    if (treeTimer.current) clearTimeout(treeTimer.current)
+    treeTimer.current = setTimeout(() => {
+      treeTimer.current = null
+      void loadVault()
+    }, TREE_COALESCE_MS)
+  }
 
   const loadVaults = () =>
     client.request('GET /api/vaults', null).then((result) => {
@@ -148,8 +172,10 @@ export function AppProvider({
     connection.current = client.connect((message) => {
       switch (message.type) {
         case 'vault':
+          // The event goes out at once — an open document follows the file it is showing
+          // without waiting on anything — and the tree catches up a moment later.
           setVaultEvent(message.event)
-          void loadVault()
+          reloadTree()
           break
         case 'sync':
           setSync(message.status)
@@ -159,15 +185,26 @@ export function AppProvider({
           break
       }
     })
-    return () => connection.current?.close()
+    return () => {
+      if (treeTimer.current) clearTimeout(treeTimer.current)
+      connection.current?.close()
+    }
   }, [client])
 
-  const run = async (work: () => Promise<string | void>) => {
+  /**
+   * Every action goes through here, and every one of them can fail. The failure still lands
+   * in the status line, but it is handed back as well: a modal that asked for the work is
+   * the thing that has to say whether it worked, and it cannot read a line behind itself.
+   */
+  const run = async (work: () => Promise<string | void>): Promise<Failure> => {
     try {
       const message = await work()
       if (message) setNotice(message)
+      return null
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : String(error))
+      const reason = error instanceof Error ? error.message : String(error)
+      setNotice(reason)
+      return reason
     }
   }
 

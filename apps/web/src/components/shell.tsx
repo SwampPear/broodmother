@@ -22,6 +22,7 @@ import {
 } from './palette'
 import { VaultMenu } from './vault-menu'
 import { AddWorktree } from './add-worktree'
+import { WorktreeMenu } from './worktree-menu'
 import { ProfilePicker } from './profile-picker'
 import { Resizer, clampSize, initialSize } from './resizer'
 import { StatusLine } from './status-line'
@@ -71,22 +72,44 @@ export function Shell({ children }: { children: ReactNode }) {
     [where],
   )
 
+  // Where you were in each checkout. The route is one route for the whole window, so
+  // without this, switching worktree leaves the document you were reading on screen —
+  // a file from a branch you are no longer on.
+  const lastRoute = useRef<Record<string, string>>({})
+
   // Which vault is open arrives a request after the first paint, so a tab opened from the
   // URL in the meantime is filed under a key that names no vault. When the real one turns
   // up, those tabs are its: they were always its, the app just could not say so yet.
   const filedUnder = useRef(where)
+  // Recorded only while the checkout has not changed yet. Filing the route under the key
+  // it is moving to would record where you are as where you were going, and the effect
+  // below would find nothing to go back to.
+  if (filedUnder.current === where) lastRoute.current[where] = pathname
+
   useEffect(() => {
     const from = filedUnder.current
     if (from === where) return
     filedUnder.current = where
-    if (!from.startsWith('#')) return
-    setByWorktree((all) => {
-      const carried = all[from]
-      if (!carried?.length || all[where]?.length) return all
-      const { [from]: _dropped, ...rest } = all
-      return { ...rest, [where]: carried }
-    })
-  }, [where])
+
+    if (from.startsWith('#')) {
+      setByWorktree((all) => {
+        const carried = all[from]
+        if (!carried?.length || all[where]?.length) return all
+        const { [from]: _dropped, ...rest } = all
+        return { ...rest, [where]: carried }
+      })
+      return
+    }
+
+    // A real switch between checkouts. Go back to whatever was open here, or to the home
+    // screen when nothing was — the document from the checkout you left is not this one's.
+    const going = lastRoute.current[where] ?? '/'
+    setTerminalTab(null)
+    if (going !== pathname) router.push(going)
+    // `pathname` is deliberately absent: this runs when the checkout changes, and reading
+    // the route it changed away from is the whole point.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [where, router])
   // Set only while a terminal tab is up. Otherwise the route says which tab is active,
   // because a document tab is a place in the vault and the URL is where that lives.
   const [terminalTab, setTerminalTab] = useState<string | null>(null)
@@ -115,6 +138,21 @@ export function Shell({ children }: { children: ReactNode }) {
     setTabs(rest)
     if (tab.id !== activeId) return
     const next = rest[index] ?? rest[index - 1]
+    if (next) pick(next)
+    else {
+      setTerminalTab(null)
+      router.push('/')
+    }
+  }
+
+  /** Closing a run of tabs at once: whatever is left decides where you end up, so the
+   *  route only moves when the tab it was showing went with them. */
+  const closeMany = (going: Tab[]) => {
+    const doomed = new Set(going.map((one) => one.id))
+    const rest = tabs.filter((one) => !doomed.has(one.id))
+    setTabs(rest)
+    if (!activeId || !doomed.has(activeId)) return
+    const next = rest[rest.length - 1]
     if (next) pick(next)
     else {
       setTerminalTab(null)
@@ -156,7 +194,7 @@ export function Shell({ children }: { children: ReactNode }) {
       if (!event.metaKey && !event.ctrlKey) return
       if (event.key === 'k') {
         event.preventDefault()
-        setFlow({ kind: 'commands' })
+        setFlow({ kind: 'search' })
       } else if (event.key === 'j') {
         event.preventDefault()
         toggleTerminal()
@@ -210,14 +248,9 @@ export function Shell({ children }: { children: ReactNode }) {
             activePath={app.config?.vaultPath ?? ''}
             profiles={app.profiles}
             activeProfile={app.profile?.name ?? null}
-            worktrees={app.worktrees}
-            activeWorktree={app.worktree}
             onSelect={(path) => void app.openVault(path)}
             onAdd={() => setPicker(true)}
             onDelete={(name) => void app.deleteVault(name)}
-            onSelectWorktree={(name) => void app.openWorktree(name)}
-            onAddWorktree={() => setBranching(true)}
-            onDeleteWorktree={(name) => void app.deleteWorktree(name)}
             onSelectProfile={(name) => void app.selectProfile(name)}
             onAddProfile={() => setProfiling(true)}
             onSettings={ctx.settings}
@@ -228,13 +261,28 @@ export function Shell({ children }: { children: ReactNode }) {
       />
       <Resizer axis="sidebar" size={sidebar} onSize={resize} />
       <main className="main">
-        <TabStrip
-          tabs={tabs}
-          activeId={activeId}
-          onPick={pick}
-          onClose={closeTab}
-          onNew={newTab}
-        />
+        {/* The strip and the checkout it belongs to share one bar: switching worktree is
+            what changes the tabs, so the control that does it sits with them. */}
+        <div className="tab-bar">
+          <TabStrip
+            tabs={tabs}
+            activeId={activeId}
+            onPick={pick}
+            onClose={closeTab}
+            onNew={newTab}
+            onRename={(tab) => tab.kind === 'doc' && setFlow(moveFlow(ctx, tab.path))}
+            onCloseMany={closeMany}
+          />
+          {app.worktrees.length > 0 && (
+            <WorktreeMenu
+              worktrees={app.worktrees}
+              active={app.worktree}
+              onSelect={(name) => void app.openWorktree(name)}
+              onAdd={() => setBranching(true)}
+              onDelete={(name) => void app.deleteWorktree(name)}
+            />
+          )}
+        </div>
         <div className="main-body">
           <div className="pane" hidden={Boolean(terminalTab)}>
             {children}
@@ -275,9 +323,13 @@ export function Shell({ children }: { children: ReactNode }) {
             setProfiling(false)
             void app.selectProfile(name)
           }}
-          onCreate={(draft) => {
-            setProfiling(false)
-            void app.addProfile(draft)
+          // Closed only once it worked. On first run this modal is held open by there
+          // being no profile, so closing it on the way out would have closed nothing and
+          // left a failure with nowhere to appear.
+          onCreate={async (draft) => {
+            const reason = await app.addProfile(draft)
+            if (!reason) setProfiling(false)
+            return reason
           }}
           onClose={needsProfile ? undefined : () => setProfiling(false)}
         />
@@ -286,9 +338,10 @@ export function Shell({ children }: { children: ReactNode }) {
         <AddWorktree
           existing={app.worktrees}
           accent={app.profile?.presenceColor}
-          onCreate={(input) => {
-            setBranching(false)
-            void app.addWorktree(input)
+          onCreate={async (input) => {
+            const reason = await app.addWorktree(input)
+            if (!reason) setBranching(false)
+            return reason
           }}
           onClose={() => setBranching(false)}
         />

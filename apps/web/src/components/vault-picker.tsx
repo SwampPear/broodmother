@@ -15,6 +15,7 @@ export function VaultPicker({ onClose }: { onClose?: () => void }) {
   const [remoteUrl, setRemoteUrl] = useState('')
   const [branch, setBranch] = useState('main')
   const [busy, setBusy] = useState(false)
+  const [failed, setFailed] = useState<string | null>(null)
 
   const current = app.config?.vaultPath ?? null
   // First run is having none, not being unable to dismiss: a home with vaults in it that
@@ -24,8 +25,16 @@ export function VaultPicker({ onClose }: { onClose?: () => void }) {
   const submit = async (event: FormEvent) => {
     event.preventDefault()
     setBusy(true)
-    await app.createVault({ name: name.trim(), remoteUrl: remoteUrl.trim(), branch })
+    setFailed(null)
+    // The remote is proven reachable before anything is written, so this is where an
+    // unreachable one is found out — and where it has to be said.
+    const reason = await app.createVault({
+      name: name.trim(),
+      remoteUrl: remoteUrl.trim(),
+      branch,
+    })
     setBusy(false)
+    if (reason) return setFailed(reason)
     setName('')
     setRemoteUrl('')
     onClose?.()
@@ -125,6 +134,12 @@ export function VaultPicker({ onClose }: { onClose?: () => void }) {
             The remote is checked before anything is written. An existing branch is
             cloned; an empty one is initialised and pushed on the first sync.
           </p>
+
+          {failed && (
+            <p className="field-error" role="alert">
+              {failed}
+            </p>
+          )}
         </form>
       </div>
     </Modal>

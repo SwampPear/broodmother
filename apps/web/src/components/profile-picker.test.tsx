@@ -1,6 +1,6 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { Profile } from '@broodmother/shared'
 import { ProfilePicker } from './profile-picker'
 
@@ -168,4 +168,62 @@ it('cancels without creating anything', async () => {
   await userEvent.click(screen.getByRole('button', { name: 'cancel' }))
   expect(onClose).toHaveBeenCalled()
   expect(onCreate).not.toHaveBeenCalled()
+})
+
+/* Writing a profile touches disk and can be refused. On first run this modal has no way
+   out, so a failure it does not show is a failure nobody ever sees. */
+describe('while it is working', () => {
+  const draft = async () => {
+    await userEvent.type(screen.getByLabelText('Profile name'), 'ada')
+    await userEvent.type(screen.getByLabelText('Git author email'), 'ada@example.com')
+  }
+
+  it('says so on the button, and will not be pressed twice', async () => {
+    let release: (reason: string | null) => void = () => {}
+    const onCreate = vi.fn(
+      () => new Promise<string | null>((resolve) => (release = resolve)),
+    )
+    render(<ProfilePicker existing={[]} onSelect={vi.fn()} onCreate={onCreate} />)
+    await draft()
+
+    const button = screen.getByRole('button', { name: 'create profile' })
+    await userEvent.click(button)
+
+    const busy = await screen.findByRole('button', { name: 'creating…' })
+    expect(busy).toBeDisabled()
+
+    release(null)
+    await waitFor(() => expect(onCreate).toHaveBeenCalledTimes(1))
+  })
+
+  it('shows the reason it was refused, and lets you try again', async () => {
+    const onCreate = vi
+      .fn()
+      .mockResolvedValueOnce('a profile named ada already exists')
+      .mockResolvedValueOnce(null)
+    render(<ProfilePicker existing={[]} onSelect={vi.fn()} onCreate={onCreate} />)
+    await draft()
+
+    await userEvent.click(screen.getByRole('button', { name: 'create profile' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'a profile named ada already exists',
+    )
+    // The button is live again, not stuck saying it is working.
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'create profile' })).toBeEnabled(),
+    )
+  })
+
+  it('clears the last failure when you try again', async () => {
+    const onCreate = vi.fn().mockResolvedValueOnce('nope').mockResolvedValueOnce(null)
+    render(<ProfilePicker existing={[]} onSelect={vi.fn()} onCreate={onCreate} />)
+    await draft()
+
+    await userEvent.click(screen.getByRole('button', { name: 'create profile' }))
+    await screen.findByRole('alert')
+    await userEvent.click(screen.getByRole('button', { name: 'create profile' }))
+
+    await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument())
+  })
 })

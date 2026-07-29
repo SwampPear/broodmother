@@ -46,6 +46,10 @@ await mkdir(runtime, { recursive: true })
 
 await bundle('main.ts', join(dist, 'main.cjs'), { external: ['electron'] })
 await cp(join(here, 'src/loading.html'), join(dist, 'loading.html'))
+// The Dock icon a checkout run wears. `build/icon.icns` is what electron-builder stamps
+// into the bundle, and Electron cannot read an icns, so the mark comes from the one PNG
+// the whole app already draws it from rather than from a second copy kept in step by hand.
+await cp(join(root, 'apps/web/public/logo.png'), join(dist, 'icon.png'))
 
 await bundle('server.ts', join(runtime, 'server/index.cjs'), {
   plugins: [ptyBesideTheBundle],

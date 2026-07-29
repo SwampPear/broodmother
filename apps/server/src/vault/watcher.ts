@@ -4,7 +4,13 @@ import type { VaultEvent } from '@broodmother/shared'
 import { toVaultPath } from './paths'
 
 const DEBOUNCE_MS = 100
-const SUPPRESS_MS = 2000
+/**
+ * How long a write of the app's own is allowed to echo for. One write can arrive as more
+ * than one event, so this cannot be spent on the first — but it was two seconds, which is
+ * long enough to swallow an agent editing the same file straight after a save. It only has
+ * to outlast the echo of a local write, which is immediate.
+ */
+const SUPPRESS_MS = 250
 
 /** Watches the vault and drops the echo of the app's own writes. */
 export class VaultWatcher {
@@ -37,6 +43,15 @@ export class VaultWatcher {
     this.watcher.on('unlink', (p) =>
       this.queue({ type: 'removed', path: toVaultPath(root, p) }),
     )
+    // Folders too. A directory made or removed by something else — an agent laying out a
+    // section, a sync pull dropping one — changes the tree, and a tree that does not
+    // change is a tree that is wrong.
+    this.watcher.on('addDir', (p) => {
+      if (p !== root) this.queue({ type: 'created', path: toVaultPath(root, p) })
+    })
+    this.watcher.on('unlinkDir', (p) => {
+      if (p !== root) this.queue({ type: 'removed', path: toVaultPath(root, p) })
+    })
   }
 
   suppress(...paths: string[]): void {
@@ -44,6 +59,8 @@ export class VaultWatcher {
     for (const p of paths) this.suppressed.set(p, until)
   }
 
+  /** Inside the window the change is the app's own and is dropped; past it, the entry is
+   *  spent and whatever comes next belongs to somebody else. */
   private isSuppressed(vaultPath: string): boolean {
     const until = this.suppressed.get(vaultPath)
     if (until === undefined) return false

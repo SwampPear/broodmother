@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 
 export type IconName =
+  | 'branch'
   | 'file'
   | 'file-text'
   | 'file-music'
@@ -65,6 +66,15 @@ const GLYPHS: Record<IconName, ReactNode> = {
     </>
   ),
   check: <path d="M20 6 9 17l-5-5" />,
+  branch: (
+    <>
+      <circle cx="6" cy="6" r="2.4" />
+      <circle cx="6" cy="18" r="2.4" />
+      <circle cx="18" cy="8" r="2.4" />
+      <path d="M6 8.4v7.2" />
+      <path d="M18 10.4c0 3.2-2.6 4.6-5.4 5.2-1.6.3-2.6.8-2.6 2.4" />
+    </>
+  ),
   plus: (
     <>
       <path d="M5 12h14" />

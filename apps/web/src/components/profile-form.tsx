@@ -152,6 +152,15 @@ export function ProfileForm({
         ))}
       </fieldset>
 
+      {/* The button that makes the profile lives in the caller's chrome, and is dead until
+          both of these are filled. A dead button with no reason on it reads as broken, so
+          it says what it is waiting for. */}
+      {!error && !(name.trim() && email.trim()) && (
+        <p className="hint">
+          A profile needs a name and a git author email; the rest can stay empty.
+        </p>
+      )}
+
       {error && (
         <p className="field-error" role="alert">
           {error}

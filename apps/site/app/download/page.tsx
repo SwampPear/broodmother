@@ -1,7 +1,13 @@
 import Link from 'next/link'
 import { Wizard } from './wizard'
 
-const VERSION = '0.1.2'
+/**
+ * The newest _published_ release, which is not the same number as the desktop app's
+ * `package.json`: a version that has been built but not released yet has no asset behind
+ * it, and this page would hand out a link to a file that does not exist. Bump it when the
+ * release goes up, not when the version does.
+ */
+const VERSION = '0.1.1'
 const REPO = 'https://github.com/SwampPear/broodmother'
 
 /**
