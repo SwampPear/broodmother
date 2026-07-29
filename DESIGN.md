@@ -40,8 +40,20 @@ The vault is a git working tree. A note is a `.md` file; a folder is a folder;
 attachments go in `attachments/`. Nothing about the format is ours — the current
 `proprium-docs` vault opens as-is, and Obsidian can stay open on the same folder.
 
-Per-vault app state (last opened, window layout, cached index) lives in `.mother/` and is
-gitignored. Nothing in `.mother/` is load-bearing; deleting it costs a reindex.
+Vaults live in `~/.mother/`. Every plain folder in there is a vault, so one dropped in by
+hand is picked up with no registration step; files and dotted entries are skipped, which is
+what keeps `~/.mother/config.json` from being mistaken for one. A vault outside the home
+still opens — the home is a default, not a boundary.
+
+A vault is always git-backed. Creating one takes a remote URL and branch, proves the remote
+is reachable before writing anything, then clones it if the branch has commits or
+initialises and leaves a first commit to push if it does not. There is no unlinked vault to
+repair later, and the vault's own `origin` stays the truth about where it syncs.
+
+App state (which vault is open, identity, relay) lives in `~/.mother/config.json` —
+alongside the vaults rather than inside one, so the choice survives switching. Per-vault
+state lives in `.mother/` inside the vault and is gitignored; nothing in it is load-bearing,
+and deleting it costs a reindex.
 
 ### Editor
 
@@ -102,7 +114,7 @@ the same doc at once — is the case the live session handles.
 ### Settings page
 
 Vault path · remote URL and branch · sync on/off and interval · relay URL · display name
-and presence color · git author identity. Stored in `.mother/config.json`.
+and presence color · git author identity. Stored in `~/.mother/config.json`.
 
 ## Interface
 

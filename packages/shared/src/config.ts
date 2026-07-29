@@ -4,8 +4,8 @@ export interface GitAuthor {
 }
 
 export interface MotherConfig {
-  /** Absolute path to the vault working tree. */
-  vaultPath: string
+  /** Absolute path to the vault working tree, or null when no vault is open yet. */
+  vaultPath: string | null
   remoteUrl: string | null
   branch: string
   syncEnabled: boolean

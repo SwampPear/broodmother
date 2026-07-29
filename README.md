@@ -39,16 +39,28 @@ proprium-docs/  (git clone on disk)   <-- source of truth
 
 ```
 npm run setup            # install dependencies and put `mother` on your PATH
-mother ~/path/to/vault   # start the backend and the site; ctrl-c stops both
+mother                   # start the backend and the site; ctrl-c stops both
+mother ~/path/to/vault   # ... or point it straight at one vault
 ```
 
-Your browser opens at http://127.0.0.1:3000 once the site is ready. With no argument,
-`mother` treats the current directory as the vault, and prints which one it picked. Both
-processes bind loopback only — the vault is unauthenticated, so nothing is served to the
-network.
+Your browser opens at http://127.0.0.1:3000 once the site is ready. Both processes bind
+loopback only — the vault is unauthenticated, so nothing is served to the network.
 
 From inside this directory, `npm run dev` does the same thing without installing anything.
 `npm test` runs every package, `npm run build` typechecks and builds the site.
+
+## Vaults
+
+Vaults live in `~/.mother/`. **Every folder in there is a vault** — drop a clone in by hand
+and it shows up, no registration step. With no argument `mother` reopens whatever you had
+open last, or the first vault it finds; on a fresh machine it opens the vault picker
+instead. `⌘K → Switch or create vault` gets back to the picker at any time.
+
+Creating a vault asks for a git remote, because git is the history and the backup and a
+vault with nowhere to push is a vault you lose. The remote is checked before anything is
+written to disk: an existing branch is cloned, an empty one is initialised with a first
+commit for the next sync to push. Vaults outside `~/.mother/` still open fine — pass a path
+or set `MOTHER_VAULT`; `MOTHER_HOME` moves the home itself.
 
 ## Status
 

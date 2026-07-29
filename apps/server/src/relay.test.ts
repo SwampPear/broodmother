@@ -12,7 +12,11 @@ afterAll(async () => {
 })
 
 async function server() {
-  const handle = await startServer({ root: await tempDir(), port: 0 })
+  const handle = await startServer({
+    root: await tempDir(),
+    home: await tempDir(),
+    port: 0,
+  })
   running.push(handle)
   return handle
 }

@@ -8,6 +8,7 @@ import type {
   TerminalServerMessage,
   VaultEntry,
   VaultPath,
+  VaultSummary,
 } from '@mother/shared'
 import type { ApiClient, Connection } from './client'
 
@@ -27,7 +28,7 @@ const seedDocs: Record<VaultPath, string> = {
 }
 
 const seedConfig: MotherConfig = {
-  vaultPath: '/Users/you/dev/propriumbioscience/docs',
+  vaultPath: '/Users/you/.mother/proprium-docs',
   remoteUrl: 'git@github.com:Proprium-Bioscience/docs.git',
   branch: 'main',
   syncEnabled: true,
@@ -59,9 +60,19 @@ function tree(paths: VaultPath[]): VaultEntry[] {
 }
 
 export function createMockClient(
-  seed: { docs?: Record<VaultPath, string>; config?: MotherConfig; sync?: SyncStatus } = {},
+  seed: {
+    docs?: Record<VaultPath, string>
+    config?: MotherConfig
+    sync?: SyncStatus
+    home?: string
+    vaults?: VaultSummary[]
+  } = {},
 ): MockClient {
   const docs = { ...seedDocs, ...seed.docs }
+  const home = seed.home ?? '/Users/you/.mother'
+  const vaults: VaultSummary[] = seed.vaults ?? [
+    { name: 'proprium-docs', path: `${home}/proprium-docs` },
+  ]
   let config = { ...seedConfig, ...seed.config }
   let sync: SyncStatus = seed.sync ?? {
     state: 'idle',
@@ -77,6 +88,25 @@ export function createMockClient(
   const handlers: { [R in ApiRoute]: (body: ApiRequest<R>) => Promise<ApiResponse<R>> } =
     {
       'GET /api/vault': async () => ({ entries: tree(Object.keys(docs)) }),
+      'GET /api/vaults': async () => ({ home, vaults: [...vaults] }),
+      'POST /api/vaults': async ({ name, remoteUrl, branch }) => {
+        if (vaults.some((vault) => vault.name === name))
+          throw new Error(`a vault named "${name}" already exists`)
+        const vault = { name, path: `${home}/${name}` }
+        vaults.push(vault)
+        config = {
+          ...config,
+          vaultPath: vault.path,
+          remoteUrl,
+          branch,
+          syncEnabled: true,
+        }
+        return { vault, config }
+      },
+      'POST /api/vaults/open': async ({ path }) => {
+        config = { ...config, vaultPath: path }
+        return { config }
+      },
       'GET /api/doc': async ({ path }) => {
         if (!(path in docs)) throw new Error(`no such document: ${path}`)
         return { markdown: docs[path] }
@@ -168,7 +198,8 @@ export function createMockClient(
       shell = onMessage
       return {
         send(message) {
-          if (message.type === 'input') emitTerminal({ type: 'output', data: message.data })
+          if (message.type === 'input')
+            emitTerminal({ type: 'output', data: message.data })
         },
         close() {
           shell = null

@@ -7,7 +7,7 @@ import type {
   SessionState,
 } from './collab'
 import type { SyncStatus } from './sync'
-import type { VaultEntry, VaultEvent, VaultPath } from './vault'
+import type { VaultEntry, VaultEvent, VaultPath, VaultSummary } from './vault'
 
 export interface Backlink {
   from: VaultPath
@@ -27,6 +27,19 @@ export interface MoveResult {
  */
 export interface ApiRoutes {
   'GET /api/vault': { request: null; response: { entries: VaultEntry[] } }
+  'GET /api/vaults': {
+    request: null
+    response: { home: string; vaults: VaultSummary[] }
+  }
+  /** A vault is always git-backed, so the remote is settled at creation, not after. */
+  'POST /api/vaults': {
+    request: { name: string; remoteUrl: string; branch: string }
+    response: { vault: VaultSummary; config: MotherConfig }
+  }
+  'POST /api/vaults/open': {
+    request: { path: string }
+    response: { config: MotherConfig }
+  }
   'GET /api/doc': { request: { path: VaultPath }; response: { markdown: string } }
   'PUT /api/doc': {
     request: { path: VaultPath; markdown: string }

@@ -11,7 +11,11 @@ afterAll(async () => {
 })
 
 async function server() {
-  const handle = await startServer({ root: await tempDir(), port: 0 })
+  const handle = await startServer({
+    root: await tempDir(),
+    home: await tempDir(),
+    port: 0,
+  })
   running.push(handle)
   return handle
 }
@@ -58,7 +62,7 @@ describe('terminals', () => {
     const shell = await open(handle)
 
     shell.send({ type: 'input', data: 'pwd\r' })
-    await until(() => shell.output().includes(handle.context.config.vaultPath))
+    await until(() => shell.output().includes(handle.context.open.path))
   })
 
   it('reports the exit and closes the socket when the shell ends', async () => {

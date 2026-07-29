@@ -18,6 +18,12 @@ export interface VaultDir {
 
 export type VaultEntry = VaultFile | VaultDir
 
+/** A directory in the vault home. The name is the folder name; the path is absolute. */
+export interface VaultSummary {
+  name: string
+  path: string
+}
+
 export type VaultEvent =
   | { type: 'created'; path: VaultPath }
   | { type: 'changed'; path: VaultPath }

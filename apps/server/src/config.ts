@@ -19,7 +19,7 @@ const remoteUrl = z
   .nullable()
 
 export const configSchema = z.object({
-  vaultPath: z.string().min(1),
+  vaultPath: z.string().min(1).nullable(),
   remoteUrl,
   branch: z.string().min(1),
   syncEnabled: z.boolean(),
@@ -30,7 +30,7 @@ export const configSchema = z.object({
   gitAuthor: z.object({ name: z.string().min(1), email: z.string().min(1) }),
 })
 
-export function defaultConfig(vaultPath: string): MotherConfig {
+export function defaultConfig(vaultPath: string | null): MotherConfig {
   const user = os.userInfo().username || 'mother'
   return {
     vaultPath,

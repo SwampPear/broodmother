@@ -1,4 +1,4 @@
-import { writeFile } from 'node:fs/promises'
+import { mkdir, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
@@ -18,7 +18,7 @@ async function server() {
   await writeFile(path.join(root, 'index.md'), '# index\n\nsee [[Risks]]\n')
   await writeFile(path.join(root, 'Risks.md'), '# Risks\n')
 
-  const handle = await startServer({ root, port: 0 })
+  const handle = await startServer({ root, home: await tempDir(), port: 0 })
   running.push(handle)
 
   const call = async (method: string, url: string, body?: unknown) => {
@@ -240,5 +240,90 @@ describe('sync routes', () => {
     expect((await call('POST', '/api/sync/clear-conflict')).body).toMatchObject({
       state: 'idle',
     })
+  })
+})
+
+describe('vaults', () => {
+  it('lists the folders in the home and nothing else', async () => {
+    const home = await tempDir()
+    await mkdir(path.join(home, 'notes'))
+    await writeFile(path.join(home, 'config.json'), '{}')
+    const handle = await startServer({ root: await tempDir(), home, port: 0 })
+    running.push(handle)
+
+    const response = await fetch(`${handle.url}/api/vaults`)
+    const body = (await response.json()) as ApiResponse<'GET /api/vaults'>
+    expect(body.home).toBe(home)
+    expect(body.vaults.map((vault) => vault.name)).toEqual(['notes'])
+  })
+
+  it('creates a vault against a real remote and opens it', async () => {
+    const { call } = await server()
+    const remote = await bareRemote()
+
+    const created = await call('POST', '/api/vaults', {
+      name: 'fresh',
+      remoteUrl: remote,
+      branch: 'main',
+    })
+
+    expect(created.status).toBe(200)
+    const body = created.body as ApiResponse<'POST /api/vaults'>
+    expect(body.vault.name).toBe('fresh')
+    expect(body.config.vaultPath).toBe(body.vault.path)
+    expect(body.config.remoteUrl).toBe(remote)
+    expect(body.config.syncEnabled).toBe(true)
+  })
+
+  it('rejects an unreachable remote rather than creating an unlinked vault', async () => {
+    const { call } = await server()
+
+    const created = await call('POST', '/api/vaults', {
+      name: 'broken',
+      remoteUrl: path.join(os.tmpdir(), 'definitely-not-a-repo.git'),
+      branch: 'main',
+    })
+
+    expect(created.status).toBe(400)
+    const listed = await call('GET', '/api/vaults')
+    const body = listed.body as ApiResponse<'GET /api/vaults'>
+    expect(body.vaults.map((vault) => vault.name)).not.toContain('broken')
+  })
+
+  it('rejects a name that would escape the home', async () => {
+    const { call } = await server()
+    const remote = await bareRemote()
+
+    const created = await call('POST', '/api/vaults', {
+      name: '../escape',
+      remoteUrl: remote,
+      branch: 'main',
+    })
+
+    expect(created.status).toBe(400)
+  })
+
+  it('adopts the remote of the vault it opens', async () => {
+    const { call } = await server()
+    const remote = await bareRemote()
+    const clone = await cloneOf(remote)
+
+    const opened = await call('POST', '/api/vaults/open', { path: clone })
+
+    expect(opened.status).toBe(200)
+    const body = opened.body as ApiResponse<'POST /api/vaults/open'>
+    expect(body.config.vaultPath).toBe(clone)
+    expect(body.config.remoteUrl).toBe(remote)
+  })
+})
+
+describe('no vault open', () => {
+  it('answers 409 rather than pretending an empty vault exists', async () => {
+    const handle = await startServer({ home: await tempDir(), port: 0 })
+    running.push(handle)
+
+    const response = await fetch(`${handle.url}/api/vault`)
+    expect(response.status).toBe(409)
+    expect(((await response.json()) as { error: string }).error).toMatch(/no vault/)
   })
 })

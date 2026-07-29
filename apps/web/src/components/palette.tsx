@@ -14,6 +14,7 @@ export interface FlowCtx {
   syncNow(): void
   settings(): void
   toggleTerminal(): void
+  vaults(): void
 }
 
 export type Flow =
@@ -91,6 +92,7 @@ function commands(ctx: FlowCtx): { label: string; run: () => Flow | null }[] {
     },
     { label: 'Toggle terminal', run: () => done(() => ctx.toggleTerminal()) },
     { label: 'Sync now', run: () => done(() => ctx.syncNow()) },
+    { label: 'Switch or create vault', run: () => done(() => ctx.vaults()) },
     { label: 'Settings', run: () => done(() => ctx.settings()) },
   ]
 }

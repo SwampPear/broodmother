@@ -5,8 +5,9 @@ import { WebSocket } from 'ws'
 import { z } from 'zod'
 import type { MotherConfig } from '@mother/shared'
 import { configSchema } from './config'
-import type { AppContext } from './context'
+import { NoVaultError, type AppContext } from './context'
 import { PathError, normalize } from './paths'
+import { VaultError, createVault, listVaults } from './vaults'
 
 export const WEB_ORIGINS = ['http://localhost:3000', 'http://127.0.0.1:3000']
 
@@ -14,6 +15,12 @@ const docBody = z.object({ path: z.string(), markdown: z.string() })
 const moveBody = z.object({ from: z.string(), to: z.string() })
 const remoteBody = z.object({ remoteUrl: z.string(), branch: z.string() })
 const relayBody = z.object({ relayUrl: z.string() })
+const newVaultBody = z.object({
+  name: z.string().min(1),
+  remoteUrl: z.string().min(1),
+  branch: z.string().min(1),
+})
+const openVaultBody = z.object({ path: z.string().min(1) })
 
 class BadRequest extends Error {}
 
@@ -37,19 +44,41 @@ export function createApp(ctx: AppContext): Hono {
   const app = new Hono()
   app.use('/api/*', cors({ origin: WEB_ORIGINS }))
 
-  app.get('/api/vault', async (c) => c.json({ entries: await ctx.vault.list() }))
+  app.get('/api/vaults', async (c) =>
+    c.json({ home: ctx.home, vaults: await listVaults(ctx.home) }),
+  )
+
+  app.post('/api/vaults', async (c) => {
+    const body = await parse(c, newVaultBody)
+    const vault = await createVault(body, ctx.config.gitAuthor, ctx.home)
+    const config = await ctx.setConfig({
+      ...ctx.config,
+      vaultPath: vault.path,
+      remoteUrl: body.remoteUrl,
+      branch: body.branch,
+      syncEnabled: true,
+    })
+    return c.json({ vault, config })
+  })
+
+  app.post('/api/vaults/open', async (c) => {
+    const { path } = await parse(c, openVaultBody)
+    return c.json({ config: await ctx.openVault(path) })
+  })
+
+  app.get('/api/vault', async (c) => c.json({ entries: await ctx.open.vault.list() }))
 
   app.get('/api/doc', async (c) =>
-    c.json({ markdown: await ctx.vault.read(query(c, 'path')) }),
+    c.json({ markdown: await ctx.open.vault.read(query(c, 'path')) }),
   )
 
   app.put('/api/doc', async (c) => {
     const { path, markdown } = await parse(c, docBody)
     const vaultPath = normalize(path)
-    const existed = await ctx.vault.exists(vaultPath)
-    ctx.watcher.suppress(vaultPath)
-    await ctx.vault.write(vaultPath, markdown)
-    await ctx.links.update(vaultPath)
+    const existed = await ctx.open.vault.exists(vaultPath)
+    ctx.open.watcher.suppress(vaultPath)
+    await ctx.open.vault.write(vaultPath, markdown)
+    await ctx.open.links.update(vaultPath)
     ctx.sync.noteEdit()
     ctx.broadcast({
       type: 'vault',
@@ -60,9 +89,9 @@ export function createApp(ctx: AppContext): Hono {
 
   app.post('/api/doc/move', async (c) => {
     const body = await parse(c, moveBody)
-    ctx.watcher.suppress(normalize(body.from), normalize(body.to))
-    const { from, to } = await ctx.vault.move(body.from, body.to)
-    const linksRewritten = await ctx.links.rewriteForMove(from, to)
+    ctx.open.watcher.suppress(normalize(body.from), normalize(body.to))
+    const { from, to } = await ctx.open.vault.move(body.from, body.to)
+    const linksRewritten = await ctx.open.links.rewriteForMove(from, to)
     ctx.sync.noteEdit()
     ctx.broadcast({ type: 'vault', event: { type: 'moved', from, to } })
     return c.json({ to, linksRewritten })
@@ -70,9 +99,9 @@ export function createApp(ctx: AppContext): Hono {
 
   app.delete('/api/doc', async (c) => {
     const path = query(c, 'path')
-    ctx.watcher.suppress(normalize(path))
-    const removed = await ctx.vault.remove(path)
-    ctx.links.forget(removed)
+    ctx.open.watcher.suppress(normalize(path))
+    const removed = await ctx.open.vault.remove(path)
+    ctx.open.links.forget(removed)
     ctx.sync.noteEdit()
     ctx.broadcast({ type: 'vault', event: { type: 'removed', path: removed } })
     return c.json({ ok: true } as const)
@@ -81,8 +110,8 @@ export function createApp(ctx: AppContext): Hono {
   app.get('/api/links', async (c) => {
     const path = normalize(query(c, 'path'))
     return c.json({
-      backlinks: ctx.links.backlinks(path),
-      outbound: ctx.links.outbound(path),
+      backlinks: ctx.open.links.backlinks(path),
+      outbound: ctx.open.links.outbound(path),
     })
   })
 
@@ -95,7 +124,7 @@ export function createApp(ctx: AppContext): Hono {
 
   app.post('/api/config/test-remote', async (c) => {
     const { remoteUrl, branch } = await parse(c, remoteBody)
-    return c.json(await ctx.git.testRemote(remoteUrl, branch))
+    return c.json(await ctx.open.git.testRemote(remoteUrl, branch))
   })
 
   app.post('/api/config/test-relay', async (c) => {
@@ -110,7 +139,12 @@ export function createApp(ctx: AppContext): Hono {
   app.onError((error, c) => {
     const code = (error as NodeJS.ErrnoException).code
     if (code === 'ENOENT') return c.json({ error: error.message }, 404)
-    if (error instanceof BadRequest || error instanceof PathError)
+    if (error instanceof NoVaultError) return c.json({ error: error.message }, 409)
+    if (
+      error instanceof BadRequest ||
+      error instanceof PathError ||
+      error instanceof VaultError
+    )
       return c.json({ error: error.message }, 400)
     return c.json({ error: error.message }, 500)
   })

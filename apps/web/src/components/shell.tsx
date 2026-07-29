@@ -25,6 +25,7 @@ import { applyProfile, load, save, seed, type Profile } from '../profiles'
 import { Resizer, clampSize, initialSize } from './resizer'
 import { StatusLine } from './status-line'
 import { TerminalPanel } from './terminal'
+import { VaultPicker } from './vault-picker'
 
 const SIDEBAR_KEY = 'mother.sidebar'
 const TERMINAL_KEY = 'mother.terminal'
@@ -48,6 +49,7 @@ export function Shell({ children }: { children: ReactNode }) {
   const [terminalHeight, setTerminalHeight] = useState(initialSize('panel'))
   const [profiles, setProfiles] = useState<Profile[]>([])
   const [activeProfile, setActiveProfile] = useState('default')
+  const [picker, setPicker] = useState(false)
 
   // Read after mount, not during render — the server has no localStorage to hydrate from.
   useEffect(() => {
@@ -112,6 +114,7 @@ export function Shell({ children }: { children: ReactNode }) {
     share: (path) => app.share(path),
     syncNow: () => void app.syncNow(),
     settings: () => router.push('/settings'),
+    vaults: () => setPicker(true),
     toggleTerminal,
   }
 
@@ -123,6 +126,10 @@ export function Shell({ children }: { children: ReactNode }) {
     }
     setFlow(flows[command])
   }
+
+  // No vault yet is the first-run state, not an error: the picker is the whole app.
+  if (app.config && !app.config.vaultPath) return <VaultPicker />
+  if (picker) return <VaultPicker onClose={() => setPicker(false)} />
 
   return (
     <div className="shell" style={{ '--sidebar': `${sidebar}px` } as CSSProperties}>

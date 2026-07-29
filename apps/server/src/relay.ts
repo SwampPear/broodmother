@@ -1,7 +1,13 @@
 import { createHash, randomUUID } from 'node:crypto'
 import * as Y from 'yjs'
 import type { WebSocket } from 'ws'
-import type { ClientMessage, MotherConfig, Peer, RoomId, ServerMessage } from '@mother/shared'
+import type {
+  ClientMessage,
+  MotherConfig,
+  Peer,
+  RoomId,
+  ServerMessage,
+} from '@mother/shared'
 
 interface Connection {
   id: string
@@ -61,7 +67,7 @@ export class Relay {
     if (this.rooms.has(room)) return room
     const config = this.config()
     const repoId = createHash('sha1')
-      .update(config.remoteUrl ?? config.vaultPath)
+      .update(config.remoteUrl ?? config.vaultPath ?? 'no-vault')
       .digest('hex')
       .slice(0, 12)
     return room.startsWith(`${repoId}/`) ? room : `${repoId}/${room}`

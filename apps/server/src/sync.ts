@@ -18,7 +18,7 @@ export function commitMessage(paths: readonly VaultPath[]): string {
 }
 
 export interface SyncDeps {
-  git: () => Git
+  git: () => Git | null
   config: () => MotherConfig
   hasLiveSession: () => boolean
   onStatus: (status: SyncStatus) => void
@@ -88,6 +88,8 @@ export class SyncLoop {
 
   private async sync(): Promise<SyncStatus> {
     const config = this.deps.config()
+    const git = this.deps.git()
+    if (!git) return this.set({ state: 'idle', message: 'no vault is open' })
     if (!config.remoteUrl)
       return this.set({ state: 'idle', message: 'no remote configured' })
     if (this.running) return this.state
@@ -95,17 +97,18 @@ export class SyncLoop {
     this.set({ state: 'syncing', message: null })
 
     try {
-      const before = await this.deps.git().status()
+      const before = await git.status()
       if (before.conflicted.length)
         return this.latch(before.conflicted, 'unresolved conflict')
 
       // Commit before pulling: rebasing onto a dirty tree fails, and the conflict we do
       // want to see is between two commits.
       if (before.changed.length) {
-        await this.deps.git().stageAll()
-        const committed = await this.deps
-          .git()
-          .commit(commitMessage(before.changed), config.gitAuthor)
+        await git.stageAll()
+        const committed = await git.commit(
+          commitMessage(before.changed),
+          config.gitAuthor,
+        )
         if (!committed.ok)
           return this.set({
             state: 'error',
@@ -113,10 +116,10 @@ export class SyncLoop {
           })
       }
 
-      const pulled = await this.deps.git().pull(config.branch)
+      const pulled = await git.pull(config.branch)
       if (!pulled.ok) {
         if (pulled.failure === 'conflict') {
-          const after = await this.deps.git().status()
+          const after = await git.status()
           return this.latch(after.conflicted, pulled.message)
         }
         return this.set({
@@ -125,7 +128,7 @@ export class SyncLoop {
         })
       }
 
-      const pushed = await this.deps.git().push(config.branch)
+      const pushed = await git.push(config.branch)
       if (!pushed.ok)
         return this.set({
           state: pushed.failure === 'offline' ? 'offline' : 'error',

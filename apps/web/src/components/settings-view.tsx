@@ -55,8 +55,8 @@ export function SettingsView() {
       <label>
         Vault path
         <input
-          value={draft.vaultPath}
-          onChange={(event) => set('vaultPath', event.target.value)}
+          value={draft.vaultPath ?? ''}
+          onChange={(event) => set('vaultPath', event.target.value || null)}
         />
       </label>
 

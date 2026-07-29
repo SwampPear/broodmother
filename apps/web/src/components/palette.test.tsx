@@ -15,6 +15,7 @@ function ctx(): FlowCtx {
     syncNow: vi.fn(),
     settings: vi.fn(),
     toggleTerminal: vi.fn(),
+    vaults: vi.fn(),
   }
 }
 
@@ -28,7 +29,7 @@ function open(flowCtx: FlowCtx, initial: Flow = { kind: 'commands' }) {
 
 it('lists every command and fuzzy-matches typing', async () => {
   open(ctx())
-  expect(screen.getAllByRole('option')).toHaveLength(8)
+  expect(screen.getAllByRole('option')).toHaveLength(9)
   await userEvent.keyboard('snw')
   expect(screen.getAllByRole('option').map((item) => item.textContent)).toEqual([
     'Sync now',

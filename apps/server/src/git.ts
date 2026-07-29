@@ -123,6 +123,13 @@ export class Git {
     return result.exitCode === 0
   }
 
+  /** The vault's own clone is the truth about where it syncs, not the app's config. */
+  async remoteUrl(): Promise<string | null> {
+    const result = await this.run(['remote', 'get-url', 'origin'])
+    if (result.exitCode !== 0) return null
+    return String(result.stdout).trim() || null
+  }
+
   async ignored(): Promise<Set<string>> {
     const result = await this.run([
       'ls-files',

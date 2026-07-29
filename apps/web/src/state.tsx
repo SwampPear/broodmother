@@ -18,6 +18,7 @@ import type {
   SyncStatus,
   VaultEntry,
   VaultPath,
+  VaultSummary,
 } from '@mother/shared'
 import { api, type ApiClient, type Connection } from './api'
 
@@ -34,6 +35,8 @@ export interface App {
   sync: SyncStatus
   config: MotherConfig | null
   configReset: string[]
+  vaults: VaultSummary[]
+  vaultHome: string
   session: Session | null
   divergence: DivergenceReport | null
   notice: string | null
@@ -45,6 +48,8 @@ export interface App {
   syncNow(): Promise<void>
   clearConflict(): Promise<void>
   saveConfig(config: MotherConfig): Promise<void>
+  createVault(input: { name: string; remoteUrl: string; branch: string }): Promise<void>
+  openVault(path: string): Promise<void>
   share(path: VaultPath): void
   resolveDivergence(choice: DivergenceChoice): void
 }
@@ -79,6 +84,8 @@ export function AppProvider({
   const [sync, setSync] = useState<SyncStatus>(idleSync)
   const [config, setConfig] = useState<MotherConfig | null>(null)
   const [configReset, setConfigReset] = useState<string[]>([])
+  const [vaults, setVaults] = useState<VaultSummary[]>([])
+  const [vaultHome, setVaultHome] = useState('')
   const [session, setSession] = useState<Session | null>(null)
   const [divergence, setDivergence] = useState<DivergenceReport | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -86,10 +93,20 @@ export function AppProvider({
   const sharing = useRef<VaultPath | null>(null)
 
   const loadVault = () =>
-    client.request('GET /api/vault', null).then((result) => setEntries(result.entries))
+    client
+      .request('GET /api/vault', null)
+      .then((result) => setEntries(result.entries))
+      .catch(() => setEntries([]))
+
+  const loadVaults = () =>
+    client.request('GET /api/vaults', null).then((result) => {
+      setVaults(result.vaults)
+      setVaultHome(result.home)
+    })
 
   useEffect(() => {
     void loadVault()
+    void loadVaults()
     void client.request('GET /api/config', null).then((result) => {
       setConfig(result.config)
       setConfigReset(result.reset)
@@ -138,6 +155,8 @@ export function AppProvider({
     sync,
     config,
     configReset,
+    vaults,
+    vaultHome,
     session,
     divergence,
     notice,
@@ -182,6 +201,22 @@ export function AppProvider({
         setConfig(result.config)
         setConfigReset([])
         return 'settings saved'
+      }),
+
+    createVault: (input) =>
+      run(async () => {
+        const result = await client.request('POST /api/vaults', input)
+        setConfig(result.config)
+        await Promise.all([loadVaults(), loadVault()])
+        return `created ${result.vault.name}`
+      }),
+
+    openVault: (path) =>
+      run(async () => {
+        const result = await client.request('POST /api/vaults/open', { path })
+        setConfig(result.config)
+        await loadVault()
+        return `opened ${path}`
       }),
 
     share: (path) => {
