@@ -9,6 +9,7 @@ import { NoProfileError, NoVaultError, type AppContext } from './context'
 import { ProfileError, identitySchema } from './profiles'
 import { PathError, normalize } from './vault/paths'
 import { VaultError } from './vault/vaults'
+import { WorktreeError } from './vault/worktrees'
 
 export const WEB_ORIGINS = ['http://localhost:6767', 'http://127.0.0.1:6767']
 
@@ -23,6 +24,12 @@ const newVaultBody = z.object({
 const openVaultBody = z.object({ path: z.string().min(1) })
 const newProfileBody = identitySchema.extend({ name: z.string().min(1) })
 const pickProfileBody = z.object({ profile: z.string().min(1) })
+const nameBody = z.object({ name: z.string().min(1) })
+const newWorktreeBody = z.object({
+  name: z.string().min(1),
+  branch: z.string().min(1),
+  create: z.boolean(),
+})
 
 class BadRequest extends Error {}
 
@@ -84,6 +91,25 @@ export function createApp(ctx: AppContext): Hono {
   })
 
   app.get('/api/vault', async (c) => c.json({ entries: await ctx.open.vault.list() }))
+
+  app.get('/api/worktrees', async (c) =>
+    c.json({ worktrees: await ctx.listWorktrees(), active: ctx.worktree }),
+  )
+
+  app.post('/api/worktrees', async (c) => {
+    const worktree = await ctx.addWorktree(await parse(c, newWorktreeBody))
+    return c.json({ worktree, config: ctx.config })
+  })
+
+  app.post('/api/worktrees/open', async (c) => {
+    const { name } = await parse(c, nameBody)
+    return c.json({ config: await ctx.openWorktree(name) })
+  })
+
+  app.delete('/api/worktrees', async (c) => {
+    const worktrees = await ctx.removeWorktree(query(c, 'name'))
+    return c.json({ worktrees, config: ctx.config })
+  })
 
   /**
    * The bytes of a file, for the things in a vault that are not text. `/api/doc` reads as
@@ -176,7 +202,8 @@ export function createApp(ctx: AppContext): Hono {
       error instanceof BadRequest ||
       error instanceof PathError ||
       error instanceof ProfileError ||
-      error instanceof VaultError
+      error instanceof VaultError ||
+      error instanceof WorktreeError
     )
       return c.json({ error: error.message }, 400)
     return c.json({ error: error.message }, 500)

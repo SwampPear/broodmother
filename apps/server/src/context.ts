@@ -7,10 +7,11 @@ import type {
   ServerMessage,
   VaultEvent,
   VaultSummary,
+  Worktree,
 } from '@broodmother/shared'
 import { ConfigStore, defaultConfig } from './config'
 import { Git } from './git/git'
-import { migrateProjects } from './migrate'
+import { migrateProjects, migrateWorktrees } from './migrate'
 import { LinkIndex } from './vault/links'
 import {
   ProfileError,
@@ -33,6 +34,16 @@ import {
   listVaults,
   type NewVault,
 } from './vault/vaults'
+import {
+  PRIMARY,
+  WorktreeError,
+  createWorktree,
+  findWorktree,
+  listWorktrees,
+  removeWorktree,
+  worktreePath,
+  type NewWorktree,
+} from './vault/worktrees'
 import { VaultWatcher } from './vault/watcher'
 
 export interface ContextOptions {
@@ -87,11 +98,17 @@ export class AppContext {
     await store.load()
 
     const migrated = await migrateProjects(home, store.config)
+    // Second, and after the first: a vault has to exist before it can be given a `local/`.
+    const nested = await migrateWorktrees(home, migrated.config)
     const context = new AppContext(store, home)
-    const vaultPath = await resolveVault(options.root, migrated.config.vaultPath, home)
+    const vaultPath = await resolveVault(options.root, nested.config.vaultPath, home)
     // Persist the resolution, or the open vault and the reported config disagree.
-    if (vaultPath !== store.config.vaultPath || migrated.moved.length > 0)
-      await store.save({ ...migrated.config, vaultPath })
+    if (
+      vaultPath !== store.config.vaultPath ||
+      migrated.moved.length > 0 ||
+      nested.moved.length > 0
+    )
+      await store.save({ ...nested.config, vaultPath })
     await context.loadProfile()
     await context.useVault(vaultPath)
     return context
@@ -246,7 +263,7 @@ export class AppContext {
   private session(): TerminalSession {
     const claudeConfigDir = this.activeProfile?.claudeConfigDir
     return {
-      cwd: this.config.vaultPath ?? this.home,
+      cwd: this.root ?? this.home,
       env: claudeConfigDir ? { CLAUDE_CONFIG_DIR: expandHome(claudeConfigDir) } : {},
     }
   }
@@ -290,22 +307,71 @@ export class AppContext {
     await this.current?.watcher.close()
   }
 
+  /** Which checkout is open in a vault. Every vault has `local`; the rest are branches. */
+  worktreeFor(vaultPath: string | null): string {
+    return (vaultPath && this.config.worktrees[vaultPath]) || PRIMARY
+  }
+
+  get worktree(): string {
+    return this.worktreeFor(this.config.vaultPath)
+  }
+
+  /** The directory the open document tree, git and the terminals all sit in. */
+  get root(): string | null {
+    const vault = this.config.vaultPath
+    return vault ? worktreePath(vault, this.worktreeFor(vault)) : null
+  }
+
+  async listWorktrees(): Promise<Worktree[]> {
+    const vault = this.config.vaultPath
+    return vault ? listWorktrees(vault) : []
+  }
+
+  async addWorktree(input: NewWorktree): Promise<Worktree> {
+    const vault = this.requireVault.path
+    const worktree = await createWorktree(vault, input, this.activeProfile?.sshKeyPath)
+    await this.openWorktree(worktree.name)
+    return worktree
+  }
+
+  async openWorktree(name: string): Promise<BroodmotherConfig> {
+    const vault = this.requireVault.path
+    const found = await findWorktree(vault, name)
+    if (!found) throw new WorktreeError(`no worktree named "${name}"`)
+    await this.store.save({
+      ...this.config,
+      worktrees: { ...this.config.worktrees, [vault]: name },
+    })
+    await this.useVault(vault)
+    return this.config
+  }
+
+  /** Removing the one you are in falls back to the vault's own checkout. */
+  async removeWorktree(name: string): Promise<Worktree[]> {
+    const vault = this.requireVault.path
+    await removeWorktree(vault, name)
+    if (this.worktreeFor(vault) === name) await this.openWorktree(PRIMARY)
+    return listWorktrees(vault)
+  }
+
   private async useVault(vaultPath: string | null): Promise<void> {
     await this.current?.watcher.close()
     if (!vaultPath) {
       this.current = null
       return
     }
-    await mkdir(vaultPath, { recursive: true })
-    const vault = new Vault(vaultPath)
+    // The vault is a folder of checkouts; what is opened is the one you are in.
+    const target = worktreePath(vaultPath, this.worktreeFor(vaultPath))
+    await mkdir(target, { recursive: true })
+    const vault = new Vault(target)
     const links = new LinkIndex(vault)
     await links.rebuild()
     this.current = {
-      path: vaultPath,
+      path: target,
       vault,
       links,
-      git: new Git(vaultPath, this.activeProfile?.sshKeyPath ?? null),
-      watcher: new VaultWatcher(vaultPath, (event) => this.onVaultEvent(event)),
+      git: new Git(target, this.activeProfile?.sshKeyPath ?? null),
+      watcher: new VaultWatcher(target, (event) => this.onVaultEvent(event)),
     }
   }
 

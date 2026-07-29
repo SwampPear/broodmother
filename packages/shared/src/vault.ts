@@ -31,3 +31,16 @@ export type VaultEvent =
   | { type: 'changed'; path: VaultPath }
   | { type: 'removed'; path: VaultPath }
   | { type: 'moved'; from: VaultPath; to: VaultPath }
+
+/**
+ * A checkout inside a vault. `local` is the clone itself, on the default branch; the rest
+ * are git worktrees of it, each on its own branch, each with its own files on disk.
+ */
+export interface Worktree {
+  name: string
+  path: string
+  /** The branch this checkout is on, or null if git could not say. */
+  branch: string | null
+  /** The vault's own clone, which cannot be removed. */
+  primary: boolean
+}

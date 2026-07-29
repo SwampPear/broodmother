@@ -17,6 +17,7 @@ import type {
   VaultEvent,
   VaultPath,
   VaultSummary,
+  Worktree,
 } from '@broodmother/shared'
 import { api, type ApiClient, type Connection } from './api'
 
@@ -37,6 +38,9 @@ export interface App {
   /** Null until a vault exists — the app asks where you work before anything else. */
   vault: VaultSummary | null
   vaults: VaultSummary[]
+  /** The checkouts in the open vault, and which one you are in. */
+  worktrees: Worktree[]
+  worktree: string
   /** The last change the vault reported, so an open document can follow a write it did not
    *  make itself. */
   vaultEvent: VaultEvent | null
@@ -52,6 +56,9 @@ export interface App {
   createVault(input: { name: string; remoteUrl: string; branch: string }): Promise<void>
   openVault(path: string): Promise<void>
   deleteVault(name: string): Promise<void>
+  addWorktree(input: { name: string; branch: string; create: boolean }): Promise<void>
+  openWorktree(name: string): Promise<void>
+  deleteWorktree(name: string): Promise<void>
   addProfile(input: { name: string } & Identity): Promise<void>
   selectProfile(name: string): Promise<void>
   saveIdentity(identity: Identity): Promise<void>
@@ -86,6 +93,8 @@ export function AppProvider({
   const [configReset, setConfigReset] = useState<string[]>([])
   const [vault, setVault] = useState<VaultSummary | null>(null)
   const [vaults, setVaults] = useState<VaultSummary[]>([])
+  const [worktrees, setWorktrees] = useState<Worktree[]>([])
+  const [worktree, setWorktree] = useState('local')
   const [profile, setProfile] = useState<Profile | null>(null)
   const [profiles, setProfiles] = useState<Profile[]>([])
   const [home, setHome] = useState('')
@@ -106,6 +115,16 @@ export function AppProvider({
       setHome(result.home)
     })
 
+  const loadWorktrees = () =>
+    client
+      .request('GET /api/worktrees', null)
+      .then((result) => {
+        setWorktrees(result.worktrees)
+        setWorktree(result.active)
+      })
+      // 409s until a vault is open, which is a state and not a failure.
+      .catch(() => setWorktrees([]))
+
   const loadProfiles = () =>
     client.request('GET /api/profiles', null).then((result) => {
       setProfiles(result.profiles)
@@ -120,6 +139,7 @@ export function AppProvider({
 
   useEffect(() => {
     void loadVault()
+    void loadWorktrees()
     void Promise.allSettled([loadVaults(), loadProfiles(), loadConfig()]).then(() =>
       setReady(true),
     )
@@ -163,6 +183,8 @@ export function AppProvider({
     home,
     vault,
     vaults,
+    worktrees,
+    worktree,
     vaultEvent,
     notice,
     dismissNotice: () => setNotice(null),
@@ -212,7 +234,7 @@ export function AppProvider({
       run(async () => {
         const result = await client.request('POST /api/vaults', input)
         setConfig(result.config)
-        await Promise.all([loadVaults(), loadProfiles(), loadVault()])
+        await Promise.all([loadVaults(), loadProfiles(), loadWorktrees(), loadVault()])
         return `created ${result.vault.name}`
       }),
 
@@ -220,7 +242,7 @@ export function AppProvider({
       run(async () => {
         const result = await client.request('POST /api/vaults/open', { path })
         setConfig(result.config)
-        await Promise.all([loadVaults(), loadProfiles(), loadVault()])
+        await Promise.all([loadVaults(), loadProfiles(), loadWorktrees(), loadVault()])
         return `opened ${path}`
       }),
 
@@ -230,6 +252,30 @@ export function AppProvider({
         setConfig(result.config)
         await Promise.all([loadVaults(), loadProfiles(), loadVault()])
         return `deleted ${name}`
+      }),
+
+    addWorktree: (input) =>
+      run(async () => {
+        const result = await client.request('POST /api/worktrees', input)
+        setConfig(result.config)
+        await Promise.all([loadWorktrees(), loadVault()])
+        return `created ${result.worktree.name}`
+      }),
+
+    openWorktree: (name) =>
+      run(async () => {
+        const result = await client.request('POST /api/worktrees/open', { name })
+        setConfig(result.config)
+        await Promise.all([loadWorktrees(), loadVault()])
+        return `switched to ${name}`
+      }),
+
+    deleteWorktree: (name) =>
+      run(async () => {
+        const result = await client.request('DELETE /api/worktrees', { name })
+        setConfig(result.config)
+        await Promise.all([loadWorktrees(), loadVault()])
+        return `removed ${name}`
       }),
 
     addProfile: (input) =>

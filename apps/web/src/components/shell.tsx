@@ -21,6 +21,7 @@ import {
   type FlowCtx,
 } from './palette'
 import { VaultMenu } from './vault-menu'
+import { AddWorktree } from './add-worktree'
 import { ProfilePicker } from './profile-picker'
 import { Resizer, clampSize, initialSize } from './resizer'
 import { StatusLine } from './status-line'
@@ -31,6 +32,9 @@ import { VaultPicker } from './vault-picker'
 
 const SIDEBAR_KEY = 'broodmother.sidebar'
 const TERMINAL_KEY = 'broodmother.terminal'
+
+/** One array, so a worktree with nothing open does not get a new one every render. */
+const EMPTY: Tab[] = []
 
 /** Hidden keeps the shell alive behind ⌘J; closed is a shell that exited. */
 type TerminalState = 'closed' | 'open' | 'hidden'
@@ -52,7 +56,37 @@ export function Shell({ children }: { children: ReactNode }) {
   const [terminalHeight, setTerminalHeight] = useState(initialSize('panel'))
   const [picker, setPicker] = useState(false)
   const [profiling, setProfiling] = useState(false)
-  const [tabs, setTabs] = useState<Tab[]>([])
+  const [branching, setBranching] = useState(false)
+  // Tabs belong to the checkout they were opened in: a file open in two worktrees is two
+  // files, on two branches, and switching between them should not carry one into the other.
+  const [byWorktree, setByWorktree] = useState<Record<string, Tab[]>>({})
+  const where = `${app.config?.vaultPath ?? ''}#${app.worktree}`
+  const tabs = byWorktree[where] ?? EMPTY
+  const setTabs = useCallback(
+    (next: Tab[] | ((open: Tab[]) => Tab[])) =>
+      setByWorktree((all) => ({
+        ...all,
+        [where]: typeof next === 'function' ? next(all[where] ?? EMPTY) : next,
+      })),
+    [where],
+  )
+
+  // Which vault is open arrives a request after the first paint, so a tab opened from the
+  // URL in the meantime is filed under a key that names no vault. When the real one turns
+  // up, those tabs are its: they were always its, the app just could not say so yet.
+  const filedUnder = useRef(where)
+  useEffect(() => {
+    const from = filedUnder.current
+    if (from === where) return
+    filedUnder.current = where
+    if (!from.startsWith('#')) return
+    setByWorktree((all) => {
+      const carried = all[from]
+      if (!carried?.length || all[where]?.length) return all
+      const { [from]: _dropped, ...rest } = all
+      return { ...rest, [where]: carried }
+    })
+  }, [where])
   // Set only while a terminal tab is up. Otherwise the route says which tab is active,
   // because a document tab is a place in the vault and the URL is where that lives.
   const [terminalTab, setTerminalTab] = useState<string | null>(null)
@@ -176,9 +210,14 @@ export function Shell({ children }: { children: ReactNode }) {
             activePath={app.config?.vaultPath ?? ''}
             profiles={app.profiles}
             activeProfile={app.profile?.name ?? null}
+            worktrees={app.worktrees}
+            activeWorktree={app.worktree}
             onSelect={(path) => void app.openVault(path)}
             onAdd={() => setPicker(true)}
             onDelete={(name) => void app.deleteVault(name)}
+            onSelectWorktree={(name) => void app.openWorktree(name)}
+            onAddWorktree={() => setBranching(true)}
+            onDeleteWorktree={(name) => void app.deleteWorktree(name)}
             onSelectProfile={(name) => void app.selectProfile(name)}
             onAddProfile={() => setProfiling(true)}
             onSettings={ctx.settings}
@@ -241,6 +280,17 @@ export function Shell({ children }: { children: ReactNode }) {
             void app.addProfile(draft)
           }}
           onClose={needsProfile ? undefined : () => setProfiling(false)}
+        />
+      )}
+      {branching && (
+        <AddWorktree
+          existing={app.worktrees}
+          accent={app.profile?.presenceColor}
+          onCreate={(input) => {
+            setBranching(false)
+            void app.addWorktree(input)
+          }}
+          onClose={() => setBranching(false)}
         />
       )}
       {(picker || needsVault) && (

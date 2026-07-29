@@ -11,6 +11,7 @@ import type {
   VaultEntry,
   VaultPath,
   VaultSummary,
+  Worktree,
 } from '@broodmother/shared'
 import type { ApiClient, Connection } from './client'
 
@@ -32,6 +33,7 @@ const seedDocs: Record<VaultPath, string> = {
 const seedConfig: BroodmotherConfig = {
   vaultPath: '/Users/you/.broodmother/handbook',
   profiles: { '/Users/you/.broodmother/handbook': 'you' },
+  worktrees: {},
   remoteUrl: 'git@github.com:you/handbook.git',
   branch: 'main',
   syncEnabled: true,
@@ -76,6 +78,8 @@ export function createMockClient(
     vaults?: VaultSummary[]
     profiles?: Profile[]
     active?: VaultSummary | null
+    worktrees?: Worktree[]
+    worktree?: string
   } = {},
 ): MockClient {
   const docs = { ...seedDocs, ...seed.docs }
@@ -104,6 +108,10 @@ export function createMockClient(
   // Seeded from the active vault so a seed with no vaults is a machine with nothing open,
   // rather than one pointed at a vault its own listing does not have.
   let config = { ...seedConfig, vaultPath: active?.path ?? null, ...seed.config }
+  const worktrees: Worktree[] = seed.worktrees ?? [
+    { name: 'local', path: `${home}/handbook/local`, branch: 'main', primary: true },
+  ]
+  let worktree = seed.worktree ?? 'local'
   let sync: SyncStatus = seed.sync ?? {
     state: 'idle',
     lastSyncedAt: Date.now(),
@@ -118,6 +126,35 @@ export function createMockClient(
   const handlers: { [R in ApiRoute]: (body: ApiRequest<R>) => Promise<ApiResponse<R>> } =
     {
       'GET /api/vault': async () => ({ entries: tree(Object.keys(docs)) }),
+      'GET /api/worktrees': async () => ({ worktrees: [...worktrees], active: worktree }),
+      'POST /api/worktrees': async ({ name, branch, create }) => {
+        if (worktrees.some((one) => one.name === name))
+          throw new Error(`"${name}" already exists`)
+        if (name === 'local') throw new Error('"local" is the vault’s own checkout')
+        const made: Worktree = {
+          name,
+          path: `${config.vaultPath}/${name}`,
+          branch: create ? branch : branch,
+          primary: false,
+        }
+        worktrees.push(made)
+        worktree = name
+        return { worktree: made, config }
+      },
+      'POST /api/worktrees/open': async ({ name }) => {
+        if (!worktrees.some((one) => one.name === name))
+          throw new Error(`no worktree named "${name}"`)
+        worktree = name
+        return { config }
+      },
+      'DELETE /api/worktrees': async ({ name }) => {
+        const index = worktrees.findIndex((one) => one.name === name)
+        if (index < 0) throw new Error(`no worktree named "${name}"`)
+        if (worktrees[index]!.primary) throw new Error('"local" cannot be removed')
+        worktrees.splice(index, 1)
+        if (worktree === name) worktree = 'local'
+        return { worktrees: [...worktrees], config }
+      },
       'GET /api/profiles': async () => ({
         profiles: [...profiles],
         active: profileOf(active),

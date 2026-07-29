@@ -33,6 +33,12 @@ export interface BroodmotherConfig {
    * has picked an identity for yet.
    */
   profiles: Record<string, string>
+  /**
+   * Vault path to the name of the checkout open in it. A vault holds worktrees — `local`
+   * is the clone, the rest are branches of it — and which one you were last in is a fact
+   * about this machine, so it lives here beside which vault you were last in.
+   */
+  worktrees: Record<string, string>
   remoteUrl: string | null
   branch: string
   syncEnabled: boolean
