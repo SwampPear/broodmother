@@ -6,8 +6,12 @@ import { Wizard } from './wizard'
  * `package.json`: a version that has been built but not released yet has no asset behind
  * it, and this page would hand out a link to a file that does not exist. Bump it when the
  * release goes up, not when the version does.
+ *
+ * The asset is only reachable while the repository is public. Check a download with a
+ * ranged GET rather than `curl -I`: on a private repo the redirect lands on a page that
+ * answers 200, which reads as a working link and is not one.
  */
-const VERSION = '0.1.1'
+const VERSION = '0.1.2'
 const REPO = 'https://github.com/SwampPear/broodmother'
 
 /**
@@ -18,7 +22,7 @@ const REPO = 'https://github.com/SwampPear/broodmother'
 const FILE = `${REPO}/releases/download/v${VERSION}/broodmother-${VERSION}-arm64.dmg`
 
 /** Bumped alongside VERSION — the release asset is the thing this describes. */
-const SIZE = '135 MB'
+const SIZE = '140 MB'
 
 export default function Download() {
   return (
