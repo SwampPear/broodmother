@@ -3,6 +3,10 @@
 What was built, in the order it was built, reconstructed from the git history. One file per
 chunk of work; each names the commits it covers so the diff is one `git show` away.
 
+Chunks 10-15 shipped together in `d4ca390`: they were built in sequence but committed at
+once, and the edits interleave through the same files, so there was no honest way to split
+them after the fact.
+
 This is a record of _what shipped and why_, not a spec — `DESIGN.md` and `plans/` hold
 intent, and the code holds the truth. Where the two disagree, the code wins and the entry
 here should be corrected.
@@ -18,12 +22,12 @@ here should be corrected.
 | [07](07-rename-to-mother.md)           | Rename to mother                    | `c8dd7f9`                               |
 | [08](08-vault-home.md)                 | Vault home at `~/.mother`           | `6401a89`                               |
 | [09](09-ui-pass.md)                    | UI pass and terminal fix            | `607cd09`                               |
-| [10](10-menus-and-modals.md)           | Menus, modals, add a profile        | _uncommitted_                           |
-| [11](11-profiles-on-disk.md)           | Profiles on disk, no default        | _uncommitted_                           |
-| [12](12-first-run-polish.md)           | First run without the flash         | _uncommitted_                           |
-| [13](13-tabs-and-profile-options.md)   | Tabs, delete a profile              | _uncommitted_                           |
-| [14](14-projects-and-profiles.md)      | Projects, profiles with keys        | _uncommitted_                           |
-| [15](15-open-documents-follow-disk.md) | Documents follow disk, terminal fix | _uncommitted_                           |
+| [10](10-menus-and-modals.md)           | Menus, modals, add a profile        | `d4ca390`                               |
+| [11](11-profiles-on-disk.md)           | Profiles on disk, no default        | `d4ca390`                               |
+| [12](12-first-run-polish.md)           | First run without the flash         | `d4ca390`                               |
+| [13](13-tabs-and-profile-options.md)   | Tabs, delete a profile              | `d4ca390`                               |
+| [14](14-projects-and-profiles.md)      | Projects, profiles with keys        | `d4ca390`                               |
+| [15](15-open-documents-follow-disk.md) | Documents follow disk, terminal fix | `d4ca390`                               |
 
 ## Where it landed
 
