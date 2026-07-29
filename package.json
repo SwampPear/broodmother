@@ -35,7 +35,7 @@
     "check": "npm run typecheck && npm run test",
     "format": "prettier --write .",
     "build:npm": "node scripts/build-npm.mjs",
-    "publish:npm": "npm run build:npm && npm publish dist-npm --access public"
+    "publish:npm": "npm run build:npm && npm publish ./dist-npm"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^7.0.0",

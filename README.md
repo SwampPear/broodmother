@@ -68,7 +68,7 @@ the network.
 ## Getting started
 
 ```bash
-npm install -g @mother/cli
+npm install -g broodmother
 ```
 
 Then run it from anywhere:
@@ -199,10 +199,13 @@ packages/
 
 ### Releasing
 
-`@mother/cli` is published by [`.github/workflows/publish.yml`](.github/workflows/publish.yml)
+`broodmother` is published by [`.github/workflows/publish.yml`](.github/workflows/publish.yml)
 on a push to main whose root `version` is not on the registry yet. Bump it, commit, push —
 any other push to main is a no-op. The workflow needs an `NPM_TOKEN` secret with publish
-rights on the `@mother` scope. `npm run publish:npm` does the same thing by hand.
+rights on `broodmother`. `npm run publish:npm` does the same thing by hand.
+
+The package is `broodmother` because the `mother` name and the `@mother` scope were both
+taken on npm. The command it installs is still `mother`.
 
 ## Contributing
 

@@ -5,8 +5,7 @@ export default function Page() {
       <img className="logo" src="/logo.png" alt="" width={56} height={56} />
       <h1>mother</h1>
       <p className="tagline">
-        Plain markdown files in a git repo you own — a documentation app that never holds
-        your work hostage.
+        Local markdown optimized for collaboration with people <em>and</em> agents.
       </p>
 
       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -20,7 +19,7 @@ export default function Page() {
 
       <div className="box">
         <pre>
-          <span className="prompt">$ </span>npm i -g @mother/cli{'\n'}
+          <span className="prompt">$ </span>npm i -g broodmother{'\n'}
           <span className="prompt">$ </span>mother
         </pre>
       </div>
