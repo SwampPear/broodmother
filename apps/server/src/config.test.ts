@@ -8,8 +8,8 @@ import {
   hasEmbeddedCredentials,
   repair,
 } from './config'
-import { cleanup, initRepo, tempDir } from './fixtures'
-import { Git } from './git'
+import { cleanup, initRepo, tempDir } from './test/fixtures'
+import { Git } from './git/git'
 
 afterAll(cleanup)
 
@@ -56,17 +56,15 @@ describe('repair', () => {
     const { config, reset } = repair(
       {
         vaultPath: '/elsewhere',
+        project: 'michael',
         branch: 42,
         syncIdleMs: 5,
-        presenceColor: 'not-a-color',
-        displayName: 'Ada',
-        gitAuthor: { name: 'Ada', email: 'ada@localhost' },
       },
       defaults,
     )
-    expect(reset.sort()).toEqual(['branch', 'presenceColor', 'syncIdleMs'])
+    expect(reset.sort()).toEqual(['branch', 'syncIdleMs'])
     expect(config.vaultPath).toBe('/elsewhere')
-    expect(config.displayName).toBe('Ada')
+    expect(config.project).toBe('michael')
     expect(config.branch).toBe(defaults.branch)
     expect(config.syncIdleMs).toBe(defaults.syncIdleMs)
   })

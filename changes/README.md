@@ -7,17 +7,23 @@ This is a record of _what shipped and why_, not a spec — `DESIGN.md` and `plan
 intent, and the code holds the truth. Where the two disagree, the code wins and the entry
 here should be corrected.
 
-| #                                    | Chunk                        | Commits                                 |
-| ------------------------------------ | ---------------------------- | --------------------------------------- |
-| [01](01-foundation-and-contracts.md) | Workspace, contracts, plans  | `96b8958` `859073e`                     |
-| [02](02-markdown-codec.md)           | Markdown codec               | `ff172ee`                               |
-| [03](03-collab-session.md)           | Collaborative session        | `e47a9d7` `ad704a2`                     |
-| [04](04-backend.md)                  | Backend                      | `5f277ee`                               |
-| [05](05-web-app.md)                  | Web app and integration      | `84ba81f` `abcc373` `7007b64` `32ae15a` |
-| [06](06-editor-rewrite.md)           | CodeMirror rewrite, terminal | `c8d878e`                               |
-| [07](07-rename-to-mother.md)         | Rename to mother             | `c8dd7f9`                               |
-| [08](08-vault-home.md)               | Vault home at `~/.mother`    | `6401a89`                               |
-| [09](09-ui-pass.md)                  | UI pass and terminal fix     | `607cd09`                               |
+| #                                      | Chunk                               | Commits                                 |
+| -------------------------------------- | ----------------------------------- | --------------------------------------- |
+| [01](01-foundation-and-contracts.md)   | Workspace, contracts, plans         | `96b8958` `859073e`                     |
+| [02](02-markdown-codec.md)             | Markdown codec                      | `ff172ee`                               |
+| [03](03-collab-session.md)             | Collaborative session               | `e47a9d7` `ad704a2`                     |
+| [04](04-backend.md)                    | Backend                             | `5f277ee`                               |
+| [05](05-web-app.md)                    | Web app and integration             | `84ba81f` `abcc373` `7007b64` `32ae15a` |
+| [06](06-editor-rewrite.md)             | CodeMirror rewrite, terminal        | `c8d878e`                               |
+| [07](07-rename-to-mother.md)           | Rename to mother                    | `c8dd7f9`                               |
+| [08](08-vault-home.md)                 | Vault home at `~/.mother`           | `6401a89`                               |
+| [09](09-ui-pass.md)                    | UI pass and terminal fix            | `607cd09`                               |
+| [10](10-menus-and-modals.md)           | Menus, modals, add a profile        | _uncommitted_                           |
+| [11](11-profiles-on-disk.md)           | Profiles on disk, no default        | _uncommitted_                           |
+| [12](12-first-run-polish.md)           | First run without the flash         | _uncommitted_                           |
+| [13](13-tabs-and-profile-options.md)   | Tabs, delete a profile              | _uncommitted_                           |
+| [14](14-projects-and-profiles.md)      | Projects, profiles with keys        | _uncommitted_                           |
+| [15](15-open-documents-follow-disk.md) | Documents follow disk, terminal fix | _uncommitted_                           |
 
 ## Where it landed
 
@@ -26,15 +32,15 @@ touching disk, and a Next.js site on `127.0.0.1:3000`. Markdown files in a git w
 are the source of truth.
 
 ```
-apps/server    hono, vault, git sync, config, backlinks, relay, pty     152 tests
-apps/web       next app, shell, tree, palette, settings, terminal        67 tests
+apps/server    hono, vault, git sync, config, backlinks, relay, pty     167 tests
+apps/web       next app, shell, tabs, tree, palette, settings, terminal 124 tests
 packages/markdown   markdown ⇄ document codec                           276 tests
-packages/editor     codemirror editor, live preview, math               22 tests
+packages/editor     codemirror editor, live preview, math               27 tests
 packages/collab     yjs session, divergence, disk flush                 19 tests
 packages/shared     types every side shares                             —
 ```
 
-536 tests across 30 files. `npm run check` runs the typechecker and the suite;
+613 tests across 36 files. `npm run check` runs the typechecker and the suite;
 `npm run build` also builds the site.
 
 ## Still open

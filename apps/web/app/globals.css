@@ -60,6 +60,13 @@
   --opal-mint: #34d399;
   --opal-gold: #fbbf24;
   --opal-rose: #f472b6;
+  --opal-navy: #1d4ed8;
+
+  /* Not ours — Anthropic's, and the mark is only itself in it. */
+  --claude: #d97757;
+
+  /* Whoever you are showing up as tints the one button that commits a screen. */
+  --accent: var(--opal-violet);
 
   --ground: #000000;
   --panel: #0a0a0a;
@@ -68,6 +75,7 @@
   --muted: color-mix(in srgb, var(--white) 45%, transparent);
   --faint: color-mix(in srgb, var(--white) 28%, transparent);
   --line: color-mix(in srgb, var(--white) 10%, transparent);
+  --line-hover: color-mix(in srgb, var(--white) 20%, transparent);
 
   /* Apple's own type, everywhere: SF Pro for text, SF Mono where it must be fixed-width. */
   --sans:
@@ -78,6 +86,14 @@
 
   --radius: 0;
   --radius-sm: 0;
+
+  /* Floating surfaces are the one place the app is not square: a menu or a modal reads as
+     a sheet lifted off the chrome, and the corner is what says so. */
+  --surface-radius: 12px;
+  --row-radius: 6px;
+  --field-radius: 8px;
+  --surface-inset: 4px;
+  --surface-shadow: 0 8px 24px -4px rgb(0 0 0 / 65%), 0 2px 6px rgb(0 0 0 / 45%);
   --gutter: 0.5rem;
   --head: 2.6rem;
   --measure: 50rem;
@@ -127,14 +143,17 @@ pre,
   font-size: 0.9em;
 }
 
+/* One button in the app, the one that creates a profile on first run, and every other
+   takes its shape from it: same corner, same padding, same answer to the cursor. What a
+   button says it will do is left to whoever placed it. */
 button {
   font: inherit;
   letter-spacing: inherit;
   color: var(--white);
   background: var(--raised);
   border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  padding: 0.3rem 0.7rem;
+  border-radius: var(--field-radius);
+  padding: 0.42rem 0.9rem;
   cursor: pointer;
   text-align: left;
   transition:
@@ -144,11 +163,24 @@ button {
 
 button:hover {
   background: var(--active);
+  border-color: var(--line-hover);
 }
 
 button:focus-visible {
   outline: none;
   border-color: var(--opal-indigo);
+}
+
+/* What cannot be undone says so before it is clicked, not after. */
+button.danger {
+  background: color-mix(in srgb, var(--opal-rose) 16%, transparent);
+  border-color: color-mix(in srgb, var(--opal-rose) 40%, transparent);
+  color: var(--opal-rose);
+}
+
+button.danger:hover {
+  background: color-mix(in srgb, var(--opal-rose) 26%, transparent);
+  border-color: color-mix(in srgb, var(--opal-rose) 60%, transparent);
 }
 
 input,
@@ -159,8 +191,15 @@ textarea {
   color: var(--white);
   background: color-mix(in srgb, var(--white) 4%, var(--ground));
   border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
+  border-radius: var(--field-radius);
   padding: 0.35rem 0.55rem;
+  transition: border-color 120ms ease;
+}
+
+input:hover,
+select:hover,
+textarea:hover {
+  border-color: var(--line-hover);
 }
 
 input:focus-visible,
@@ -253,24 +292,34 @@ textarea:focus-visible {
   top: 50%;
 }
 
+/* Once it is open, the handle is the same colour as the line it is drawing — one gesture,
+   not a bright square sitting on a dim seam. Opaque at that size, though: --line-hover is
+   white over transparent, and at 9px the dashes read straight through the handle as stripes
+   across it. Mixed into the ground instead, it lands on the same colour and stays solid. */
 .resizer:hover::before,
 .resizer:focus-visible::before,
 .resizer[data-dragging]::before {
   width: 9px;
   height: 9px;
-  background: var(--muted);
+  background: color-mix(in srgb, var(--white) 20%, var(--ground));
 }
 
+/* A shade up from the border it lands on, not a bright line across the window: the dashes
+   are enough to say the edge is live. */
 .resizer:hover::after,
 .resizer:focus-visible::after,
 .resizer[data-dragging]::after {
-  background: repeating-linear-gradient(var(--muted) 0 4px, transparent 4px 8px);
+  background: repeating-linear-gradient(var(--line-hover) 0 4px, transparent 4px 8px);
 }
 
 .resizer[data-axis='panel']:hover::after,
 .resizer[data-axis='panel']:focus-visible::after,
 .resizer[data-axis='panel'][data-dragging]::after {
-  background: repeating-linear-gradient(90deg, var(--muted) 0 4px, transparent 4px 8px);
+  background: repeating-linear-gradient(
+    90deg,
+    var(--line-hover) 0 4px,
+    transparent 4px 8px
+  );
 }
 
 .resizer[data-dragging]::after {
@@ -301,43 +350,44 @@ body[data-resizing='panel'] {
 
 /* ---------- sidebar ---------- */
 
-.profile {
-  position: relative;
+/* The trigger is the whole row, so its hover and open states fill it instead of starting
+   partway across. It owns the head's padding, which is why this outranks .tree-head. */
+.tree-head.project {
   padding: 0;
 }
 
-.profile .logo {
+.tree-head .logo {
   flex: none;
   width: 1.25rem;
   height: 1.25rem;
   object-fit: contain;
 }
 
-.profile > button {
+.project-anchor {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   flex: 1;
   min-width: 0;
   height: 100%;
-  padding: 0 0.75rem 0 0;
+  padding: 0 0.85rem;
   background: transparent;
   border: none;
   font-weight: 550;
 }
 
-.profile > button:hover,
-.profile > button[aria-expanded='true'] {
+.project-anchor:hover,
+.project-anchor[data-state='open'] {
   background: var(--raised);
 }
 
-.profile > button .name {
+.project-anchor .name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.profile > button .icon {
+.project-anchor .icon {
   flex: none;
   margin-left: auto;
   width: 0.85rem;
@@ -345,113 +395,8 @@ body[data-resizing='panel'] {
   color: var(--faint);
 }
 
-.profile > button:hover .icon {
+.project-anchor:hover .icon {
   color: var(--muted);
-}
-
-/* An initial on the presence color reads as an identity; a bare square reads as decoration. */
-.profile .avatar {
-  display: grid;
-  place-items: center;
-  flex: none;
-  width: 1.05rem;
-  height: 1.05rem;
-  border-radius: 4px;
-  color: var(--black);
-  font-family: var(--sans);
-  font-size: 0.58rem;
-  font-weight: 700;
-  line-height: 1;
-}
-
-.profile ul {
-  position: absolute;
-  top: calc(100% + 1px);
-  left: 0;
-  min-width: 100%;
-  width: max-content;
-  max-width: 20rem;
-  z-index: 20;
-  margin: 0;
-  padding: 0.3rem;
-  list-style: none;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  box-shadow: 0 16px 40px rgb(0 0 0 / 70%);
-  outline: none;
-}
-
-.profile li.section {
-  padding: 0.25rem 0.45rem 0.3rem;
-  color: var(--faint);
-  font-size: 0.56rem;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.profile li[role='option'] {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.35rem 0.45rem;
-  border-radius: 5px;
-  cursor: default;
-}
-
-/* One highlight, driven by the keyboard cursor — hover writes to the same state, so the
-   pointer and the arrow keys can never disagree about which row is current. */
-.profile li[role='option'][data-cursor] {
-  background: var(--active);
-}
-
-.profile li .identity {
-  display: flex;
-  flex-direction: column;
-  gap: 0.05rem;
-  min-width: 0;
-}
-
-.profile li .name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 0.75rem;
-  line-height: 1.3;
-}
-
-.profile li .who {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--faint);
-  font-size: 0.63rem;
-  line-height: 1.3;
-}
-
-.profile li .icon {
-  flex: none;
-  margin-left: auto;
-  width: 0.85rem;
-  height: 0.85rem;
-  color: var(--opal-violet);
-}
-
-.profile li.manage {
-  margin-top: 0.3rem;
-  border-top: 1px solid var(--line);
-  padding-top: 0.4rem;
-  border-radius: 0 0 5px 5px;
-  color: var(--muted);
-  font-size: 0.72rem;
-}
-
-.profile li.manage .icon {
-  margin-left: 0;
-  width: 0.8rem;
-  height: 0.8rem;
-  color: var(--faint);
 }
 
 /* Chrome sits at the ground, the document a shade above it. */
@@ -484,7 +429,9 @@ body[data-resizing='panel'] {
   background: var(--opal-violet);
 }
 
-.tree ul {
+/* Every rule below is scoped through `> ul` — the file list. The project dropdown is also
+   inside .tree, and a bare `.tree ul` outranked `.project ul` on source order alone. */
+.tree > ul {
   list-style: none;
   margin: 0;
   padding: var(--pad) 0;
@@ -492,21 +439,24 @@ body[data-resizing='panel'] {
   overflow: auto;
 }
 
-.tree ul:focus-visible {
+.tree > ul:focus-visible {
   outline: none;
 }
 
-.tree li {
+/* Inset from the sidebar edge and softly cornered, so the row a selection paints sits in
+   the pane rather than spanning it wall to wall. */
+.tree > ul li {
   display: flex;
   align-items: center;
   gap: 0.35rem;
+  margin: 2px 0.35rem;
   padding: 0.28rem 0.55rem;
-  border-radius: var(--radius-sm);
+  border-radius: var(--row-radius);
   color: color-mix(in srgb, var(--white) 78%, transparent);
   cursor: default;
 }
 
-.tree .name {
+.tree > ul .name {
   min-width: 0;
   overflow: hidden;
   white-space: nowrap;
@@ -514,37 +464,48 @@ body[data-resizing='panel'] {
 }
 
 /* Nesting level picks a colour off the opal palette, repeating every six. */
-.tree [data-tint='0'] {
+.tree > ul [data-tint='0'] {
   --tint: var(--opal-violet);
 }
-.tree [data-tint='1'] {
+.tree > ul [data-tint='1'] {
   --tint: var(--opal-indigo);
 }
-.tree [data-tint='2'] {
+.tree > ul [data-tint='2'] {
   --tint: var(--opal-cyan);
 }
-.tree [data-tint='3'] {
+.tree > ul [data-tint='3'] {
   --tint: var(--opal-mint);
 }
-.tree [data-tint='4'] {
+.tree > ul [data-tint='4'] {
   --tint: var(--opal-gold);
 }
-.tree [data-tint='5'] {
+.tree > ul [data-tint='5'] {
   --tint: var(--opal-rose);
 }
 
-/* One guide per nesting level. The negative margins close the gap the row padding
-   would otherwise leave, so a guide runs unbroken down its folder's contents. */
-.tree .indent {
+/* One guide per nesting level. The negative block margins close the gap the row padding
+   would otherwise leave, so a guide runs unbroken down its folder's contents; the inline
+   pair centres it under the chevron of the folder it descends from — the icon is 1rem, so
+   the guide moves half of that and gives the width straight back. */
+.tree > ul .indent {
   flex: none;
+  /* Lifted over the rows: a guide bridges into its neighbours, and the background of the
+     row below would otherwise paint across the part that reaches it. */
+  position: relative;
+  z-index: 1;
   width: 0.75rem;
   align-self: stretch;
-  margin-block: -0.28rem;
-  border-left: 1px solid color-mix(in srgb, var(--tint) 45%, transparent);
+  margin-block: calc(-0.28rem - 2px);
+  margin-left: 0.5rem;
+  margin-right: -0.5rem;
+  /* Mixed into the ground rather than left translucent: a see-through line picks up
+     whatever row background is behind it and reads as a different colour on the row you
+     are hovering than on the one above it. */
+  border-left: 1px solid color-mix(in srgb, var(--tint) 45%, var(--ground));
 }
 
 /* Obsidian's nav-file-tag: the extension, on everything that isn't a note. */
-.tree .tag {
+.tree > ul .tag {
   flex: none;
   margin-left: auto;
   padding: 0.1rem 0.34rem;
@@ -558,39 +519,18 @@ body[data-resizing='panel'] {
   text-transform: uppercase;
 }
 
-.tree li:hover {
+.tree > ul li:hover {
   background: var(--raised);
   color: var(--white);
 }
 
-.tree li[data-cursor] {
+.tree > ul li[data-cursor] {
   background: var(--raised);
   color: var(--white);
 }
 
-.tree li[aria-selected='true'] {
+.tree > ul li[aria-selected='true'] {
   background: var(--active);
-  color: var(--opal-violet);
-}
-
-.icon {
-  flex: none;
-  width: 1rem;
-  height: 1rem;
-  color: var(--faint);
-}
-
-.tree li:hover .icon,
-.tree li[data-cursor] .icon {
-  color: var(--muted);
-}
-
-.tree li[aria-selected='true'] .icon {
-  color: inherit;
-}
-
-/* The fold indicator carries the colour of the guides it opens onto. */
-.tree li[aria-expanded] > .icon {
   color: var(--tint);
 }
 
@@ -601,19 +541,29 @@ body[data-resizing='panel'] {
   color: var(--faint);
 }
 
-.tree .icon {
+.tree > ul li:hover .icon,
+.tree > ul li[data-cursor] .icon {
+  color: var(--muted);
+}
+
+.tree > ul li[aria-selected='true'] .icon {
+  color: inherit;
+}
+
+.tree > ul .icon {
   color: var(--tint);
   opacity: 0.55;
   transition: opacity 120ms ease;
 }
 
-.tree li:hover .icon,
-.tree li[data-cursor] .icon,
-.tree li[aria-selected='true'] .icon {
+.tree > ul li:hover .icon,
+.tree > ul li[data-cursor] .icon,
+.tree > ul li[aria-selected='true'] .icon {
   opacity: 1;
 }
 
-.tree li[aria-selected='true'] {
+/* The fold indicator carries the colour of the guides it opens onto. */
+.tree > ul li[aria-expanded] > .icon {
   color: var(--tint);
 }
 
@@ -626,39 +576,154 @@ body[data-resizing='panel'] {
   background: var(--panel);
 }
 
-/* The body scrolls, the header is a sibling above it — nothing for overscroll to spring. */
-.doc {
+/* ---------- tabs ---------- */
+
+/* What is open, across the top of the pane. Documents and terminals sit in the same strip
+   because they are the same thing from here: something you are working in. */
+.tabs {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  flex: none;
+  height: var(--head);
+  padding: 0 0.35rem;
+  border-bottom: 1px solid var(--line);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+  max-width: 13rem;
+  margin: 0.3rem 0;
+  padding: 0 0.3rem 0 0.55rem;
+  border-radius: var(--row-radius);
+  color: var(--muted);
+  font-size: 0.76rem;
+  cursor: default;
+  white-space: nowrap;
+}
+
+.tab:hover {
+  background: var(--raised);
+  color: var(--white);
+}
+
+.tab[data-active] {
+  background: var(--active);
+  color: var(--white);
+}
+
+.tab:focus-visible {
+  outline: 1px solid var(--opal-indigo);
+  outline-offset: -1px;
+}
+
+.tab .icon {
+  flex: none;
+  width: 0.85rem;
+  height: 0.85rem;
+}
+
+/* The spark carries its colour into the strip: one glance says which tab is claude. */
+.tab[data-shell='claude'] > .icon {
+  color: var(--claude);
+}
+
+.tab-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Visible on the tab you are on or the one under the pointer — a row of close buttons
+   reads as clutter on a strip you are only looking at. */
+.tab-close {
+  display: flex;
+  flex: none;
+  padding: 0.15rem;
+  border: none;
+  border-radius: var(--row-radius);
+  background: transparent;
+  color: var(--faint);
+  opacity: 0;
+}
+
+.tab:hover .tab-close,
+.tab[data-active] .tab-close {
+  opacity: 1;
+}
+
+.tab-close:hover {
+  background: var(--active);
+  color: var(--white);
+}
+
+.tab-close .icon {
+  width: 0.7rem;
+  height: 0.7rem;
+}
+
+.tab-new {
+  display: flex;
+  align-items: center;
+  flex: none;
+  margin: 0.3rem 0;
+  padding: 0 0.4rem;
+  border: none;
+  border-radius: var(--row-radius);
+  background: transparent;
+  color: var(--faint);
+}
+
+.tab-new:hover {
+  background: var(--raised);
+  color: var(--white);
+}
+
+.tab-new .icon {
+  width: 0.85rem;
+  height: 0.85rem;
+}
+
+/* One pane under the strip: the document, or a terminal with the whole thing. */
+.main-body {
   display: flex;
   flex-direction: column;
   flex: 1;
   min-height: 0;
 }
 
-.doc-head {
-  flex: none;
+.main-body > .pane {
   display: flex;
-  align-items: center;
-  height: var(--head);
-  padding: 0 1.75rem;
-  border-bottom: 1px solid var(--line);
-  background: var(--panel);
-  font-family: var(--mono);
-  font-size: 0.78rem;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
 }
 
-.doc-head .icon {
-  margin-right: 0.4rem;
+.main-body > [hidden] {
+  display: none;
 }
 
-.doc-head .crumbs {
-  color: var(--faint);
+.terminal-tab-pane {
+  flex: 1;
+  min-height: 0;
+  border-top: none;
 }
 
-.doc-head h1 {
-  font: inherit;
-  letter-spacing: 0;
-  color: var(--muted);
-  margin: 0;
+/* The body is the whole pane: which document it is belongs to the tab strip above it. */
+.doc {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
 }
 
 .doc-body {
@@ -877,26 +942,32 @@ body[data-resizing='panel'] {
 
 /* ---------- commands ---------- */
 
+/* The slash menu is anchored to a caret rather than to a control, but it is the same
+   surface and the same rows as every other menu. */
 .cm-commands {
   z-index: 20;
   min-width: 15rem;
   margin: 0.25rem 0 0;
-  padding: 0.25rem;
+  padding: var(--surface-inset);
   list-style: none;
   background: var(--panel);
   border: 1px solid var(--line);
-  box-shadow: 0 12px 32px rgb(0 0 0 / 60%);
+  border-radius: var(--surface-radius);
+  box-shadow: var(--surface-shadow);
 }
 
 .cm-commands li {
   display: flex;
   align-items: baseline;
   gap: 0.6rem;
-  padding: 0.3rem 0.5rem;
+  padding: 0.35rem 0.45rem;
+  border-radius: var(--row-radius);
+  color: color-mix(in srgb, var(--white) 82%, transparent);
 }
 
 .cm-commands li[aria-selected='true'] {
   background: var(--active);
+  color: var(--white);
 }
 
 .cm-commands .hint {
@@ -928,32 +999,30 @@ body[data-resizing='panel'] {
 .terminal-head {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.15rem;
   flex: none;
   height: 2rem;
-  padding: 0 0.5rem 0 0.85rem;
-  border-bottom: 1px solid var(--line);
+  padding: 0 0.5rem 0 0.6rem;
   font-family: var(--mono);
   font-size: 0.75rem;
   color: var(--muted);
-}
-
-.terminal-cwd {
-  min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  direction: rtl;
-  color: var(--faint);
 }
 
 .terminal-head .spacer {
   flex: 1;
 }
 
+/* Square, all of them: a strip of icons reads as a row only if the hit targets match. */
 .terminal-head button {
-  padding: 0.1rem 0.4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
   border: none;
+  border-radius: var(--row-radius);
   background: transparent;
   color: var(--muted);
   font-size: 0.75rem;
@@ -964,10 +1033,56 @@ body[data-resizing='panel'] {
   color: var(--white);
 }
 
+/* A glyph rather than an icon, so it needs the size said in type. */
+.terminal-hide {
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+/* Which shell you are looking at, said by weight rather than a tab shape: the bar is two
+   glyphs wide and a chrome-heavy tab strip would outweigh the panel under it. */
+.terminal-tab .icon {
+  width: 0.95rem;
+  height: 0.95rem;
+  color: inherit;
+}
+
+/* Anthropic's mark keeps the orange it comes with, active or not, and a hair more room than
+   the terminal glyph: it fills its box corner to corner where the others do not, so equal
+   boxes would read as a bigger mark. */
+.terminal-tab[data-kind='claude'] .icon {
+  width: 1rem;
+  height: 1rem;
+  color: var(--claude);
+}
+
+.terminal-tab[data-active] {
+  background: var(--active);
+  color: var(--white);
+}
+
 .terminal-body {
+  position: relative;
   flex: 1;
   min-height: 0;
   padding: 0.4rem 0 0.2rem 0.85rem;
+}
+
+/* xterm rules a hairline across the top of its own surface. One pixel of the shell's own
+   ground, laid over it — cheaper than fighting the renderer for it. */
+.terminal-body::before {
+  content: '';
+  position: absolute;
+  z-index: 1;
+  top: 0.4rem;
+  left: 0.85rem;
+  right: 0;
+  height: 1px;
+  background: var(--panel);
+}
+
+.terminal-body[hidden] {
+  display: none;
 }
 
 .terminal-lost {
@@ -1077,23 +1192,16 @@ body[data-resizing='panel'] {
   backdrop-filter: blur(3px);
 }
 
-.palette,
-.divergence {
+.palette {
   width: min(40rem, 92vw);
   max-height: 68vh;
   overflow: auto;
   align-self: flex-start;
+  padding: 0;
   background: var(--panel);
   border: 1px solid var(--line);
-  box-shadow: 0 24px 60px -12px rgb(0 0 0 / 0.7);
-}
-
-.palette {
-  padding: 0;
-}
-
-.divergence {
-  padding: 1.25rem;
+  border-radius: var(--surface-radius);
+  box-shadow: var(--surface-shadow);
 }
 
 .palette-label {
@@ -1138,12 +1246,12 @@ p.palette-label {
 .palette ul {
   list-style: none;
   margin: 0;
-  padding: 0.375rem;
+  padding: var(--surface-inset);
 }
 
 .palette li {
-  padding: 0.45rem 0.65rem;
-  border-radius: var(--radius-sm);
+  padding: 0.4rem 0.55rem;
+  border-radius: var(--row-radius);
   color: color-mix(in srgb, var(--white) 78%, transparent);
   cursor: default;
   white-space: nowrap;
@@ -1161,38 +1269,389 @@ p.palette-label {
   color: var(--white);
 }
 
+/* A yes-or-no question does not need the width a list of documents does, and its buttons
+   are two words, not two sentences: they sit side by side at the end of the row. */
+.palette[data-confirm] {
+  width: min(23rem, 92vw);
+}
+
+.palette[data-confirm] .palette-label {
+  padding-bottom: 0.2rem;
+  font-size: 0.9rem;
+}
+
+.palette-detail {
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
 .palette-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.4rem;
+  padding: 0.15rem 1rem 0.9rem;
+}
+
+.palette-actions button {
+  padding: 0.3rem 0.7rem;
+  border-radius: var(--row-radius);
+  font-size: 0.76rem;
+}
+
+/* ---------- menus ---------- */
+
+/* One anatomy for every dropdown: a floating surface, sections divided by a rule, and rows
+   that carry a leading visual, a label over an optional second line, and a trailing check. */
+
+.menu-surface {
+  z-index: 40;
+  min-width: 12rem;
+  max-width: 20rem;
+  padding: var(--surface-inset);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--surface-radius);
+  box-shadow: var(--surface-shadow);
+  outline: none;
+}
+
+.menu-surface[data-state='open'] {
+  animation: menu-in 110ms ease-out;
+  transform-origin: var(--radix-dropdown-menu-content-transform-origin);
+}
+
+@keyframes menu-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+
+.menu-heading {
+  padding: 0.3rem 0.45rem 0.35rem;
+  color: var(--faint);
+  font-size: 0.56rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* Full-bleed, so the rule reads as a division of the surface and not of the rows. */
+.menu-divider {
+  height: 1px;
+  margin: var(--surface-inset) calc(var(--surface-inset) * -1);
+  background: var(--line);
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.45rem;
+  border-radius: var(--row-radius);
+  color: color-mix(in srgb, var(--white) 82%, transparent);
+  font-size: 0.75rem;
+  line-height: 1.3;
+  cursor: default;
+  outline: none;
+  user-select: none;
+}
+
+/* Pointer and keyboard write the same highlight, so the two can never disagree. */
+.menu-item[data-highlighted] {
+  background: var(--active);
+  color: var(--white);
+}
+
+.menu-item[data-disabled] {
+  color: var(--faint);
+  pointer-events: none;
+}
+
+.menu-item[data-danger] {
+  color: var(--opal-rose);
+}
+
+.menu-item[data-danger][data-highlighted] {
+  background: color-mix(in srgb, var(--opal-rose) 16%, transparent);
+  color: var(--opal-rose);
+}
+
+.menu-item > .icon {
+  flex: none;
+  width: 0.85rem;
+  height: 0.85rem;
+  color: var(--faint);
+}
+
+.menu-item[data-highlighted] > .icon {
+  color: var(--muted);
+}
+
+.menu-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
+  min-width: 0;
+}
+
+.menu-label,
+.menu-description {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.menu-description {
+  color: var(--faint);
+  font-size: 0.63rem;
+}
+
+.menu-mark {
+  display: flex;
+  flex: none;
+  margin-left: auto;
+  padding-left: 0.5rem;
+}
+
+.menu-mark .icon {
+  width: 0.85rem;
+  height: 0.85rem;
+  color: var(--opal-violet);
+}
+
+/* An initial on the presence color reads as an identity; a bare square reads as decoration. */
+.menu-badge {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 1.05rem;
+  height: 1.05rem;
+  border-radius: 4px;
+  color: var(--black);
+  font-family: var(--sans);
+  font-size: 0.58rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* ---------- modals ---------- */
+
+.modal-ground {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: color-mix(in srgb, #000 55%, transparent);
+  backdrop-filter: blur(3px);
+  animation: fade-in 150ms ease-out;
+}
+
+.modal {
+  position: fixed;
+  z-index: 51;
+  top: 50%;
+  left: 50%;
+  display: flex;
+  flex-direction: column;
+  width: min(var(--modal-width, 28rem), calc(100vw - 3rem));
+  max-height: min(80vh, calc(100vh - 4rem));
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--surface-radius);
+  box-shadow: var(--surface-shadow);
+  outline: none;
+  animation: modal-in 160ms cubic-bezier(0.33, 1, 0.68, 1);
+  transform: translate(-50%, -50%);
+}
+
+.modal[data-size='small'] {
+  --modal-width: 22rem;
+}
+
+.modal[data-size='large'] {
+  --modal-width: 44rem;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes modal-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -48%) scale(0.97);
+  }
+}
+
+.modal-head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex: none;
+  padding: 0.7rem 0.7rem 0.7rem 1rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.modal-head h2 {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.modal-close {
+  display: grid;
+  place-items: center;
+  flex: none;
+  margin-left: auto;
+  width: 1.6rem;
+  height: 1.6rem;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: var(--row-radius);
+  color: var(--faint);
+}
+
+.modal-close:hover {
+  background: var(--raised);
+  color: var(--white);
+}
+
+.modal-close .icon {
+  width: 0.9rem;
+  height: 0.9rem;
+}
+
+.modal-description {
+  flex: none;
+  margin: 0;
+  padding: 0.85rem 1rem 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.modal-body {
+  min-height: 0;
+  overflow: auto;
+  padding: 1rem;
+}
+
+.modal-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  flex: none;
+  padding: 0.75rem 1rem;
+  border-top: 1px solid var(--line);
+}
+
+/* Consequential choices are spelled out on the buttons, which makes them too wide to sit
+   side by side. */
+.modal-foot .stacked {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  padding: 0 1rem 1rem;
+  width: 100%;
 }
 
-.divergence .palette-actions {
-  padding: 0;
-  margin-top: 1rem;
+.modal-foot [type='submit'] {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
 }
 
-.mother-slash-menu {
-  list-style: none;
-  margin: 0.25rem 0 0;
-  padding: 0.375rem;
-  min-width: 12rem;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  box-shadow: 0 16px 40px -12px rgb(0 0 0 / 0.7);
+.modal-foot [type='submit']:disabled {
+  background: var(--raised);
+  border-color: var(--line);
+  color: var(--faint);
+  cursor: not-allowed;
 }
 
-.mother-slash-menu li {
-  padding: 0.35rem 0.6rem;
-  border-radius: var(--radius-sm);
-  color: color-mix(in srgb, var(--white) 78%, transparent);
-  cursor: default;
+.fields {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
 }
 
-.mother-slash-menu li[aria-selected='true'] {
-  background: var(--active);
+.fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.fields input,
+.fields select {
   color: var(--white);
+  font-size: 0.85rem;
+}
+
+.fields h2 {
+  font-size: 0.58rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.swatches {
+  display: flex;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+.swatches legend {
+  padding: 0 0 0.3rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.swatches label {
+  cursor: pointer;
+}
+
+.swatches input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.swatches span[aria-hidden] {
+  display: block;
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: var(--row-radius);
+  border: 2px solid transparent;
+  box-shadow: 0 0 0 1px var(--line);
+}
+
+.swatches input:checked + span[aria-hidden] {
+  box-shadow: 0 0 0 2px var(--white);
+}
+
+.swatches input:focus-visible + span[aria-hidden] {
+  border-color: var(--panel);
+  box-shadow: 0 0 0 2px var(--opal-indigo);
+}
+
+.field-error {
+  margin: 0;
+  color: var(--opal-rose);
+  font-size: 0.78rem;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 /* ---------- dialogs ---------- */
@@ -1215,11 +1674,15 @@ p.palette-label {
 
 /* ---------- settings ---------- */
 
+/* A column down the middle of the pane rather than a form pinned to the left edge: there
+   is nothing beside it to line up with. */
 .settings {
   display: flex;
   flex-direction: column;
   gap: 0.9rem;
-  max-width: 34rem;
+  width: 100%;
+  max-width: 40rem;
+  margin-inline: auto;
 }
 
 .settings h1 {
@@ -1273,31 +1736,12 @@ p.palette-label {
 
 /* ---------- vault picker ---------- */
 
+/* Both gates are modals over an empty home now, so this is a modal body: the list of what
+   is already there, then the form that makes another. */
 .vault-picker {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  padding: 2.25rem 1.75rem;
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
-  max-width: 32rem;
-}
-
-.vault-picker header h1 {
-  font-size: 1.1rem;
-  letter-spacing: -0.02em;
-}
-
-.vault-picker header p {
-  color: var(--muted);
-  font-size: 0.78rem;
-  margin: 0.3rem 0 0;
-}
-
-.vault-picker header code {
-  color: var(--opal-indigo);
-  font-size: 0.74rem;
+  gap: 1.25rem;
 }
 
 .vault-picker h2 {
@@ -1352,11 +1796,8 @@ p.palette-label {
 }
 
 .vault-picker form {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
   border-top: 1px solid var(--line);
-  padding-top: 1.4rem;
+  padding-top: 1.25rem;
 }
 
 .vault-picker label {
@@ -1369,7 +1810,6 @@ p.palette-label {
 
 .vault-picker label input {
   padding: 0.4rem 0.55rem;
-  border-radius: 6px;
   color: var(--white);
   font-size: 0.8rem;
 }
@@ -1380,38 +1820,4 @@ p.palette-label {
   font-size: 0.72rem;
   line-height: 1.5;
   margin: 0;
-}
-
-.vault-picker .actions {
-  display: flex;
-  gap: 0.5rem;
-  margin-top: 0.25rem;
-}
-
-.vault-picker .actions button {
-  padding: 0.42rem 0.9rem;
-  border-radius: 6px;
-  font-size: 0.76rem;
-}
-
-.vault-picker .actions button[type='submit'] {
-  background: var(--opal-violet);
-  color: var(--black);
-  font-weight: 600;
-}
-
-.vault-picker .actions button[type='submit']:disabled {
-  background: var(--raised);
-  color: var(--faint);
-  font-weight: 500;
-}
-
-.vault-picker .actions button[type='button'] {
-  background: transparent;
-  color: var(--muted);
-}
-
-.vault-picker .actions button[type='button']:hover {
-  background: var(--raised);
-  color: var(--white);
 }

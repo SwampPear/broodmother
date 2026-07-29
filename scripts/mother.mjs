@@ -4,13 +4,13 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-// Only an explicit path pins the vault. Without one the server opens the profile's own
+// Only an explicit path pins the vault. Without one the server opens the project's own
 // vault — where you happen to be standing in the shell has nothing to do with it.
 const override = process.argv[2] ?? process.env.MOTHER_VAULT
 const vault = override ? resolve(override) : null
 const site = 'http://127.0.0.1:3000'
 
-process.stdout.write(`mother → ${vault ?? 'vault from your profile'}\n`)
+process.stdout.write(`mother → ${vault ?? 'vault from your project'}\n`)
 
 const child = spawn('npm', ['run', 'dev'], {
   cwd: root,

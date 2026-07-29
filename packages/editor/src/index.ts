@@ -1,4 +1,4 @@
-export { COMMANDS, triggerAt, type Command, type Trigger } from './commands'
+export { COMMANDS, toggleWrap, triggerAt, type Command, type Trigger } from './commands'
 export { Editor, type EditMode, type EditorProps } from './editor'
 export { livePreview } from './live-preview'
 export { findMath, MathWidget, type MathSpan } from './math'

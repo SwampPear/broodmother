@@ -4,6 +4,10 @@ Read `README.md` at the repo root — what mother is, how to run it, agent conte
 style, and git conventions all live there. Then read `.agents/LESSONS.md` before starting
 work.
 
+Committing is not the last step: `changes/` records what shipped and why, one entry per
+chunk of work. Update it in the same commit as the code — see the Git section of
+`README.md`.
+
 ## In-depth review
 
 When I ask for a *thorough*, *deep*, or *in-depth* review — as opposed to a quick look —

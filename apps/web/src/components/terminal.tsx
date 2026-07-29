@@ -1,10 +1,12 @@
 'use client'
 
 import '@xterm/xterm/css/xterm.css'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { opal } from '../colors'
 import { useApp } from '../state'
+import { Icon } from './icons'
 import { Resizer } from './resizer'
+import { KINDS, TERMINALS, type TerminalKind } from './terminal-kinds'
 
 const hex = Object.fromEntries(opal.map((color) => [color.name, color.hex]))
 
@@ -46,12 +48,106 @@ export function TerminalPanel({
   onHide: () => void
   onExit: () => void
 }) {
+  const [tab, setTab] = useState<TerminalKind>('shell')
+  // A tab is spawned the first time it is opened, not when the panel is: nobody wants
+  // claude started behind their back because they wanted a shell.
+  const [live, setLive] = useState<TerminalKind[]>(['shell'])
+  const exit = useRef(onExit)
+  exit.current = onExit
+
+  const ended = useCallback(
+    (kind: TerminalKind) => setLive((kinds) => kinds.filter((live) => live !== kind)),
+    [],
+  )
+
+  useEffect(() => {
+    if (!live.length) exit.current()
+    else if (!live.includes(tab)) setTab(live[0]!)
+  }, [live, tab])
+
+  const open = (kind: TerminalKind) => {
+    setLive((kinds) => (kinds.includes(kind) ? kinds : [...kinds, kind]))
+    setTab(kind)
+  }
+
+  return (
+    <section className="terminal" hidden={!visible} style={{ height }}>
+      <Resizer axis="panel" size={height} onSize={onHeight} />
+      <header className="terminal-head">
+        {KINDS.map((kind) => (
+          <button
+            key={kind}
+            type="button"
+            className="terminal-tab"
+            data-kind={kind}
+            aria-label={TERMINALS[kind].label}
+            title={TERMINALS[kind].label}
+            aria-pressed={tab === kind}
+            data-active={tab === kind || undefined}
+            onClick={() => open(kind)}
+          >
+            <Icon name={TERMINALS[kind].icon} />
+          </button>
+        ))}
+        <span className="spacer" />
+        <button
+          type="button"
+          className="terminal-hide"
+          aria-label="hide terminal"
+          title="hide terminal (⌘J)"
+          onClick={onHide}
+        >
+          ✕
+        </button>
+      </header>
+      {KINDS.filter((kind) => live.includes(kind)).map((kind) => (
+        <Session
+          key={kind}
+          run={TERMINALS[kind].run}
+          active={visible && tab === kind}
+          onEnd={() => ended(kind)}
+        />
+      ))}
+    </section>
+  )
+}
+
+/**
+ * The same shell as the panel's, given the whole pane instead of a strip at the bottom.
+ * It stays mounted while other tabs are on top — a pty that unmounts is a pty that dies.
+ */
+export function TerminalTab({
+  kind,
+  active,
+  onExit,
+}: {
+  kind: TerminalKind
+  active: boolean
+  onExit: () => void
+}) {
+  return (
+    <div className="terminal terminal-tab-pane" hidden={!active}>
+      <Session run={TERMINALS[kind].run} active={active} onEnd={onExit} />
+    </div>
+  )
+}
+
+/** One pty, kept alive behind whichever tab is on top. */
+function Session({
+  run,
+  active,
+  onEnd,
+}: {
+  run: string | null
+  active: boolean
+  onEnd: () => void
+}) {
   const app = useApp()
   const host = useRef<HTMLDivElement>(null)
   const shell = useRef<{ fit: () => void; focus: () => void } | null>(null)
   const [lost, setLost] = useState(false)
-  const exit = useRef(onExit)
-  exit.current = onExit
+  const end = useRef(onEnd)
+  end.current = onEnd
 
   useEffect(() => {
     const node = host.current
@@ -78,10 +174,19 @@ export function TerminalPanel({
       terminal.loadAddon(fit)
       terminal.open(node)
 
+      let started = false
       const connection = app.client.terminal(
         (message) => {
-          if (message.type === 'output') terminal.write(message.data)
-          else exit.current()
+          if (message.type !== 'output') return end.current()
+          terminal.write(message.data)
+          // The command waits for the shell to say something first. Typed before the prompt
+          // it lands in a tty that is still echoing raw, and then the line editor starts,
+          // finds a line already waiting and redraws it — the same command on screen twice,
+          // which reads as having run twice.
+          if (run && !started) {
+            started = true
+            connection.send({ type: 'input', data: run })
+          }
         },
         () => setLost(true),
       )
@@ -95,6 +200,8 @@ export function TerminalPanel({
       }
       const observer = new ResizeObserver(resize)
       observer.observe(node)
+      // Before the shell speaks, so the command it is handed lands in a terminal that is
+      // already the right width.
       resize()
       terminal.focus()
       setLost(false)
@@ -112,40 +219,27 @@ export function TerminalPanel({
       gone = true
       stop?.()
     }
-  }, [app.client])
+  }, [app.client, run])
 
   useEffect(() => {
-    if (visible) shell.current?.focus()
-  }, [visible])
+    if (active) shell.current?.focus()
+  }, [active])
 
   return (
-    <section className="terminal" hidden={!visible} style={{ height }}>
-      <Resizer axis="panel" size={height} onSize={onHeight} />
-      <header className="terminal-head">
-        <span className="terminal-title">terminal</span>
-        <span className="terminal-cwd">{app.config?.vaultPath ?? ''}</span>
-        <span className="spacer" />
-        <button
-          type="button"
-          aria-label="hide terminal"
-          title="hide terminal (⌘J)"
-          onClick={onHide}
-        >
-          ✕
-        </button>
-      </header>
+    <>
       {/* Clicking the padding around xterm's own surface should still put the cursor in
           the shell — otherwise the panel looks focused but eats what you type. */}
       <div
         className="terminal-body"
+        hidden={!active}
         ref={host}
         onMouseDown={() => shell.current?.focus()}
       />
-      {lost && (
+      {active && lost && (
         <p className="terminal-lost" role="status">
           disconnected from the backend — is <code>mother</code> still running?
         </p>
       )}
-    </section>
+    </>
   )
 }

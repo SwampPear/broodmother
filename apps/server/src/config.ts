@@ -1,9 +1,8 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
-import os from 'node:os'
 import path from 'node:path'
 import { z } from 'zod'
 import type { MotherConfig } from '@mother/shared'
-import { atomicWrite } from './atomic'
+import { atomicWrite } from './vault/atomic'
 
 /** `https://token@host` is a credential in a file we sync; `ssh://git@host` is a username. */
 export function hasEmbeddedCredentials(url: string): boolean {
@@ -19,29 +18,28 @@ const remoteUrl = z
   .nullable()
 
 export const configSchema = z.object({
+  project: z.string().min(1).nullable(),
   vaultPath: z.string().min(1).nullable(),
   remoteUrl,
   branch: z.string().min(1),
   syncEnabled: z.boolean(),
   syncIdleMs: z.number().int().min(1000),
   relayUrl: z.string().min(1).nullable(),
-  displayName: z.string().min(1),
-  presenceColor: z.string().regex(/^#[0-9a-fA-F]{6}$/, 'presence color must be #rrggbb'),
-  gitAuthor: z.object({ name: z.string().min(1), email: z.string().min(1) }),
 })
 
+/**
+ * Identity is deliberately absent: who you are lives in a profile on disk, and inventing
+ * one from the OS user would be a profile nobody chose.
+ */
 export function defaultConfig(vaultPath: string | null): MotherConfig {
-  const user = os.userInfo().username || 'mother'
   return {
+    project: null,
     vaultPath,
     remoteUrl: null,
     branch: 'main',
     syncEnabled: false,
     syncIdleMs: 10_000,
     relayUrl: null,
-    displayName: user,
-    presenceColor: '#8fb8d8',
-    gitAuthor: { name: user, email: `${user}@localhost` },
   }
 }
 

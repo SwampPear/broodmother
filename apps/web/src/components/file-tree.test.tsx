@@ -88,3 +88,23 @@ it('raises create, move and delete for the focused entry', async () => {
   await userEvent.keyboard('d')
   expect(onCommand).toHaveBeenCalledWith('delete', 'README.md')
 })
+
+/* The commands were keys only, which is no use to anyone who did not know they existed. */
+it('offers the row commands on a right click, deleting through the same path as the key', async () => {
+  const { onCommand } = show()
+
+  await userEvent.pointer({
+    keys: '[MouseRight]',
+    target: screen.getByRole('treeitem', { name: 'README.md' }),
+  })
+
+  const menu = await screen.findByRole('menu')
+  expect(
+    within(menu)
+      .getAllByRole('menuitem')
+      .map((item) => item.textContent),
+  ).toEqual(['New note here…', 'Rename or move…', 'Delete…'])
+
+  await userEvent.click(within(menu).getByRole('menuitem', { name: 'Delete…' }))
+  expect(onCommand).toHaveBeenCalledWith('delete', 'README.md')
+})

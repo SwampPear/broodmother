@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import type { MotherConfig } from '@mother/shared'
-import { opal } from '../colors'
+import type { Identity, MotherConfig } from '@mother/shared'
+import { opalFrom } from '../colors'
 import { useApp } from '../state'
 
 type TestResult = { ok: boolean; message: string } | null
@@ -10,12 +10,22 @@ type TestResult = { ok: boolean; message: string } | null
 export function SettingsView() {
   const app = useApp()
   const [draft, setDraft] = useState<MotherConfig | null>(null)
+  const [identity, setIdentity] = useState<Identity | null>(null)
   const [remoteResult, setRemoteResult] = useState<TestResult>(null)
   const [relayResult, setRelayResult] = useState<TestResult>(null)
 
   useEffect(() => setDraft(app.config), [app.config])
+  useEffect(() => {
+    if (app.profile)
+      setIdentity({
+        presenceColor: app.profile.presenceColor,
+        gitAuthor: app.profile.gitAuthor,
+        sshKeyPath: app.profile.sshKeyPath,
+        claudeConfigDir: app.profile.claudeConfigDir,
+      })
+  }, [app.profile])
 
-  if (!draft) return <div className="empty">loading settings…</div>
+  if (!draft) return <div className="empty" />
 
   const set = <K extends keyof MotherConfig>(key: K, value: MotherConfig[K]) =>
     setDraft({ ...draft, [key]: value })
@@ -52,21 +62,22 @@ export function SettingsView() {
         </p>
       )}
 
+      {/* Both are settled when the vault is created and read from it afterwards: retyping
+          them here would point mother at a folder it never cloned. */}
       <label>
         Vault path
-        <input
-          value={draft.vaultPath ?? ''}
-          onChange={(event) => set('vaultPath', event.target.value || null)}
-        />
+        <input value={draft.vaultPath ?? ''} readOnly />
       </label>
 
       <label>
         Remote URL
-        <input
-          value={draft.remoteUrl ?? ''}
-          onChange={(event) => set('remoteUrl', event.target.value || null)}
-        />
+        <input value={draft.remoteUrl ?? ''} readOnly />
       </label>
+
+      <p className="hint">
+        The vault folder and its remote belong to the vault. To work somewhere else, make
+        a new project — its vaults live in its own folder.
+      </p>
 
       <label>
         Branch
@@ -124,49 +135,94 @@ export function SettingsView() {
         )}
       </div>
 
-      <label>
-        Display name
-        <input
-          value={draft.displayName}
-          onChange={(event) => set('displayName', event.target.value)}
-        />
-      </label>
-
-      <label>
-        Presence color
-        <select
-          value={draft.presenceColor}
-          onChange={(event) => set('presenceColor', event.target.value)}
-        >
-          {opal.map((color) => (
-            <option key={color.hex} value={color.hex}>
-              opal {color.name}
-            </option>
-          ))}
-        </select>
-      </label>
-
-      <label>
-        Git author name
-        <input
-          value={draft.gitAuthor.name}
-          onChange={(event) =>
-            set('gitAuthor', { ...draft.gitAuthor, name: event.target.value })
-          }
-        />
-      </label>
-
-      <label>
-        Git author email
-        <input
-          value={draft.gitAuthor.email}
-          onChange={(event) =>
-            set('gitAuthor', { ...draft.gitAuthor, email: event.target.value })
-          }
-        />
-      </label>
-
       <button type="submit">save</button>
+
+      {identity && (
+        <fieldset className="profile-settings">
+          <legend>
+            Profile · {app.profile?.name}
+            {app.project ? ` · ${app.project.name}` : ''}
+          </legend>
+          <p className="hint">
+            Who you commit and show up as in this project, and the credentials you do it
+            with. It is stored in the profile's own file rather than in this machine's
+            config, so editing it here changes it for every project that picked it.
+          </p>
+
+          <label>
+            Presence color
+            <select
+              value={identity.presenceColor}
+              onChange={(event) =>
+                setIdentity({ ...identity, presenceColor: event.target.value })
+              }
+            >
+              {opalFrom(app.profile?.presenceColor).map((color) => (
+                <option key={color.hex} value={color.hex}>
+                  opal {color.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label>
+            Git author name
+            <input
+              value={identity.gitAuthor.name}
+              onChange={(event) =>
+                setIdentity({
+                  ...identity,
+                  gitAuthor: { ...identity.gitAuthor, name: event.target.value },
+                })
+              }
+            />
+          </label>
+
+          <label>
+            Git author email
+            <input
+              value={identity.gitAuthor.email}
+              onChange={(event) =>
+                setIdentity({
+                  ...identity,
+                  gitAuthor: { ...identity.gitAuthor, email: event.target.value },
+                })
+              }
+            />
+          </label>
+
+          <label>
+            SSH key
+            <input
+              value={identity.sshKeyPath ?? ''}
+              placeholder="~/.ssh/id_ed25519"
+              onChange={(event) =>
+                setIdentity({ ...identity, sshKeyPath: event.target.value || null })
+              }
+            />
+          </label>
+
+          <label>
+            Claude config directory
+            <input
+              value={identity.claudeConfigDir ?? ''}
+              placeholder="~/.claude"
+              onChange={(event) =>
+                setIdentity({ ...identity, claudeConfigDir: event.target.value || null })
+              }
+            />
+          </label>
+
+          <p className="hint">
+            The key git offers in this project's vaults, and the Claude login its
+            terminals run as. Left empty, git and Claude use their own defaults.
+          </p>
+
+          <button type="button" onClick={() => void app.saveIdentity(identity)}>
+            save profile
+          </button>
+        </fieldset>
+      )}
     </form>
   )
 }

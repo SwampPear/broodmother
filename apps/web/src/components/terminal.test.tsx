@@ -95,6 +95,67 @@ it('reports a shell that exited', async () => {
   expect(onExit).toHaveBeenCalled()
 })
 
+/** The mock echoes input back as output, so a run command shows up in what was written. */
+const bodies = () => document.querySelectorAll('.terminal-body')
+
+it('opens a second shell on the claude tab and runs claude in it', async () => {
+  const { client, onExit } = await show()
+  await userEvent.click(screen.getByRole('button', { name: /claude code/ }))
+  await waitFor(() => expect(bodies()).toHaveLength(2))
+
+  act(() => client.emitTerminal({ type: 'output', data: '$ ' }))
+
+  const run = written.find((data) => data.startsWith('claude'))
+  expect(run).toContain('--dangerously-skip-permissions')
+  expect(run).toContain(
+    '--append-system-prompt "You are running in a terminal inside mother',
+  )
+  expect(run?.endsWith('"\r')).toBe(true)
+  expect(disposed).not.toHaveBeenCalled()
+  expect(onExit).not.toHaveBeenCalled()
+})
+
+/* Typed before the shell has printed its prompt, the command lands in a tty still echoing
+   raw and is then redrawn by the line editor that starts underneath it — the same command
+   on screen twice, which reads as claude having started twice. */
+it('types nothing into a shell that has not spoken yet', async () => {
+  const { client } = await show()
+  await userEvent.click(screen.getByRole('button', { name: /claude code/ }))
+  await waitFor(() => expect(bodies()).toHaveLength(2))
+
+  expect(written.some((data) => data.startsWith('claude'))).toBe(false)
+
+  act(() => client.emitTerminal({ type: 'output', data: '$ ' }))
+  expect(written.filter((data) => data.startsWith('claude'))).toHaveLength(1)
+
+  // And only once, however much the shell goes on to say.
+  act(() => client.emitTerminal({ type: 'output', data: 'more output\r\n' }))
+  expect(written.filter((data) => data.startsWith('claude'))).toHaveLength(1)
+})
+
+it('nothing runs claude until the tab is opened', async () => {
+  await show()
+  expect(written.join('')).not.toContain('claude')
+  expect(bodies()).toHaveLength(1)
+})
+
+it('closes only the tab whose shell exited', async () => {
+  const { client, onExit } = await show()
+  await userEvent.click(screen.getByRole('button', { name: /claude code/ }))
+  await waitFor(() => expect(bodies()).toHaveLength(2))
+
+  // The mock routes to the shell that connected last, which is claude's.
+  act(() => {
+    ;(client as MockClient).emitTerminal({ type: 'exit', code: 0 })
+  })
+  expect(onExit).not.toHaveBeenCalled()
+  expect(bodies()).toHaveLength(1)
+  expect(screen.getByRole('button', { name: /^shell/ })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  )
+})
+
 it('hides on the close button without killing the shell', async () => {
   const { onHide } = await show()
   await userEvent.click(screen.getByRole('button', { name: /hide terminal/ }))

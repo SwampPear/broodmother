@@ -1,0 +1,101 @@
+'use client'
+
+import type { VaultPath } from '@mother/shared'
+import { Icon, displayName, iconFor } from './icons'
+import { Menu, type MenuAction } from './menu'
+import { TERMINALS, type TerminalKind } from './terminal-kinds'
+
+export type Tab =
+  | { id: string; kind: 'doc'; path: VaultPath }
+  | { id: string; kind: 'terminal'; shell: TerminalKind }
+
+/** What the plus offers: a place in the vault, or one of the shells. */
+export type NewTab = 'note' | TerminalKind
+
+export const docTab = (path: VaultPath): Tab => ({ id: `doc:${path}`, kind: 'doc', path })
+
+const name = (tab: Tab) =>
+  tab.kind === 'terminal'
+    ? TERMINALS[tab.shell].name
+    : displayName(tab.path.slice(tab.path.lastIndexOf('/') + 1))
+
+const icon = (tab: Tab) =>
+  tab.kind === 'terminal' ? TERMINALS[tab.shell].icon : iconFor(tab.path)
+
+const NEW: (Omit<MenuAction, 'onSelect' | 'id'> & { id: NewTab })[] = [
+  { id: 'note', label: 'New note…', icon: 'plus' },
+  { id: 'shell', label: 'Terminal', icon: 'terminal' },
+  { id: 'claude', label: 'Claude Code', icon: 'claude' },
+]
+
+/**
+ * What is open, across the top. A document tab is a place in the vault and the URL follows
+ * it; a terminal tab is a running shell that takes the whole pane, which is why the strip
+ * holds both — a terminal you can only have at the bottom of the window is a panel, not a
+ * thing you work in.
+ */
+export function TabStrip({
+  tabs,
+  activeId,
+  onPick,
+  onClose,
+  onNew,
+}: {
+  tabs: Tab[]
+  /** Null while the route is showing something no tab stands for, like settings. */
+  activeId: string | null
+  onPick: (tab: Tab) => void
+  onClose: (tab: Tab) => void
+  onNew: (what: NewTab) => void
+}) {
+  return (
+    <div className="tabs" role="tablist" aria-label="Open tabs">
+      {tabs.map((tab) => (
+        <div
+          key={tab.id}
+          className="tab"
+          role="tab"
+          tabIndex={0}
+          aria-selected={tab.id === activeId}
+          data-active={tab.id === activeId || undefined}
+          data-shell={tab.kind === 'terminal' ? tab.shell : undefined}
+          onClick={() => onPick(tab)}
+          onKeyDown={(event) => event.key === 'Enter' && onPick(tab)}
+          // Middle click closes, the way every other tab strip does.
+          onAuxClick={(event) => event.button === 1 && onClose(tab)}
+        >
+          <Icon name={icon(tab)} />
+          <span className="tab-name">{name(tab)}</span>
+          <button
+            type="button"
+            className="tab-close"
+            aria-label={`Close ${name(tab)}`}
+            onClick={(event) => {
+              event.stopPropagation()
+              onClose(tab)
+            }}
+          >
+            <Icon name="x" />
+          </button>
+        </div>
+      ))}
+      {/* The same menu the tree opens on a right click, for the one gesture that has no row
+          to sit on: what a new tab could be. */}
+      <Menu
+        label="New tab"
+        anchorLabel="New tab"
+        anchorClass="tab-new"
+        sections={[
+          {
+            actions: NEW.map((action) => ({
+              ...action,
+              onSelect: () => onNew(action.id),
+            })),
+          },
+        ]}
+      >
+        <Icon name="plus" />
+      </Menu>
+    </div>
+  )
+}

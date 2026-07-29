@@ -1,5 +1,12 @@
 import * as Y from 'yjs'
-import type { DocAttrs, DocNode, Mark, MarkName, NodeAttrs, NodeName } from '@mother/shared'
+import type {
+  DocAttrs,
+  DocNode,
+  Mark,
+  MarkName,
+  NodeAttrs,
+  NodeName,
+} from '@mother/shared'
 
 export const FRAGMENT = 'prosemirror'
 

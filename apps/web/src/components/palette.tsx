@@ -165,6 +165,8 @@ export function Palette({
     <div className="palette-backdrop">
       <div
         className="palette"
+        // A question is a small dialog; a list of documents needs the width.
+        data-confirm={flow.kind === 'confirm' || undefined}
         role="dialog"
         aria-modal="true"
         aria-label={label}
@@ -177,11 +179,11 @@ export function Palette({
             <p className="palette-label">{flow.label}</p>
             <p className="palette-detail">{flow.detail}</p>
             <div className="palette-actions">
-              <button type="button" onClick={submit}>
-                delete
-              </button>
               <button type="button" onClick={() => setFlow(null)}>
                 cancel
+              </button>
+              <button type="button" className="danger" onClick={submit}>
+                delete
               </button>
             </div>
           </>

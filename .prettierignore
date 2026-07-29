@@ -1,0 +1,3 @@
+# Verbatim copies of real vault files — the codec is tested against them byte for byte,
+# so formatting them is changing the test data.
+packages/markdown/fixtures/

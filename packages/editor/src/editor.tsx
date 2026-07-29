@@ -8,7 +8,7 @@ import { searchKeymap } from '@codemirror/search'
 import { Compartment, EditorState, Prec } from '@codemirror/state'
 import { EditorView, keymap } from '@codemirror/view'
 import { useEffect, useRef, useState } from 'react'
-import { type Command, type Trigger, triggerAt } from './commands'
+import { type Command, type Trigger, toggleWrap, triggerAt } from './commands'
 import { livePreview } from './live-preview'
 import { markdownHighlight } from './syntax'
 
@@ -116,7 +116,13 @@ export function Editor({ markdown: value, onChange, mode = 'live' }: EditorProps
         extensions: [
           history(),
           Prec.highest(menuKeys),
-          keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap]),
+          keymap.of([
+            { key: 'Mod-b', run: toggleWrap('**') },
+            { key: 'Mod-i', run: toggleWrap('*') },
+            ...defaultKeymap,
+            ...historyKeymap,
+            ...searchKeymap,
+          ]),
           markdown({ base: markdownLanguage, codeLanguages: languages }),
           syntaxHighlighting(markdownHighlight),
           preview.of(mode === 'live' ? livePreview : []),
@@ -141,12 +147,17 @@ export function Editor({ markdown: value, onChange, mode = 'live' }: EditorProps
     })
   }, [mode])
 
+  // A value that did not come from this editor is a write from somewhere else — another
+  // window, an editor on disk, a shell. Replacing the whole document would map the cursor to
+  // one end of it, so the caret is put back where it was, clamped to what is now there.
   useEffect(() => {
     const editor = view.current
     if (!editor || value === emitted.current) return
     emitted.current = value
+    const head = Math.min(editor.state.selection.main.head, value.length)
     editor.dispatch({
       changes: { from: 0, to: editor.state.doc.length, insert: value },
+      selection: { anchor: head },
     })
   }, [value])
 

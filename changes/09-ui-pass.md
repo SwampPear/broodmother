@@ -17,6 +17,17 @@
 - **File-type tag** in the tree now uses the same family as everything around it rather than
   the mono stack.
 - **Vault picker restyled** to match — rounded rows, a violet primary action, denser type.
+- **Browser identity.** The tab title is `Mother`, and `app/icon.png` / `app/apple-icon.png`
+  (Next's file convention) put the logo on a `#1f1f1f` tile with a 15% corner radius. The
+  bare logo is a cream glyph on transparency — on a light tab strip it disappears, so the
+  favicon carries its own background rather than borrowing the browser's.
+- **The vault no longer follows your shell.** `scripts/mother.mjs` was resolving
+  `argv[2] ?? MOTHER_VAULT ?? process.cwd()` and always exporting `MOTHER_VAULT`, which the
+  server treats as the highest-priority source — so running `mother` from any folder pinned
+  that folder as the vault and overwrote the remembered one. Only an explicit argument sets
+  it now; with none, the env var is not exported at all and the server falls through to the
+  profile's saved `vaultPath`, then the first vault in `~/.mother`. This is what
+  [README](../README.md) already claimed the command did.
 
 ## The terminal
 

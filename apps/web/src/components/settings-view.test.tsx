@@ -36,14 +36,20 @@ it('reports a specific result from the remote test', async () => {
 })
 
 it('reports failure when there is no remote to test', async () => {
-  await show()
-  const remote = screen.getByLabelText('Remote URL')
-  await userEvent.clear(remote)
+  await show(createMockClient({ config: { remoteUrl: null } as never }))
   await userEvent.click(screen.getByRole('button', { name: 'test remote' }))
   expect(await screen.findByText(/no remote configured/)).toHaveAttribute(
     'data-ok',
     'false',
   )
+})
+
+/* Pointing the config at a folder mother never cloned is not a setting, it is a break. */
+it('will not let the vault folder or its remote be retyped', async () => {
+  await show()
+  expect(screen.getByLabelText('Vault path')).toHaveAttribute('readonly')
+  expect(screen.getByLabelText('Remote URL')).toHaveAttribute('readonly')
+  expect(screen.getByText(/make a\s+new project/)).toBeInTheDocument()
 })
 
 it('reports a specific result from the relay test', async () => {
@@ -65,6 +71,33 @@ it('names the fields the backend had to reset', async () => {
   expect(screen.getByRole('alert')).toHaveTextContent('branch, relayUrl')
 })
 
+it('opens the palette on the colour the profile already is', async () => {
+  await show(
+    createMockClient({
+      profiles: [
+        {
+          name: 'you',
+          path: '/Users/you/.mother/profiles/you.json',
+          presenceColor: '#fbbf24',
+          gitAuthor: { name: 'You', email: 'you@propriumbioscience.com' },
+          sshKeyPath: null,
+          claudeConfigDir: null,
+        },
+      ],
+    }),
+  )
+  const options = screen.getAllByRole('option').map((option) => option.textContent)
+  expect(options).toEqual([
+    'opal gold',
+    'opal navy',
+    'opal violet',
+    'opal indigo',
+    'opal cyan',
+    'opal mint',
+    'opal rose',
+  ])
+})
+
 it('offers only the opal palette as presence colors', async () => {
   await show()
   const options = screen.getAllByRole('option').map((option) => option.textContent)
@@ -73,7 +106,23 @@ it('offers only the opal palette as presence colors', async () => {
     'opal indigo',
     'opal cyan',
     'opal mint',
-    'opal gold',
     'opal rose',
+    'opal gold',
+    'opal navy',
   ])
+})
+
+/* Credentials belong to the profile rather than to this machine's config, so they save on
+   the profile's own button and land in its file. */
+it('saves the credentials the profile works with', async () => {
+  const client = await show()
+  await userEvent.type(screen.getByLabelText('SSH key'), '~/.ssh/id_ed25519')
+  await userEvent.type(screen.getByLabelText('Claude config directory'), '~/.claude-work')
+  await userEvent.click(screen.getByRole('button', { name: 'save profile' }))
+
+  const { active } = await client.request('GET /api/profiles', null)
+  expect(active).toMatchObject({
+    sshKeyPath: '~/.ssh/id_ed25519',
+    claudeConfigDir: '~/.claude-work',
+  })
 })

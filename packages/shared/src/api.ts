@@ -1,4 +1,4 @@
-import type { MotherConfig } from './config'
+import type { Identity, MotherConfig, Profile, Project } from './config'
 import type {
   DivergenceChoice,
   DivergenceReport,
@@ -26,7 +26,46 @@ export interface MoveResult {
  * exactly these and the web app calls exactly these; nothing else crosses the boundary.
  */
 export interface ApiRoutes {
+  /** `active` is null on a fresh machine — nothing is assumed, the app asks. */
+  'GET /api/projects': {
+    request: null
+    response: { home: string; projects: Project[]; active: Project | null }
+  }
+  'POST /api/projects': {
+    request: { name: string; profile: string }
+    response: { project: Project; config: MotherConfig }
+  }
+  'POST /api/projects/open': {
+    request: { name: string }
+    response: { project: Project; config: MotherConfig }
+  }
+  /** Points the active project at another profile; the name is the folder, so it is not
+   *  editable here. */
+  'PUT /api/projects': {
+    request: { profile: string }
+    response: { project: Project }
+  }
+  /** Removes the project folder and every vault in it. Deleting the active project falls
+   *  back to whatever is left, or to none, which is the first-run state again. */
+  'DELETE /api/projects': {
+    request: { name: string }
+    response: { active: Project | null; config: MotherConfig }
+  }
+  /** `active` is the profile the active project works as — null until both exist. */
+  'GET /api/profiles': {
+    request: null
+    response: { profiles: Profile[]; active: Profile | null }
+  }
+  /** Creating a profile from the project menu also selects it, when there is a project to
+   *  select it for; on first run there is not, and the project picks it up at creation. */
+  'POST /api/profiles': {
+    request: { name: string } & Identity
+    response: { profile: Profile; project: Project | null }
+  }
+  /** Edits the active profile; the name is the file, so it is not editable here. */
+  'PUT /api/profiles': { request: Identity; response: { profile: Profile } }
   'GET /api/vault': { request: null; response: { entries: VaultEntry[] } }
+  /** `home` is the active project's folder: its vaults are the folders inside it. */
   'GET /api/vaults': {
     request: null
     response: { home: string; vaults: VaultSummary[] }

@@ -1,0 +1,187 @@
+'use client'
+
+import * as Dropdown from '@radix-ui/react-dropdown-menu'
+import { useEffect, useRef, type MouseEvent, type ReactNode } from 'react'
+import { Icon, type IconName } from './icons'
+
+/**
+ * The one dropdown in the app. Every menu — profiles, row actions, anything anchored to a
+ * control — is a list of sections rendered here, so they share an anatomy: a floating
+ * surface, grouped rows separated by a rule, a leading visual, an optional second line,
+ * and a trailing check on whatever is currently chosen.
+ *
+ * The behaviour underneath is a headless menu primitive, not ours: roving focus, wrap-around
+ * arrows, type-ahead, escape, click-away, focus returning to the trigger, and flipping when
+ * the surface would run off the viewport. We supply structure and styling and nothing else.
+ */
+export interface MenuAction {
+  id: string
+  label: string
+  /** Second line under the label — what the row means, not a repeat of it. */
+  description?: string
+  icon?: IconName
+  /** An initial on a colour, where the row stands for a person rather than an action. */
+  badge?: { text: string; color: string }
+  /** Present at all makes the section a radio group; true draws the check. */
+  selected?: boolean
+  danger?: boolean
+  disabled?: boolean
+  onSelect: () => void
+  /** A second gesture on the same row — its own options, say. A row that has one holds its
+   *  select for the double-click window, since closing on the first click would leave the
+   *  second one landing on nothing. */
+  onSecondClick?: () => void
+}
+
+export interface MenuSection {
+  heading?: string
+  actions: MenuAction[]
+}
+
+/** The inside of a row, shared with the context menu so the two cannot drift apart. */
+export function MenuRow({ action }: { action: MenuAction }) {
+  return (
+    <>
+      {action.badge ? (
+        <span
+          className="menu-badge"
+          style={{ background: action.badge.color }}
+          aria-hidden
+        >
+          {action.badge.text}
+        </span>
+      ) : (
+        action.icon && <Icon name={action.icon} />
+      )}
+      <span className="menu-text">
+        <span className="menu-label">{action.label}</span>
+        {action.description && (
+          <span className="menu-description">{action.description}</span>
+        )}
+      </span>
+      {action.selected !== undefined && (
+        <Dropdown.ItemIndicator className="menu-mark">
+          <Icon name="check" />
+        </Dropdown.ItemIndicator>
+      )}
+    </>
+  )
+}
+
+/** Long enough that a deliberate double click lands, short enough that a single one does
+ *  not feel held back. */
+const DOUBLE_CLICK_MS = 200
+
+/** The click behaviour a row with a second gesture needs: the select waits to see whether
+ *  another click is coming, and the menu is told not to close in the meantime. */
+function useTwoGestures(action: MenuAction) {
+  const waiting = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const stop = () => {
+    if (waiting.current) clearTimeout(waiting.current)
+    waiting.current = null
+  }
+  useEffect(() => stop, [])
+
+  if (!action.onSecondClick) return { onSelect: action.onSelect }
+  return {
+    onSelect: (event: Event) => event.preventDefault(),
+    onClick: (event: MouseEvent) => {
+      stop()
+      if (event.detail > 1) action.onSecondClick?.()
+      else waiting.current = setTimeout(action.onSelect, DOUBLE_CLICK_MS)
+    },
+  }
+}
+
+function Item({ action, radio }: { action: MenuAction; radio: boolean }) {
+  const shared = {
+    className: 'menu-item',
+    disabled: action.disabled,
+    'data-danger': action.danger || undefined,
+    ...useTwoGestures(action),
+  }
+  return radio ? (
+    <Dropdown.RadioItem value={action.id} {...shared}>
+      <MenuRow action={action} />
+    </Dropdown.RadioItem>
+  ) : (
+    <Dropdown.Item {...shared}>
+      <MenuRow action={action} />
+    </Dropdown.Item>
+  )
+}
+
+export function Menu({
+  label,
+  sections,
+  align = 'start',
+  anchorClass,
+  anchorLabel,
+  open,
+  onOpenChange,
+  children,
+}: {
+  label: string
+  sections: MenuSection[]
+  align?: 'start' | 'end'
+  anchorClass?: string
+  /** Needed where the trigger is an icon and has no text of its own to be named by. */
+  anchorLabel?: string
+  /** Controlled only where a row does something other than pick and close. */
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+  children: ReactNode
+}) {
+  return (
+    <Dropdown.Root open={open} onOpenChange={onOpenChange}>
+      <Dropdown.Trigger asChild>
+        <button
+          type="button"
+          className={anchorClass}
+          aria-label={anchorLabel}
+          title={anchorLabel}
+        >
+          {children}
+        </button>
+      </Dropdown.Trigger>
+
+      <Dropdown.Portal>
+        <Dropdown.Content
+          className="menu-surface"
+          // The primitive names the surface after its trigger, which for a menu whose
+          // trigger is the current choice says the choice rather than what is on offer.
+          aria-labelledby={undefined}
+          aria-label={label}
+          align={align}
+          sideOffset={4}
+          collisionPadding={8}
+          loop
+        >
+          {sections.map((section, index) => {
+            const chosen = section.actions.find((action) => action.selected)?.id
+            const single = section.actions.some((action) => action.selected !== undefined)
+            const rows = section.actions.map((action) => (
+              <Item key={action.id} action={action} radio={single} />
+            ))
+
+            return (
+              <div className="menu-section" key={section.heading ?? index}>
+                {index > 0 && <Dropdown.Separator className="menu-divider" />}
+                {section.heading && (
+                  <Dropdown.Label className="menu-heading">
+                    {section.heading}
+                  </Dropdown.Label>
+                )}
+                {single ? (
+                  <Dropdown.RadioGroup value={chosen}>{rows}</Dropdown.RadioGroup>
+                ) : (
+                  rows
+                )}
+              </div>
+            )
+          })}
+        </Dropdown.Content>
+      </Dropdown.Portal>
+    </Dropdown.Root>
+  )
+}
