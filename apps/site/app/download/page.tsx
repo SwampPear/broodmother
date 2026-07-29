@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { Wizard } from './wizard'
 
-const VERSION = '0.1.1'
+const VERSION = '0.1.2'
 const REPO = 'https://github.com/SwampPear/broodmother'
 
 /**

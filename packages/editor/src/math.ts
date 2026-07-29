@@ -1,5 +1,4 @@
 import { isInlineMath } from '@broodmother/shared'
-import { WidgetType } from '@codemirror/view'
 import katex from 'katex'
 
 export interface MathSpan {
@@ -9,34 +8,17 @@ export interface MathSpan {
   block: boolean
 }
 
-/** Rendered as a widget when the cursor is elsewhere, raw source the moment it isn't. */
-export class MathWidget extends WidgetType {
-  constructor(
-    readonly latex: string,
-    readonly block: boolean,
-  ) {
-    super()
-  }
-
-  eq(other: MathWidget) {
-    return other.latex === this.latex && other.block === this.block
-  }
-
-  toDOM() {
-    const host = document.createElement(this.block ? 'div' : 'span')
-    host.className = this.block ? 'cm-math cm-math-block' : 'cm-math'
-    katex.render(this.latex, host, {
-      throwOnError: false,
-      displayMode: this.block,
-      output: 'htmlAndMathml',
-    })
-    return host
-  }
-
-  /** Let clicks through so putting the cursor in an equation opens its source. */
-  ignoreEvent() {
-    return false
-  }
+/** A display equation drawn where its source was. Errors render as the source, not as a
+ *  thrown exception: a half-typed equation is the normal state of one being written. */
+export function renderMath(latex: string, block: boolean): HTMLElement {
+  const host = document.createElement(block ? 'div' : 'span')
+  host.className = block ? 'md-math md-math-block' : 'md-math'
+  katex.render(latex, host, {
+    throwOnError: false,
+    displayMode: block,
+    output: 'htmlAndMathml',
+  })
+  return host
 }
 
 /**
