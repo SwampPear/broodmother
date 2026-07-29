@@ -7,7 +7,7 @@ dist/
 release/
 next-env.d.ts
 *.tsbuildinfo
-public/downloads/
+**/public/downloads/
 
 # local data
 .broodmother/

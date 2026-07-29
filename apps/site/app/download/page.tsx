@@ -1,25 +1,20 @@
-import { stat } from 'node:fs/promises'
-import { join } from 'node:path'
 import Link from 'next/link'
 import { Wizard } from './wizard'
 
 const VERSION = '0.1.0'
-const FILE = `/downloads/broodmother-${VERSION}-arm64.dmg`
+const REPO = 'https://github.com/SwampPear/broodmother'
 
-/** Rendered per request: the build is a file someone drops in, not something bundled. */
-export const dynamic = 'force-dynamic'
+/**
+ * The disk image lives on the GitHub release rather than in this repo: at 135 MB it is
+ * past GitHub's 100 MB ceiling for a tracked file, and serving it from the release keeps
+ * it out of every clone while still giving the page a stable, versioned URL.
+ */
+const FILE = `${REPO}/releases/download/v${VERSION}/broodmother-${VERSION}-arm64.dmg`
 
-/** The size on the page is the size of the file being served, not a number typed once. */
-async function size(): Promise<string | null> {
-  return stat(join(process.cwd(), 'public', FILE)).then(
-    (file) => `${Math.round(file.size / 1e6)} MB`,
-    () => null,
-  )
-}
+/** Bumped alongside VERSION — the release asset is the thing this describes. */
+const SIZE = '135 MB'
 
-export default async function Download() {
-  const ready = await size()
-
+export default function Download() {
   return (
     <main className="page">
       <Link className="back" href="/">
@@ -31,19 +26,7 @@ export default async function Download() {
         out of a folder you choose, and nothing leaves your machine.
       </p>
 
-      {ready ? (
-        <Wizard file={FILE} version={VERSION} size={ready} />
-      ) : (
-        <div className="box">
-          <div className="notice">
-            <p>
-              No build here yet. <code>npm run dist -w @broodmother/desktop</code> makes
-              one, and <code>apps/site/public{FILE}</code> is where this page looks for
-              it.
-            </p>
-          </div>
-        </div>
-      )}
+      <Wizard file={FILE} version={VERSION} size={SIZE} />
     </main>
   )
 }
