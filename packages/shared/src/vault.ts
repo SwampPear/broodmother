@@ -18,10 +18,12 @@ export interface VaultDir {
 
 export type VaultEntry = VaultFile | VaultDir
 
-/** A directory in the vault home. The name is the folder name; the path is absolute. */
+/** A directory in the broodmother home. The name is the folder name; the path is absolute. */
 export interface VaultSummary {
   name: string
   path: string
+  /** Name of the profile this vault commits as, or null until one is picked. */
+  profile: string | null
 }
 
 export type VaultEvent =

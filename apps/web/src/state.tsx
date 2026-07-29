@@ -12,7 +12,6 @@ import type {
   Identity,
   BroodmotherConfig,
   Profile,
-  Project,
   SyncStatus,
   VaultEntry,
   VaultEvent,
@@ -25,21 +24,19 @@ export interface App {
   client: ApiClient
   entries: VaultEntry[]
   sync: SyncStatus
-  /** False until config, projects and profiles have answered — the shell gates on all
-   *  three, and rendering before they land shows the home screen for a frame. */
+  /** False until config, vaults and profiles have answered — the shell gates on all three,
+   *  and rendering before they land shows the home screen for a frame. */
   ready: boolean
   config: BroodmotherConfig | null
   configReset: string[]
-  /** Null until a project exists — the app asks where you work before anything else. */
-  project: Project | null
-  projects: Project[]
-  /** The profile the active project works as, null until one is picked. */
+  /** The profile the open vault commits as, null until one is picked. */
   profile: Profile | null
   profiles: Profile[]
-  /** The broodmother home: the folder the projects are folders in. */
+  /** The broodmother home: the folder the vaults are folders in. */
   home: string
+  /** Null until a vault exists — the app asks where you work before anything else. */
+  vault: VaultSummary | null
   vaults: VaultSummary[]
-  vaultHome: string
   /** The last change the vault reported, so an open document can follow a write it did not
    *  make itself. */
   vaultEvent: VaultEvent | null
@@ -54,9 +51,7 @@ export interface App {
   saveConfig(config: BroodmotherConfig): Promise<void>
   createVault(input: { name: string; remoteUrl: string; branch: string }): Promise<void>
   openVault(path: string): Promise<void>
-  addProject(input: { name: string; profile: string }): Promise<void>
-  openProject(name: string): Promise<void>
-  deleteProject(name: string): Promise<void>
+  deleteVault(name: string): Promise<void>
   addProfile(input: { name: string } & Identity): Promise<void>
   selectProfile(name: string): Promise<void>
   saveIdentity(identity: Identity): Promise<void>
@@ -89,10 +84,8 @@ export function AppProvider({
   const [ready, setReady] = useState(false)
   const [config, setConfig] = useState<BroodmotherConfig | null>(null)
   const [configReset, setConfigReset] = useState<string[]>([])
+  const [vault, setVault] = useState<VaultSummary | null>(null)
   const [vaults, setVaults] = useState<VaultSummary[]>([])
-  const [vaultHome, setVaultHome] = useState('')
-  const [project, setProject] = useState<Project | null>(null)
-  const [projects, setProjects] = useState<Project[]>([])
   const [profile, setProfile] = useState<Profile | null>(null)
   const [profiles, setProfiles] = useState<Profile[]>([])
   const [home, setHome] = useState('')
@@ -106,20 +99,10 @@ export function AppProvider({
       .then((result) => setEntries(result.entries))
       .catch(() => setEntries([]))
 
-  // 409s until a project exists, which is a state and not a failure: the shell gates on it.
   const loadVaults = () =>
-    client
-      .request('GET /api/vaults', null)
-      .then((result) => {
-        setVaults(result.vaults)
-        setVaultHome(result.home)
-      })
-      .catch(() => setVaults([]))
-
-  const loadProjects = () =>
-    client.request('GET /api/projects', null).then((result) => {
-      setProjects(result.projects)
-      setProject(result.active)
+    client.request('GET /api/vaults', null).then((result) => {
+      setVaults(result.vaults)
+      setVault(result.active)
       setHome(result.home)
     })
 
@@ -137,8 +120,7 @@ export function AppProvider({
 
   useEffect(() => {
     void loadVault()
-    void loadVaults()
-    void Promise.allSettled([loadProjects(), loadProfiles(), loadConfig()]).then(() =>
+    void Promise.allSettled([loadVaults(), loadProfiles(), loadConfig()]).then(() =>
       setReady(true),
     )
     void client.request('GET /api/sync', null).then(setSync)
@@ -176,13 +158,11 @@ export function AppProvider({
     ready,
     config,
     configReset,
-    project,
-    projects,
     profile,
     profiles,
     home,
+    vault,
     vaults,
-    vaultHome,
     vaultEvent,
     notice,
     dismissNotice: () => setNotice(null),
@@ -232,7 +212,7 @@ export function AppProvider({
       run(async () => {
         const result = await client.request('POST /api/vaults', input)
         setConfig(result.config)
-        await Promise.all([loadVaults(), loadVault()])
+        await Promise.all([loadVaults(), loadProfiles(), loadVault()])
         return `created ${result.vault.name}`
       }),
 
@@ -240,45 +220,29 @@ export function AppProvider({
       run(async () => {
         const result = await client.request('POST /api/vaults/open', { path })
         setConfig(result.config)
-        await loadVault()
+        await Promise.all([loadVaults(), loadProfiles(), loadVault()])
         return `opened ${path}`
       }),
 
-    addProject: (input) =>
+    deleteVault: (name) =>
       run(async () => {
-        const result = await client.request('POST /api/projects', input)
+        const result = await client.request('DELETE /api/vaults', { name })
         setConfig(result.config)
-        await Promise.all([loadProjects(), loadProfiles(), loadVaults(), loadVault()])
-        return `created ${result.project.name}`
-      }),
-
-    openProject: (name) =>
-      run(async () => {
-        const result = await client.request('POST /api/projects/open', { name })
-        setConfig(result.config)
-        await Promise.all([loadProjects(), loadProfiles(), loadVaults(), loadVault()])
-        return `switched to ${name}`
-      }),
-
-    deleteProject: (name) =>
-      run(async () => {
-        const result = await client.request('DELETE /api/projects', { name })
-        setConfig(result.config)
-        await Promise.all([loadProjects(), loadProfiles(), loadVaults(), loadVault()])
+        await Promise.all([loadVaults(), loadProfiles(), loadVault()])
         return `deleted ${name}`
       }),
 
     addProfile: (input) =>
       run(async () => {
         const result = await client.request('POST /api/profiles', input)
-        await Promise.all([loadProjects(), loadProfiles()])
+        await Promise.all([loadVaults(), loadProfiles()])
         return `created ${result.profile.name}`
       }),
 
     selectProfile: (name) =>
       run(async () => {
-        await client.request('PUT /api/projects', { profile: name })
-        await Promise.all([loadProjects(), loadProfiles()])
+        await client.request('PUT /api/vaults', { profile: name })
+        await Promise.all([loadVaults(), loadProfiles()])
         return `working as ${name}`
       }),
 

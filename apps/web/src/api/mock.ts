@@ -5,7 +5,6 @@ import type {
   Identity,
   BroodmotherConfig,
   Profile,
-  Project,
   ServerMessage,
   SyncStatus,
   TerminalServerMessage,
@@ -31,8 +30,8 @@ const seedDocs: Record<VaultPath, string> = {
 }
 
 const seedConfig: BroodmotherConfig = {
-  project: 'acme',
-  vaultPath: '/Users/you/.broodmother/acme/handbook',
+  vaultPath: '/Users/you/.broodmother/handbook',
+  profiles: { '/Users/you/.broodmother/handbook': 'you' },
   remoteUrl: 'git@github.com:you/handbook.git',
   branch: 'main',
   syncEnabled: true,
@@ -46,12 +45,6 @@ const seedProfile: Profile = {
   gitAuthor: { name: 'You', email: 'you@example.com' },
   sshKeyPath: null,
   claudeConfigDir: null,
-}
-
-const seedProject: Project = {
-  name: 'acme',
-  path: '/Users/you/.broodmother/acme',
-  profile: 'you',
 }
 
 function tree(paths: VaultPath[]): VaultEntry[] {
@@ -82,23 +75,35 @@ export function createMockClient(
     home?: string
     vaults?: VaultSummary[]
     profiles?: Profile[]
-    projects?: Project[]
-    active?: Project | null
+    active?: VaultSummary | null
   } = {},
 ): MockClient {
   const docs = { ...seedDocs, ...seed.docs }
   const home = seed.home ?? '/Users/you/.broodmother'
   const profiles: Profile[] = seed.profiles ?? [seedProfile]
-  const projects: Project[] = seed.projects ?? [seedProject]
-  let active: Project | null =
-    seed.active === undefined ? (projects[0] ?? null) : seed.active
-  const profileOf = (project: Project | null) =>
-    profiles.find((profile) => profile.name === project?.profile) ?? null
-  const vaultHome = () => active?.path ?? home
   const vaults: VaultSummary[] = seed.vaults ?? [
-    { name: 'handbook', path: `${vaultHome()}/handbook` },
+    { name: 'handbook', path: `${home}/handbook`, profile: 'you' },
   ]
-  let config = { ...seedConfig, ...seed.config }
+  let active: VaultSummary | null =
+    seed.active === undefined ? (vaults[0] ?? null) : seed.active
+  // Set only while no vault is open: the identity the first vault will be created as, the
+  // way the server holds one before there is anything to bind it to.
+  let pending: string | null = null
+  const profileOf = (vault: VaultSummary | null) => {
+    const name = vault?.profile ?? pending
+    if (name) return profiles.find((profile) => profile.name === name) ?? null
+    return vault ? null : (profiles[0] ?? null)
+  }
+  /** Binding in place: the list and the active vault are the same vault, so both move. */
+  const bind = (vault: VaultSummary, profile: string): VaultSummary => {
+    const bound = { ...vault, profile }
+    const index = vaults.findIndex((one) => one.path === vault.path)
+    if (index >= 0) vaults.splice(index, 1, bound)
+    return bound
+  }
+  // Seeded from the active vault so a seed with no vaults is a machine with nothing open,
+  // rather than one pointed at a vault its own listing does not have.
+  let config = { ...seedConfig, vaultPath: active?.path ?? null, ...seed.config }
   let sync: SyncStatus = seed.sync ?? {
     state: 'idle',
     lastSyncedAt: Date.now(),
@@ -113,43 +118,6 @@ export function createMockClient(
   const handlers: { [R in ApiRoute]: (body: ApiRequest<R>) => Promise<ApiResponse<R>> } =
     {
       'GET /api/vault': async () => ({ entries: tree(Object.keys(docs)) }),
-      'GET /api/projects': async () => ({ home, projects: [...projects], active }),
-      'POST /api/projects': async ({ name, profile }) => {
-        if (projects.some((project) => project.name === name))
-          throw new Error(`a project named "${name}" already exists`)
-        const project: Project = { name, path: `${home}/${name}`, profile }
-        projects.push(project)
-        active = project
-        config = { ...config, project: name, vaultPath: null }
-        return { project, config }
-      },
-      'POST /api/projects/open': async ({ name }) => {
-        const project = projects.find((candidate) => candidate.name === name)
-        if (!project) throw new Error(`no project named "${name}"`)
-        active = project
-        config = { ...config, project: name }
-        return { project, config }
-      },
-      'PUT /api/projects': async ({ profile }) => {
-        if (!active) throw new Error('no project yet')
-        active = { ...active, profile }
-        projects.splice(
-          projects.findIndex((project) => project.name === active!.name),
-          1,
-          active,
-        )
-        return { project: active }
-      },
-      'DELETE /api/projects': async ({ name }) => {
-        const index = projects.findIndex((project) => project.name === name)
-        if (index < 0) throw new Error(`no project named "${name}"`)
-        projects.splice(index, 1)
-        if (active?.name === name) {
-          active = projects[0] ?? null
-          config = { ...config, project: active?.name ?? null, vaultPath: null }
-        }
-        return { active, config }
-      },
       'GET /api/profiles': async () => ({
         profiles: [...profiles],
         active: profileOf(active),
@@ -163,8 +131,9 @@ export function createMockClient(
           ...identity,
         }
         profiles.push(profile)
-        if (active) active = { ...active, profile: name }
-        return { profile, project: active }
+        if (active) active = bind(active, name)
+        else pending = name
+        return { profile, vault: active }
       },
       'PUT /api/profiles': async (identity: Identity) => {
         const current = profileOf(active)
@@ -173,15 +142,18 @@ export function createMockClient(
         profiles.splice(profiles.indexOf(current), 1, profile)
         return { profile }
       },
-      'GET /api/vaults': async () => {
-        if (!active) throw new Error('no project yet — set one up before opening a vault')
-        return { home: active.path, vaults: [...vaults] }
-      },
+      'GET /api/vaults': async () => ({ home, vaults: [...vaults], active }),
       'POST /api/vaults': async ({ name, remoteUrl, branch }) => {
         if (vaults.some((vault) => vault.name === name))
           throw new Error(`a vault named "${name}" already exists`)
-        const vault = { name, path: `${vaultHome()}/${name}` }
+        const vault = {
+          name,
+          path: `${home}/${name}`,
+          profile: profileOf(active)?.name ?? profiles[0]?.name ?? null,
+        }
         vaults.push(vault)
+        active = vault
+        pending = null
         config = {
           ...config,
           vaultPath: vault.path,
@@ -192,8 +164,29 @@ export function createMockClient(
         return { vault, config }
       },
       'POST /api/vaults/open': async ({ path }) => {
+        active = vaults.find((vault) => vault.path === path) ?? active
         config = { ...config, vaultPath: path }
         return { config }
+      },
+      'PUT /api/vaults': async ({ profile }) => {
+        if (!profiles.some((one) => one.name === profile))
+          throw new Error(`no profile named "${profile}"`)
+        if (!active) {
+          pending = profile
+          return { vault: null }
+        }
+        active = bind(active, profile)
+        return { vault: active }
+      },
+      'DELETE /api/vaults': async ({ name }) => {
+        const index = vaults.findIndex((vault) => vault.name === name)
+        if (index < 0) throw new Error(`no vault named "${name}"`)
+        vaults.splice(index, 1)
+        if (active?.name === name) {
+          active = vaults[0] ?? null
+          config = { ...config, vaultPath: active?.path ?? null }
+        }
+        return { active, config }
       },
       'GET /api/doc': async ({ path }) => {
         if (!(path in docs)) throw new Error(`no such document: ${path}`)

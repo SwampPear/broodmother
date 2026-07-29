@@ -1,10 +1,10 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, it, vi } from 'vitest'
-import type { Profile, Project } from '@broodmother/shared'
-import { ProjectMenu } from './project-menu'
+import type { Profile, VaultSummary } from '@broodmother/shared'
+import { VaultMenu } from './vault-menu'
 
-const projects: Project[] = [
+const vaults: VaultSummary[] = [
   { name: 'Work', path: '/Users/you/.broodmother/Work', profile: 'ada' },
   { name: 'Personal', path: '/Users/you/.broodmother/Personal', profile: null },
 ]
@@ -28,7 +28,7 @@ const profiles: Profile[] = [
   },
 ]
 
-function show(activeName = 'Work') {
+function show(activePath = '/Users/you/.broodmother/Work') {
   const onSelect = vi.fn()
   const onAdd = vi.fn()
   const onDelete = vi.fn()
@@ -36,9 +36,9 @@ function show(activeName = 'Work') {
   const onAddProfile = vi.fn()
   const onSettings = vi.fn()
   render(
-    <ProjectMenu
-      projects={projects}
-      activeName={activeName}
+    <VaultMenu
+      vaults={vaults}
+      activePath={activePath}
       profiles={profiles}
       activeProfile="ada"
       onSelect={onSelect}
@@ -54,13 +54,13 @@ function show(activeName = 'Work') {
 
 const open = () => userEvent.click(screen.getByRole('button', { name: /Work|Personal/ }))
 
-it('names the project you are on', () => {
+it('names the vault you are in', () => {
   show()
   expect(screen.getByRole('button')).toHaveTextContent('Work')
   expect(screen.queryByRole('menu')).not.toBeInTheDocument()
 })
 
-it('lists every project with the profile it works as', async () => {
+it('lists every vault with the profile it commits as', async () => {
   show()
   await open()
   const rows = screen.getAllByRole('menuitemradio')
@@ -69,15 +69,17 @@ it('lists every project with the profile it works as', async () => {
   expect(rows[0]).toHaveAttribute('aria-checked', 'true')
 })
 
-it('switches on pick and closes', async () => {
+it('switches on pick, by path rather than by name, and closes', async () => {
   const { onSelect } = show()
   await open()
   await userEvent.click(screen.getByRole('menuitemradio', { name: /Personal/ }))
-  await waitFor(() => expect(onSelect).toHaveBeenCalledWith('Personal'))
+  await waitFor(() =>
+    expect(onSelect).toHaveBeenCalledWith('/Users/you/.broodmother/Personal'),
+  )
   expect(screen.queryByRole('menu')).not.toBeInTheDocument()
 })
 
-it('does not re-apply the project already active', async () => {
+it('does not re-open the vault already active', async () => {
   const { onSelect } = show()
   await open()
   await userEvent.click(screen.getByRole('menuitemradio', { name: /^Work/ }))
@@ -86,7 +88,7 @@ it('does not re-apply the project already active', async () => {
 
 /* Who you are is picked in the same surface as where you are, because it is the same
    question asked twice. */
-it('picks the profile the project works as, without leaving the menu', async () => {
+it('picks the profile the vault commits as, without leaving the menu', async () => {
   const { onSelectProfile } = show()
   await open()
 
@@ -109,10 +111,10 @@ it('opens the new-profile flow from its own row', async () => {
   expect(onAddProfile).toHaveBeenCalled()
 })
 
-it('opens the add-project flow from its own row', async () => {
+it('opens the new-vault flow from its own row', async () => {
   const { onAdd } = show()
   await open()
-  await userEvent.click(screen.getByRole('menuitem', { name: /Add a project/ }))
+  await userEvent.click(screen.getByRole('menuitem', { name: /New vault/ }))
   expect(onAdd).toHaveBeenCalled()
 })
 
@@ -123,15 +125,15 @@ it('reaches settings without leaving the menu to find it', async () => {
   expect(onSettings).toHaveBeenCalled()
 })
 
-/* A second click is the only gesture a row in a dropdown has left, and switching project
-   is not what you meant by it. */
-it('drills into a project on a double click instead of switching to it', async () => {
+/* A second click is the only gesture a row in a dropdown has left, and switching vault is
+   not what you meant by it. */
+it('drills into a vault on a double click instead of opening it', async () => {
   const { onSelect } = show()
   await open()
 
   await userEvent.dblClick(screen.getByRole('menuitemradio', { name: /Personal/ }))
 
-  expect(await screen.findByRole('menuitem', { name: /Delete project/ })).toBeVisible()
+  expect(await screen.findByRole('menuitem', { name: /Delete vault/ })).toBeVisible()
   await waitFor(() => expect(onSelect).not.toHaveBeenCalled())
 })
 
@@ -139,21 +141,21 @@ it('deletes only after the folder it is about to remove has been named', async (
   const { onDelete } = show()
   await open()
   await userEvent.dblClick(screen.getByRole('menuitemradio', { name: /Personal/ }))
-  await userEvent.click(screen.getByRole('menuitem', { name: /Delete project/ }))
+  await userEvent.click(screen.getByRole('menuitem', { name: /Delete vault/ }))
 
   const dialog = await screen.findByRole('dialog', { name: 'Delete Personal?' })
   expect(dialog).toHaveTextContent('/Users/you/.broodmother/Personal')
   expect(onDelete).not.toHaveBeenCalled()
 
-  await userEvent.click(screen.getByRole('button', { name: 'delete project' }))
+  await userEvent.click(screen.getByRole('button', { name: 'delete vault' }))
   expect(onDelete).toHaveBeenCalledWith('Personal')
 })
 
-it('leaves the project alone when the confirmation is cancelled', async () => {
+it('leaves the vault alone when the confirmation is cancelled', async () => {
   const { onDelete } = show()
   await open()
   await userEvent.dblClick(screen.getByRole('menuitemradio', { name: /Personal/ }))
-  await userEvent.click(screen.getByRole('menuitem', { name: /Delete project/ }))
+  await userEvent.click(screen.getByRole('menuitem', { name: /Delete vault/ }))
   await userEvent.click(screen.getByRole('button', { name: 'cancel' }))
 
   expect(onDelete).not.toHaveBeenCalled()
@@ -173,7 +175,9 @@ it('moves through the list with the arrow keys and picks with enter', async () =
 
   await userEvent.keyboard('{ArrowDown}{ArrowDown}{Enter}')
 
-  await waitFor(() => expect(onSelect).toHaveBeenCalledWith('Personal'))
+  await waitFor(() =>
+    expect(onSelect).toHaveBeenCalledWith('/Users/you/.broodmother/Personal'),
+  )
 })
 
 it('wraps past the last row back onto the first', async () => {

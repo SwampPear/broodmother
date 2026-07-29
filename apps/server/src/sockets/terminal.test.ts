@@ -3,8 +3,9 @@ import path from 'node:path'
 import WebSocket from 'ws'
 import { afterAll, describe, expect, it } from 'vitest'
 import type { TerminalClientMessage, TerminalServerMessage } from '@broodmother/shared'
+import { writeFile } from 'node:fs/promises'
+import { defaultConfig } from '../config'
 import { createProfile } from '../profiles'
-import { createProject } from '../projects'
 import { cleanup, delay, tempDir, until } from '../test/fixtures'
 import { type ServerHandle, startServer } from '../index'
 
@@ -24,8 +25,12 @@ const IDENTITY = {
 async function server() {
   const home = await tempDir()
   await createProfile({ name: 'tester', ...IDENTITY }, home)
-  await createProject('tester', 'tester', home)
-  const handle = await startServer({ root: await tempDir(), home, port: 0 })
+  const root = await tempDir()
+  await writeFile(
+    path.join(home, 'config.json'),
+    JSON.stringify({ ...defaultConfig(root), profiles: { [root]: 'tester' } }),
+  )
+  const handle = await startServer({ root, home, port: 0 })
   running.push(handle)
   return handle
 }
@@ -67,23 +72,23 @@ describe('terminals', () => {
     await until(() => shell.output().includes('broodmother-1\r\n'))
   })
 
-  it('starts the shell in the project you are working in', async () => {
+  it('starts the shell in the vault you are working in', async () => {
     const handle = await server()
     const shell = await open(handle)
 
     shell.send({ type: 'input', data: 'pwd\r' })
-    await until(() => shell.output().includes(handle.context.project!.path))
+    await until(() => shell.output().includes(handle.context.config.vaultPath!))
   })
 
-  /* Switching project switches vaults, so it has to switch what the next shell opens on. */
-  it('follows the project you switch to', async () => {
+  /* The shell opens on the vault, so switching vault has to move where the next one lands. */
+  it('follows the vault you switch to', async () => {
     const handle = await server()
-    const other = await createProject('work', 'tester', handle.context.home)
-    await handle.context.openProject('work')
+    const other = await tempDir()
+    await handle.context.openVault(other)
 
     const shell = await open(handle)
     shell.send({ type: 'input', data: 'pwd\r' })
-    await until(() => shell.output().includes(other.path))
+    await until(() => shell.output().includes(other))
   })
 
   /* A profile carries the Claude login its shells run as, or Claude picks its own. */

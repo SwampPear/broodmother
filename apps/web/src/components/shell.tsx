@@ -20,8 +20,7 @@ import {
   type Flow,
   type FlowCtx,
 } from './palette'
-import { ProjectMenu } from './project-menu'
-import { AddProject } from './add-project'
+import { VaultMenu } from './vault-menu'
 import { ProfilePicker } from './profile-picker'
 import { Resizer, clampSize, initialSize } from './resizer'
 import { StatusLine } from './status-line'
@@ -52,7 +51,6 @@ export function Shell({ children }: { children: ReactNode }) {
   const [terminal, setTerminal] = useState<TerminalState>('closed')
   const [terminalHeight, setTerminalHeight] = useState(initialSize('panel'))
   const [picker, setPicker] = useState(false)
-  const [adding, setAdding] = useState(false)
   const [profiling, setProfiling] = useState(false)
   const [tabs, setTabs] = useState<Tab[]>([])
   // Set only while a terminal tab is up. Otherwise the route says which tab is active,
@@ -163,11 +161,9 @@ export function Shell({ children }: { children: ReactNode }) {
   // First run is the app with nothing in it, not a different app: the home renders empty
   // behind a modal that has to be answered. No gate opens before the answers are in, or
   // something that exists gets asked for anyway on the way past. Who you are comes first —
-  // a project is created working as a profile, so there has to be one to name.
-  const needsProfile =
-    app.ready && (app.profiles.length === 0 || (!!app.project && !app.profile))
-  const needsProject = app.ready && app.profiles.length > 0 && !app.project
-  const needsVault = app.ready && !!app.project && !app.config?.vaultPath
+  // a vault is created working as a profile, so there has to be one to name.
+  const needsProfile = app.ready && !app.profile
+  const needsVault = app.ready && !!app.profile && !app.config?.vaultPath
 
   return (
     <div className="shell" style={{ '--sidebar': `${sidebar}px` } as CSSProperties}>
@@ -175,14 +171,14 @@ export function Shell({ children }: { children: ReactNode }) {
         entries={app.entries}
         current={currentPath(pathname)}
         head={
-          <ProjectMenu
-            projects={app.projects}
-            activeName={app.project?.name ?? ''}
+          <VaultMenu
+            vaults={app.vaults}
+            activePath={app.config?.vaultPath ?? ''}
             profiles={app.profiles}
             activeProfile={app.profile?.name ?? null}
-            onSelect={(name) => void app.openProject(name)}
-            onAdd={() => setAdding(true)}
-            onDelete={(name) => void app.deleteProject(name)}
+            onSelect={(path) => void app.openVault(path)}
+            onAdd={() => setPicker(true)}
+            onDelete={(name) => void app.deleteVault(name)}
             onSelectProfile={(name) => void app.selectProfile(name)}
             onAddProfile={() => setProfiling(true)}
             onSettings={ctx.settings}
@@ -245,19 +241,6 @@ export function Shell({ children }: { children: ReactNode }) {
             void app.addProfile(draft)
           }}
           onClose={needsProfile ? undefined : () => setProfiling(false)}
-        />
-      )}
-      {(adding || needsProject) && (
-        <AddProject
-          existing={app.projects.map((project) => project.name)}
-          profiles={app.profiles}
-          defaultProfile={app.profile?.name}
-          home={app.home}
-          onCreate={(input) => {
-            setAdding(false)
-            void app.addProject(input)
-          }}
-          onClose={needsProject ? undefined : () => setAdding(false)}
         />
       )}
       {(picker || needsVault) && (

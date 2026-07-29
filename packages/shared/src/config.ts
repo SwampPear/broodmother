@@ -6,7 +6,7 @@ export interface GitAuthor {
 /**
  * Who you commit and show up as, and the credentials you do it with. A profile is a file in
  * `~/.broodmother/profiles/` — the file name is the profile's name — and it belongs to the
- * machine rather than to any one project, so the same identity serves every project that
+ * machine rather than to any one vault, so the same identity serves every vault that
  * selects it.
  */
 export interface Profile {
@@ -23,23 +23,16 @@ export interface Profile {
 /** The identity half of a profile: everything the profile file holds. */
 export type Identity = Omit<Profile, 'name' | 'path'>
 
-/**
- * Where you work. A project is a folder in `~/.broodmother/` — the folder name is the project's
- * name, `project.json` inside it names the profile it works as, and its vaults are the
- * folders beside that file. Renaming a project is renaming the folder.
- */
-export interface Project {
-  name: string
-  path: string
-  /** Name of the profile this project works as, or null until one is picked. */
-  profile: string | null
-}
-
 export interface BroodmotherConfig {
-  /** Name of the active project folder, or null until the first one is set up. */
-  project: string | null
   /** Absolute path to the vault working tree, or null when no vault is open yet. */
   vaultPath: string | null
+  /**
+   * Vault path to the name of the profile that vault commits as. It lives here rather than
+   * in the vault because a vault is a git working tree: anything written inside one is
+   * something the sync loop would offer to commit. A path with no entry is a vault nobody
+   * has picked an identity for yet.
+   */
+  profiles: Record<string, string>
   remoteUrl: string | null
   branch: string
   syncEnabled: boolean

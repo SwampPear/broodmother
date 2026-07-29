@@ -5,9 +5,9 @@ import { useApp } from '../state'
 import { Modal } from './modal'
 
 /**
- * Every folder in the project is a vault, so this both lists them and makes one. It is the
- * whole app until a vault is open — a modal with no way out — and the same surface reached
- * from ⌘K afterwards, where it can be dismissed.
+ * Every folder in the broodmother home is a vault, so this both lists them and makes one. It
+ * is the whole app until a vault is open — a modal with no way out — and the same surface
+ * reached from ⌘K afterwards, where it can be dismissed.
  */
 export function VaultPicker({ onClose }: { onClose?: () => void }) {
   const app = useApp()
@@ -17,6 +17,9 @@ export function VaultPicker({ onClose }: { onClose?: () => void }) {
   const [busy, setBusy] = useState(false)
 
   const current = app.config?.vaultPath ?? null
+  // First run is having none, not being unable to dismiss: a home with vaults in it that
+  // simply has none open is the picker, not an introduction.
+  const first = app.vaults.length === 0
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
@@ -38,8 +41,12 @@ export function VaultPicker({ onClose }: { onClose?: () => void }) {
 
   return (
     <Modal
-      title="Vaults"
-      description={`Every folder in ${app.vaultHome || '~/.broodmother'} is a vault.`}
+      title={first ? 'Your first vault' : 'Vaults'}
+      description={
+        first
+          ? `A vault is where you work: a folder of markdown in ${app.home || '~/.broodmother'}, with git behind it.`
+          : `Every folder in ${app.home || '~/.broodmother'} is a vault.`
+      }
       onClose={onClose}
       footer={
         <>
@@ -81,6 +88,13 @@ export function VaultPicker({ onClose }: { onClose?: () => void }) {
 
         <form id="new-vault" className="fields" onSubmit={submit}>
           <h2>New vault</h2>
+          {app.profile && (
+            <p className="hint">
+              It commits and shows up as <strong>{app.profile.name}</strong>, and its
+              terminals run with that profile&rsquo;s credentials. You can change it later
+              from the vault menu.
+            </p>
+          )}
           <label>
             Name
             <input
