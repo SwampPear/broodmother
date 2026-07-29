@@ -10,7 +10,7 @@ import { ProjectError } from './projects'
 import { PathError, normalize } from './vault/paths'
 import { VaultError, createVault, listVaults } from './vault/vaults'
 
-export const WEB_ORIGINS = ['http://localhost:3000', 'http://127.0.0.1:3000']
+export const WEB_ORIGINS = ['http://localhost:6767', 'http://127.0.0.1:6767']
 
 const docBody = z.object({ path: z.string(), markdown: z.string() })
 const moveBody = z.object({ from: z.string(), to: z.string() })

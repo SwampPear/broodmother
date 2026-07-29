@@ -1,0 +1,109 @@
+:root {
+  --white: #fffeee;
+  --ground: #000000;
+  --panel: #0a0a0a;
+  --muted: color-mix(in srgb, var(--white) 45%, transparent);
+  --faint: color-mix(in srgb, var(--white) 28%, transparent);
+  --line: color-mix(in srgb, var(--white) 10%, transparent);
+  --accent: #c084fc;
+
+  --sans:
+    -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', ui-sans-serif,
+    system-ui, sans-serif;
+  --mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, monospace;
+
+  --surface-radius: 12px;
+  --surface-shadow: 0 8px 24px -4px rgb(0 0 0 / 65%), 0 2px 6px rgb(0 0 0 / 45%);
+
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--white);
+  font: 400 14px/1.55 var(--sans);
+  letter-spacing: -0.006em;
+  -webkit-font-smoothing: antialiased;
+}
+
+main {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  padding: 2rem 1.5rem;
+  text-align: center;
+}
+
+.logo {
+  width: 3.5rem;
+  height: 3.5rem;
+}
+
+h1 {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.tagline {
+  margin: 0;
+  max-width: 30rem;
+  color: var(--muted);
+  text-wrap: balance;
+}
+
+/* The app itself, sitting on the same black the page is already made of — a border
+   rather than a frame, so it reads as a window and not a pasted-in picture. */
+.shot {
+  width: min(56rem, 100%);
+  height: auto;
+  margin-top: 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: var(--surface-radius);
+  box-shadow: var(--surface-shadow);
+}
+
+/* The one lifted surface on the page, borrowed from the app's sheets. */
+.box {
+  width: min(24rem, 100%);
+  margin-top: 0.5rem;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--surface-radius);
+  box-shadow: var(--surface-shadow);
+  text-align: left;
+  overflow: hidden;
+}
+
+.box pre {
+  margin: 0;
+  padding: 1rem 1.1rem;
+  font-family: var(--mono);
+  font-size: 0.8125rem;
+  line-height: 1.9;
+  overflow-x: auto;
+}
+
+.box .prompt {
+  color: var(--accent);
+  user-select: none;
+}
+
+footer {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  color: var(--faint);
+}
+
+footer a {
+  color: inherit;
+}

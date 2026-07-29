@@ -8,7 +8,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 // vault — where you happen to be standing in the shell has nothing to do with it.
 const override = process.argv[2] ?? process.env.MOTHER_VAULT
 const vault = override ? resolve(override) : null
-const site = 'http://127.0.0.1:3000'
+const site = 'http://127.0.0.1:6767'
 
 process.stdout.write(`mother → ${vault ?? 'vault from your project'}\n`)
 

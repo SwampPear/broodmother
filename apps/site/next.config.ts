@@ -4,6 +4,7 @@ import type { NextConfig } from 'next'
 
 const config: NextConfig = {
   outputFileTracingRoot: resolve(dirname(fileURLToPath(import.meta.url)), '../..'),
+  devIndicators: false,
 }
 
 export default config

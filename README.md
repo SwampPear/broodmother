@@ -1,13 +1,19 @@
-# mother
+<p align="center">
+  <img src="apps/web/public/logo.png" alt="" width="72" height="72" />
+</p>
 
-**A local-first documentation app — a cross between Obsidian and Notion.**
+<h1 align="center">mother</h1>
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Node.js](https://img.shields.io/badge/node-%3E%3D22-brightgreen.svg)](https://nodejs.org)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue.svg)](https://www.typescriptlang.org)
+<p align="center"><strong>A local-first documentation app — a cross between Obsidian and Notion.</strong></p>
+
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT" /></a>
+  <a href="https://nodejs.org"><img src="https://img.shields.io/badge/node-%3E%3D22-brightgreen.svg" alt="Node.js" /></a>
+  <a href="https://www.typescriptlang.org"><img src="https://img.shields.io/badge/TypeScript-5.9-blue.svg" alt="TypeScript" /></a>
+</p>
 
 mother is **a local website, not a desktop app**. You run it on your own machine and open
-`localhost:3000` in a browser tab — Next.js front, Hono backend, no installer. It works
+`localhost:6767` in a browser tab — Next.js front, Hono backend, no installer. It works
 against a local clone of a vault repo. Markdown files on disk are the source of truth; git
 is the history and the backup. A config page points it at a remote and it syncs
 automatically.
@@ -48,7 +54,7 @@ vault/  (git clone on disk)           <-- source of truth
       |     +-- git remote          async sync: pull, commit, push
       |     +-- websocket            vault and sync events, pushed to the open tab
       |
-   Next.js website (localhost:3000)  -- open in a browser tab
+   Next.js website (localhost:6767)  -- open in a browser tab
 ```
 
 Both processes bind loopback only — the vault is unauthenticated, so nothing is served to
@@ -72,7 +78,7 @@ mother                   # start the backend and the site; ctrl-c stops both
 mother ~/path/to/vault   # ... or point it straight at one vault
 ```
 
-Your browser opens at <http://127.0.0.1:3000> once the site is ready. On a fresh machine
+Your browser opens at <http://127.0.0.1:6767> once the site is ready. On a fresh machine
 mother asks who you are before anything else, then where you want to work.
 
 The package ships the local app — the site and the backend that reads your vault. Live
@@ -155,7 +161,6 @@ a browser tab. The only CI is the workflow that publishes the package.
 
 - [plans/](plans/README.md) — six implementation plans, partitioned so they can be built in
   parallel without collisions
-- [changes/](changes/README.md) — what actually shipped, chunk by chunk, with the commits
 
 ### Planned
 
@@ -225,13 +230,9 @@ established and why.
 
 ### Git
 
-Commit messages are one-liners, and a commit covers one functional chunk of work.
-
-Every commit gets an entry in [changes/](changes/README.md) — what shipped and why, named
-with the commits it covers. Extend the entry for the chunk you're in if one already covers
-it; start a new numbered file and add a row to the table if not. The commit message says
-what changed in one line; the entry says why, and what you decided against. A commit with
-no entry is work nobody can reconstruct in six months.
+Commit messages are one-liners, and a commit covers one functional chunk of work. The
+history is the record: a commit whose message and diff don't explain themselves is work
+nobody can reconstruct in six months.
 
 ### Agent context
 
