@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, type KeyboardEvent } from 'react'
+import { useState, type KeyboardEvent, type ReactNode } from 'react'
 import type { VaultEntry, VaultPath } from '@docs/shared'
+import { Icon, displayName, fileTag, iconFor } from './icons'
 
 export type TreeCommand = 'create' | 'move' | 'delete'
 
@@ -27,11 +28,13 @@ export function filePaths(entries: VaultEntry[]): VaultPath[] {
 export function FileTree({
   entries,
   current,
+  head,
   onOpen,
   onCommand,
 }: {
   entries: VaultEntry[]
   current: VaultPath | null
+  head?: ReactNode
   onOpen: (path: VaultPath) => void
   onCommand: (command: TreeCommand, path: VaultPath) => void
 }) {
@@ -74,28 +77,41 @@ export function FileTree({
 
   return (
     <nav className="tree" aria-label="vault">
+      {head}
       <ul role="tree" tabIndex={0} onKeyDown={onKeyDown}>
         {rows.map(({ entry, depth }, index) => (
           <li
             key={entry.path}
             role="treeitem"
+            // The row shows a basename and a separate extension tag; assistive tech gets
+            // the filename whole rather than the two glued together.
+            aria-label={entry.name}
             aria-selected={entry.path === current}
             aria-expanded={entry.kind === 'dir' ? expanded.has(entry.path) : undefined}
             data-cursor={index === Math.min(cursor, rows.length - 1) || undefined}
-            style={{ paddingLeft: `${depth}rem` }}
+            data-tint={depth % 6}
             onClick={() => {
               setCursor(index)
               activate({ entry, depth })
             }}
           >
-            <span className="glyph" aria-hidden>
-              {entry.kind === 'dir' ? (expanded.has(entry.path) ? '▾' : '▸') : '·'}
+            {Array.from({ length: depth }, (_, level) => (
+              <span key={level} className="indent" data-tint={level % 6} aria-hidden />
+            ))}
+            {entry.kind === 'dir' ? (
+              <Icon name={expanded.has(entry.path) ? 'chevron-down' : 'chevron-right'} />
+            ) : (
+              <Icon name={iconFor(entry.path)} />
+            )}
+            <span className="name">
+              {entry.kind === 'file' ? displayName(entry.name) : entry.name}
             </span>
-            {entry.name}
+            {entry.kind === 'file' && fileTag(entry.name) && (
+              <span className="tag">{fileTag(entry.name)}</span>
+            )}
           </li>
         ))}
       </ul>
-      <p className="hint">↑↓ move · ←→ fold · ↵ open · n new · r move · d delete</p>
     </nav>
   )
 }

@@ -13,6 +13,7 @@ export interface FlowCtx {
   share(path: VaultPath): void
   syncNow(): void
   settings(): void
+  toggleTerminal(): void
 }
 
 export type Flow =
@@ -88,6 +89,7 @@ function commands(ctx: FlowCtx): { label: string; run: () => Flow | null }[] {
       label: 'Share document',
       run: () => pick('Share', (path) => done(() => ctx.share(path))),
     },
+    { label: 'Toggle terminal', run: () => done(() => ctx.toggleTerminal()) },
     { label: 'Sync now', run: () => done(() => ctx.syncNow()) },
     { label: 'Settings', run: () => done(() => ctx.settings()) },
   ]

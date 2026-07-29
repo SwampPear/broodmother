@@ -1,10 +1,12 @@
 'use client'
 
-import { useMemo } from 'react'
-import { Editor as BlockEditor } from '@docs/editor'
-import { parse, serialize } from '@docs/markdown'
+import { Editor as MarkdownEditor, type EditMode } from '@docs/editor'
+import { render } from '@docs/markdown'
+import { useEffect, useMemo, useState } from 'react'
 
-/** The app stores markdown, the editor speaks trees. This is the only seam between them. */
+export type Mode = EditMode | 'reading'
+
+/** The app stores markdown and the editor edits markdown — there is nothing to convert. */
 export function Editor({
   markdown,
   onChange,
@@ -12,6 +14,34 @@ export function Editor({
   markdown: string
   onChange: (markdown: string) => void
 }) {
-  const value = useMemo(() => parse(markdown), [markdown])
-  return <BlockEditor value={value} onChange={(doc) => onChange(serialize(doc))} />
+  const [mode, setMode] = useState<Mode>('live')
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'e' || !(event.metaKey || event.ctrlKey)) return
+      event.preventDefault()
+      setMode((was) => (was === 'reading' ? 'live' : 'reading'))
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [])
+
+  const html = useMemo(
+    () => (mode === 'reading' ? render(markdown) : ''),
+    [mode, markdown],
+  )
+
+  if (mode === 'reading')
+    return (
+      <div
+        className="docs-editor docs-reading"
+        dangerouslySetInnerHTML={{ __html: html }}
+      />
+    )
+
+  return (
+    <div className="docs-editor">
+      <MarkdownEditor markdown={markdown} onChange={onChange} mode={mode} />
+    </div>
+  )
 }

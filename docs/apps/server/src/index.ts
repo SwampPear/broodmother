@@ -1,7 +1,8 @@
 import { serve, type ServerType } from '@hono/node-server'
 import type { Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
-import { WebSocketServer } from 'ws'
+import { WebSocketServer, type WebSocket } from 'ws'
+import type { WsRoute } from '@docs/shared'
 import { createApp } from './app'
 import { AppContext, type ContextOptions } from './context'
 
@@ -29,8 +30,18 @@ export async function startServer(
     )
   })) as Server
 
-  const sockets = new WebSocketServer({ server, path: '/ws' })
-  sockets.on('connection', (socket) => context.relay.accept(socket))
+  // One socket server, dispatched by path: `path` on two of them 400s the other's route.
+  const sockets = new WebSocketServer({ noServer: true })
+  const routes: Record<WsRoute, (socket: WebSocket) => void> = {
+    '/ws': (socket) => context.relay.accept(socket),
+    '/terminal': (socket) => context.terminals.accept(socket),
+  }
+  server.on('upgrade', (request, socket, head) => {
+    const path = new URL(request.url ?? '/', 'http://localhost').pathname as WsRoute
+    const route = routes[path] as ((socket: WebSocket) => void) | undefined
+    if (!route) return socket.destroy()
+    sockets.handleUpgrade(request, socket, head, route)
+  })
   context.start()
 
   const { port } = server.address() as AddressInfo

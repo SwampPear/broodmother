@@ -66,7 +66,7 @@ and every participant already has the full document.
 
 **For now the relay is a websocket route on the local backend.** That means collaboration
 works between browser tabs on one machine, which is enough to build and test the entire
-seed/adopt/presence/flush path. Making it work *between people* is one deployment of that
+seed/adopt/presence/flush path. Making it work _between people_ is one deployment of that
 same route to somewhere both laptops can reach, and changes no client code — the relay URL
 is already a config field. That deployment is deliberately not in scope yet.
 
@@ -106,31 +106,33 @@ and presence color · git author identity. Stored in `.docs/config.json`.
 
 ## Interface
 
-Styled after a coding-agent CLI, per the brand [Design Reference]: Ubuntu Mono throughout,
-`--black`/`--dark` ground, `--white` text, opalescent accents used sparingly — presence
-cursors get colors from the opal palette, which is what that palette is for.
+Styled after Superset, the IDE for coding agents: rounded panels floating on a near-black
+ground, hairline borders, dense keyboard-driven rows with rounded hover pills, and a
+command palette as the only modal. Brand colors per the [Design Reference] — `--dark`
+ground, `--white` text, opalescent accents used sparingly; presence cursors get colors
+from the opal palette, which is what that palette is for.
+
+Type is Apple's, in open source: **Inter** for interface and prose (the closest free match
+to SF Pro) and **JetBrains Mono** for paths, code, and the status line (the closest to SF
+Mono). Funnel Display stays on headings, as the brand specifies.
 
 Three regions: a file tree on the left, the document, and a status line at the bottom for
 sync state, session participants, and errors. `⌘K` command palette does everything —
 open, create, move, share, sync, settings. No toolbars, no ribbons, no modals that aren't
 the palette.
 
-*(Assumption flagged: I've read "like Superset, the CLI for coding agents" as the general
-coding-agent-CLI aesthetic above — dense, monospace, keyboard-driven, minimal chrome. If
-you mean something more specific about its layout, say so and I'll rework this section.)*
-
 ## Stack
 
 TypeScript end to end.
 
-| Layer | Choice | Why |
-| --- | --- | --- |
-| Website | **Next.js** (App Router) | Local website, not a desktop app. Already our stack on the marketing site. |
-| Backend | **Hono** on Node | The current default for a TypeScript backend: tiny, fully typed routes, first-class websockets, no decorators or DI container to learn. Fastify is the reasonable alternative and NestJS is far too much machinery for this. |
-| Editor | Tiptap (ProseMirror) | Block editing with a schema we can constrain. |
-| Collaboration | Yjs + `y-protocols` | CRDT and presence. |
-| Relay | a `ws` route on the backend | Local for now. Split it out when it needs to leave the laptop. |
-| Git | the system `git` binary | Shelling out beats a JS reimplementation. |
+| Layer         | Choice                      | Why                                                                                                                                                                                                                          |
+| ------------- | --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Website       | **Next.js** (App Router)    | Local website, not a desktop app. Already our stack on the marketing site.                                                                                                                                                   |
+| Backend       | **Hono** on Node            | The current default for a TypeScript backend: tiny, fully typed routes, first-class websockets, no decorators or DI container to learn. Fastify is the reasonable alternative and NestJS is far too much machinery for this. |
+| Editor        | Tiptap (ProseMirror)        | Block editing with a schema we can constrain.                                                                                                                                                                                |
+| Collaboration | Yjs + `y-protocols`         | CRDT and presence.                                                                                                                                                                                                           |
+| Relay         | a `ws` route on the backend | Local for now. Split it out when it needs to leave the laptop.                                                                                                                                                               |
+| Git           | the system `git` binary     | Shelling out beats a JS reimplementation.                                                                                                                                                                                    |
 
 Nothing else. No ORM, no state-management library, no component library, no auth
 provider, no queue — the feature list doesn't need them and each one is a thing we'd

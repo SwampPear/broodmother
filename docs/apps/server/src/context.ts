@@ -6,6 +6,7 @@ import { Git } from './git'
 import { LinkIndex } from './links'
 import { Relay } from './relay'
 import { SyncLoop } from './sync'
+import { Terminals } from './terminal'
 import { Vault } from './vault'
 import { VaultWatcher } from './watcher'
 
@@ -21,9 +22,11 @@ export class AppContext {
   watcher!: VaultWatcher
   readonly sync: SyncLoop
   readonly relay: Relay
+  readonly terminals: Terminals
 
   private constructor(readonly store: ConfigStore) {
     this.relay = new Relay(() => this.config)
+    this.terminals = new Terminals(() => this.config.vaultPath)
     this.sync = new SyncLoop({
       git: () => this.git,
       config: () => this.config,
@@ -68,6 +71,7 @@ export class AppContext {
   async close(): Promise<void> {
     this.sync.stop()
     this.relay.close()
+    this.terminals.close()
     await this.watcher.close()
   }
 

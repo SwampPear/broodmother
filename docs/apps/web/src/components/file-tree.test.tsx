@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, it, vi } from 'vitest'
 import type { VaultEntry } from '@docs/shared'
@@ -20,6 +20,7 @@ const entries: VaultEntry[] = [
     ],
   },
   { kind: 'file', path: 'README.md', name: 'README.md', size: 0, modifiedAt: 0 },
+  { kind: 'file', path: 'chip.png', name: 'chip.png', size: 0, modifiedAt: 0 },
 ]
 
 function show() {
@@ -38,7 +39,7 @@ function show() {
 }
 
 it('collects every file path', () => {
-  expect(filePaths(entries)).toEqual(['ECSEQ-1/Whitepaper.md', 'README.md'])
+  expect(filePaths(entries)).toEqual(['ECSEQ-1/Whitepaper.md', 'README.md', 'chip.png'])
 })
 
 it('marks the open document', () => {
@@ -47,6 +48,16 @@ it('marks the open document', () => {
     'aria-selected',
     'true',
   )
+})
+
+it('titles files by basename and tags every extension but markdown', () => {
+  show()
+  const note = screen.getByRole('treeitem', { name: 'README.md' })
+  expect(within(note).getByText('README')).toBeInTheDocument()
+  expect(within(note).queryByText('md')).not.toBeInTheDocument()
+  expect(
+    within(screen.getByRole('treeitem', { name: 'chip.png' })).getByText('png'),
+  ).toBeInTheDocument()
 })
 
 it('expands a folder and opens a note with the keyboard alone', async () => {

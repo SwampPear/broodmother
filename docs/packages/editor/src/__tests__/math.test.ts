@@ -1,77 +1,38 @@
-import type { DocNode } from '@docs/shared'
 import { describe, expect, it } from 'vitest'
-import { docOf, headlessEditor, pasteHTML, typeText } from './harness'
+import { findMath } from '../math'
 
-const typed = (text: string) => {
-  const editor = headlessEditor()
-  typeText(editor, text)
-  return editor
-}
+const latex = (source: string) => findMath(source).map((span) => span.latex)
 
-const block = (doc: DocNode) => doc.content?.[0]
-const inline = (doc: DocNode) => block(doc)?.content?.[0]
-
-const latex = String.raw`\log\!\left(|Z|_{\text{event}}\right)`
-
-describe('math', () => {
-  it('takes `$…$` inline', () => {
-    expect(inline(docOf(typed('$x^2$')))).toEqual({
-      type: 'math',
-      content: [{ type: 'text', text: 'x^2' }],
-    })
-  })
-
-  it('takes `$$…$$` as a block of its own', () => {
-    expect(block(docOf(typed('$$E = mc^2$$')))).toEqual({
-      type: 'mathBlock',
-      content: [{ type: 'text', text: 'E = mc^2' }],
-    })
-  })
-
-  it.each([
-    ['math', `$${latex}$`, inline],
-    ['mathBlock', `$$${latex}$$`, block],
-  ])('keeps latex the markdown parser would mangle verbatim in %s', (_, typing, read) => {
-    expect(read(docOf(typed(typing)))?.content).toEqual([{ type: 'text', text: latex }])
-  })
-
-  it.each([
-    ['math', '$x$', inline, 2],
-    ['mathBlock', '$$x$$', block, 1],
-  ])('runs no input rules inside %s', (_, typing, read, start) => {
-    const editor = typed(typing)
-    editor.commands.setTextSelection(start)
-    typeText(editor, ' **b** _i_ # ')
-    expect(read(docOf(editor))?.content).toEqual([
-      { type: 'text', text: ' **b** _i_ # x' },
+describe('findMath', () => {
+  it('takes `$…$` inside a sentence', () => {
+    expect(findMath('the term $x^2$ here')).toEqual([
+      { from: 9, to: 14, latex: 'x^2', block: false },
     ])
   })
 
-  it.each([
-    ['math', '$x^2$', inline, 2],
-    ['mathBlock', '$$x^2$$', block, 1],
-  ])('takes no marks in %s', (_, typing, read, start) => {
-    const editor = typed(typing)
-    editor.commands.setTextSelection({ from: start, to: start + 3 })
-    editor.commands.toggleBold()
-    editor.commands.toggleMark('code')
-    expect(read(docOf(editor))?.content).toEqual([{ type: 'text', text: 'x^2' }])
+  it('takes `$$…$$` as a display block', () => {
+    expect(findMath('$$E = mc^2$$')).toEqual([
+      { from: 0, to: 12, latex: 'E = mc^2', block: true },
+    ])
   })
 
-  it('survives a round trip through html', () => {
-    const editor = headlessEditor()
-    pasteHTML(
-      editor,
-      '<p>see <span data-math>a &lt; b</span> here</p><div data-math-block>a &lt; b</div>',
-    )
-    const doc = docOf(editor)
-    expect(doc.content?.[0].content?.[1]).toEqual({
-      type: 'math',
-      content: [{ type: 'text', text: 'a < b' }],
-    })
-    expect(doc.content?.[1]).toEqual({
-      type: 'mathBlock',
-      content: [{ type: 'text', text: 'a < b' }],
-    })
+  it('spans lines in a display block', () => {
+    expect(latex('$$\n\\frac{a}{b}\n$$')).toEqual(['\\frac{a}{b}'])
+  })
+
+  it('leaves prices alone', () => {
+    expect(findMath('raising $289k–$1.25M this round')).toEqual([])
+  })
+
+  it('refuses delimiters that do not hug their content', () => {
+    expect(findMath('$ x $')).toEqual([])
+  })
+
+  it('reads a display block before the inline pair inside it', () => {
+    expect(latex('$$a$$ and $b$')).toEqual(['a', 'b'])
+  })
+
+  it('ignores an unclosed delimiter', () => {
+    expect(findMath('costs $5 and')).toEqual([])
   })
 })

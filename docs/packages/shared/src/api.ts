@@ -68,7 +68,7 @@ export interface ApiError {
   error: string
 }
 
-export type WsRoute = '/ws'
+export type WsRoute = '/ws' | '/terminal'
 
 /** `update` and `awareness` are base64-encoded Yjs payloads — the socket carries JSON. */
 export type ClientMessage =

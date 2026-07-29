@@ -5,6 +5,7 @@ import type {
   DocsConfig,
   ServerMessage,
   SyncStatus,
+  TerminalServerMessage,
   VaultEntry,
   VaultPath,
 } from '@docs/shared'
@@ -12,6 +13,8 @@ import type { ApiClient, Connection } from './client'
 
 export interface MockClient extends ApiClient {
   emit(message: ServerMessage): void
+  /** Stands in for the pty: whatever is typed comes straight back. */
+  emitTerminal(message: TerminalServerMessage): void
 }
 
 const seedDocs: Record<VaultPath, string> = {
@@ -67,7 +70,9 @@ export function createMockClient(
     message: null,
   }
   let listener: ((message: ServerMessage) => void) | null = null
+  let shell: ((message: TerminalServerMessage) => void) | null = null
   const emit = (message: ServerMessage) => listener?.(message)
+  const emitTerminal = (message: TerminalServerMessage) => shell?.(message)
 
   const handlers: { [R in ApiRoute]: (body: ApiRequest<R>) => Promise<ApiResponse<R>> } =
     {
@@ -159,6 +164,19 @@ export function createMockClient(
       }
     },
 
+    terminal(onMessage) {
+      shell = onMessage
+      return {
+        send(message) {
+          if (message.type === 'input') emitTerminal({ type: 'output', data: message.data })
+        },
+        close() {
+          shell = null
+        },
+      }
+    },
+
     emit,
+    emitTerminal,
   }
 }

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Editor } from '../editor'
 import { useApp } from '../state'
+import { Icon, displayName, iconFor } from './icons'
 
 const saveDebounceMs = 500
 
@@ -36,10 +37,17 @@ export function DocView({ path }: { path: string }) {
   if (error) return <div className="empty">{error}</div>
   if (markdown === null) return <div className="empty">loading {path}…</div>
 
+  const cut = path.lastIndexOf('/') + 1
   return (
     <article className="doc">
-      <h1>{path}</h1>
-      <Editor markdown={markdown} onChange={onChange} />
+      <header className="doc-head">
+        <Icon name={iconFor(path)} />
+        <span className="crumbs">{path.slice(0, cut)}</span>
+        <h1>{displayName(path.slice(cut))}</h1>
+      </header>
+      <div className="doc-body">
+        <Editor markdown={markdown} onChange={onChange} />
+      </div>
     </article>
   )
 }

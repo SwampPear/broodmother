@@ -1,3 +1,4 @@
+import { isInlineMath } from '@docs/shared'
 import type MarkdownIt from 'markdown-it'
 import type StateBlock from 'markdown-it/lib/rules_block/state_block.mjs'
 import type StateInline from 'markdown-it/lib/rules_inline/state_inline.mjs'
@@ -53,7 +54,7 @@ function inlineRule(state: StateInline, silent: boolean): boolean {
   if (end >= posMax) return false
 
   const body = src.slice(pos + 1, end)
-  if (!body || /^\s|\s$/.test(body) || /\d/.test(src[end + 1] ?? '')) return false
+  if (!isInlineMath(body, src[end + 1] ?? '')) return false
 
   if (!silent) state.push('math_inline', '', 0).content = body
   state.pos = end + 1
