@@ -17,9 +17,14 @@ const base = process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:3001'
 function open<Send, Receive>(
   route: WsRoute,
   onMessage: (message: Receive) => void,
+  onClose?: () => void,
 ): Connection<Send> {
   const socket = new WebSocket(new URL(route, base.replace(/^http/, 'ws')))
   socket.addEventListener('message', (event) => onMessage(JSON.parse(String(event.data))))
+  // A backend that is down closes rather than answering; without this the panel just sits
+  // there swallowing keystrokes, which reads as "the terminal is broken".
+  socket.addEventListener('close', () => onClose?.())
+  socket.addEventListener('error', () => onClose?.())
   const queue: string[] = []
   socket.addEventListener('open', () => {
     for (const message of queue.splice(0)) socket.send(message)
@@ -56,7 +61,7 @@ export function httpClient(): ApiClient {
 
     connect: (onMessage) => open<ClientMessage, ServerMessage>('/ws', onMessage),
 
-    terminal: (onMessage) =>
-      open<TerminalClientMessage, TerminalServerMessage>('/terminal', onMessage),
+    terminal: (onMessage, onClose) =>
+      open<TerminalClientMessage, TerminalServerMessage>('/terminal', onMessage, onClose),
   }
 }

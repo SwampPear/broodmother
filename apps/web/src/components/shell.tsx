@@ -48,7 +48,7 @@ export function Shell({ children }: { children: ReactNode }) {
   const [terminal, setTerminal] = useState<TerminalState>('closed')
   const [terminalHeight, setTerminalHeight] = useState(initialSize('panel'))
   const [profiles, setProfiles] = useState<Profile[]>([])
-  const [activeProfile, setActiveProfile] = useState('default')
+  const [activeProfile, setActiveProfile] = useState('')
   const [picker, setPicker] = useState(false)
 
   // Read after mount, not during render — the server has no localStorage to hydrate from.

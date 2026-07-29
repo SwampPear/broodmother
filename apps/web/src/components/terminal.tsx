@@ -1,7 +1,7 @@
 'use client'
 
 import '@xterm/xterm/css/xterm.css'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { opal } from '../colors'
 import { useApp } from '../state'
 import { Resizer } from './resizer'
@@ -49,6 +49,7 @@ export function TerminalPanel({
   const app = useApp()
   const host = useRef<HTMLDivElement>(null)
   const shell = useRef<{ fit: () => void; focus: () => void } | null>(null)
+  const [lost, setLost] = useState(false)
   const exit = useRef(onExit)
   exit.current = onExit
 
@@ -77,10 +78,13 @@ export function TerminalPanel({
       terminal.loadAddon(fit)
       terminal.open(node)
 
-      const connection = app.client.terminal((message) => {
-        if (message.type === 'output') terminal.write(message.data)
-        else exit.current()
-      })
+      const connection = app.client.terminal(
+        (message) => {
+          if (message.type === 'output') terminal.write(message.data)
+          else exit.current()
+        },
+        () => setLost(true),
+      )
       terminal.onData((data) => connection.send({ type: 'input', data }))
 
       // A hidden panel measures zero, which xterm reads as a one-column terminal.
@@ -93,6 +97,7 @@ export function TerminalPanel({
       observer.observe(node)
       resize()
       terminal.focus()
+      setLost(false)
 
       shell.current = { fit: resize, focus: () => terminal.focus() }
       stop = () => {
@@ -129,7 +134,18 @@ export function TerminalPanel({
           ✕
         </button>
       </header>
-      <div className="terminal-body" ref={host} />
+      {/* Clicking the padding around xterm's own surface should still put the cursor in
+          the shell — otherwise the panel looks focused but eats what you type. */}
+      <div
+        className="terminal-body"
+        ref={host}
+        onMouseDown={() => shell.current?.focus()}
+      />
+      {lost && (
+        <p className="terminal-lost" role="status">
+          disconnected from the backend — is <code>mother</code> still running?
+        </p>
+      )}
     </section>
   )
 }

@@ -194,7 +194,7 @@ export function createMockClient(
       }
     },
 
-    terminal(onMessage) {
+    terminal(onMessage, _onClose) {
       shell = onMessage
       return {
         send(message) {

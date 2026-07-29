@@ -4,15 +4,18 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-const vault = resolve(process.argv[2] ?? process.env.MOTHER_VAULT ?? process.cwd())
+// Only an explicit path pins the vault. Without one the server opens the profile's own
+// vault — where you happen to be standing in the shell has nothing to do with it.
+const override = process.argv[2] ?? process.env.MOTHER_VAULT
+const vault = override ? resolve(override) : null
 const site = 'http://127.0.0.1:3000'
 
-process.stdout.write(`mother → vault ${vault}\n`)
+process.stdout.write(`mother → ${vault ?? 'vault from your profile'}\n`)
 
 const child = spawn('npm', ['run', 'dev'], {
   cwd: root,
   stdio: 'inherit',
-  env: { ...process.env, MOTHER_VAULT: vault },
+  env: { ...process.env, ...(vault ? { MOTHER_VAULT: vault } : {}) },
 })
 
 // concurrently kills its own children on signal; the job here is to make sure it always

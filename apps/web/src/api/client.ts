@@ -19,5 +19,6 @@ export interface ApiClient {
   /** A shell of its own: each call spawns a pty that dies with the connection. */
   terminal(
     onMessage: (message: TerminalServerMessage) => void,
+    onClose?: () => void,
   ): Connection<TerminalClientMessage>
 }

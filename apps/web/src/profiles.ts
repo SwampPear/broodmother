@@ -46,8 +46,13 @@ export function save(stored: Stored): void {
   localStorage.setItem(KEY, JSON.stringify(stored))
 }
 
-/** First run: whatever the config already holds becomes the profile you are on. */
-export const seed = (config: MotherConfig): Stored => ({
-  active: 'default',
-  profiles: [{ id: 'default', name: 'Default', ...credentialsOf(config) }],
-})
+/**
+ * First run: the identity already configured becomes the profile you are on. It is named
+ * after that identity rather than "Default" — a placeholder name teaches nothing and is
+ * the first thing anyone would rename.
+ */
+export const seed = (config: MotherConfig): Stored => {
+  const name = config.displayName || config.gitAuthor.name
+  const id = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'me'
+  return { active: id, profiles: [{ id, name, ...credentialsOf(config) }] }
+}

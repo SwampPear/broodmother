@@ -84,3 +84,30 @@ it('closes on escape', async () => {
   await userEvent.keyboard('{Escape}')
   expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
 })
+
+it('moves through the list with the arrow keys and picks with enter', async () => {
+  const { onSelect } = show()
+  await userEvent.click(screen.getByRole('button'))
+
+  await userEvent.keyboard('{ArrowDown}{Enter}')
+
+  expect(onSelect).toHaveBeenCalledWith('personal')
+})
+
+it('wraps past the last row onto the add action', async () => {
+  const { onManage } = show()
+  await userEvent.click(screen.getByRole('button'))
+
+  await userEvent.keyboard('{ArrowUp}{Enter}')
+
+  expect(onManage).toHaveBeenCalled()
+})
+
+it('marks the active profile with a check', async () => {
+  show()
+  await userEvent.click(screen.getByRole('button'))
+  expect(screen.getByRole('option', { name: /Work/ })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  )
+})
