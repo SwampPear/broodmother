@@ -24,16 +24,16 @@ anything we claim to support. Marks are emitted in a canonical order so that re-
 untouched document is a no-op rather than a diff — without that, opening a file would dirty
 the git working tree and the sync loop would commit noise.
 
-This is the most heavily tested package in the repo — 276 tests, the bulk of the suite —
-split between `roundtrip.test.ts` and `corpus.test.ts`.
+This is the most heavily tested package in the repo, and `roundtrip.test.ts` carries it —
+every construct the schema claims to support goes out and comes back.
 
 ## The corpus test
 
-`corpus.test.ts` runs the round-trip over `packages/markdown/fixtures/`, which are verbatim
-copies of real pages from the `proprium-docs` vault — whitepaper notes, business plans,
-research pages, meeting notes. Real documents with real frontmatter, tables, nested lists,
-math, and wikilinks, rather than fixtures written to be easy.
+A second suite, `corpus.test.ts`, ran the same round trip over a `fixtures/` directory of
+verbatim pages from a real vault: real frontmatter, tables, nested lists, math and
+wikilinks, rather than fixtures written to be easy. It is what caught the math handling —
+the round-trip assertions alone would have passed with the LaTeX mangled identically on
+both sides, and only the node count noticed.
 
-**They must stay verbatim.** Reformatting them — including running Prettier over the repo,
-which will happily reflow them — invalidates the test. Two separate passes during this
-sprint had to revert exactly that.
+Both the fixtures and the test were removed in [16](16-open-source-scrub.md): the corpus
+was a private vault and could not ship with the source.

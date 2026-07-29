@@ -7,13 +7,13 @@ import { FileTree, filePaths } from './file-tree'
 const entries: VaultEntry[] = [
   {
     kind: 'dir',
-    path: 'ECSEQ-1',
-    name: 'ECSEQ-1',
+    path: 'Handbook',
+    name: 'Handbook',
     children: [
       {
         kind: 'file',
-        path: 'ECSEQ-1/Whitepaper.md',
-        name: 'Whitepaper.md',
+        path: 'Handbook/Overview.md',
+        name: 'Overview.md',
         size: 0,
         modifiedAt: 0,
       },
@@ -39,7 +39,7 @@ function show() {
 }
 
 it('collects every file path', () => {
-  expect(filePaths(entries)).toEqual(['ECSEQ-1/Whitepaper.md', 'README.md', 'chip.png'])
+  expect(filePaths(entries)).toEqual(['Handbook/Overview.md', 'README.md', 'chip.png'])
 })
 
 it('marks the open document', () => {
@@ -62,21 +62,17 @@ it('titles files by basename and tags every extension but markdown', () => {
 
 it('expands a folder and opens a note with the keyboard alone', async () => {
   const { onOpen } = show()
-  expect(
-    screen.queryByRole('treeitem', { name: 'Whitepaper.md' }),
-  ).not.toBeInTheDocument()
+  expect(screen.queryByRole('treeitem', { name: 'Overview.md' })).not.toBeInTheDocument()
   await userEvent.keyboard('{ArrowRight}')
-  expect(screen.getByRole('treeitem', { name: 'Whitepaper.md' })).toBeInTheDocument()
+  expect(screen.getByRole('treeitem', { name: 'Overview.md' })).toBeInTheDocument()
   await userEvent.keyboard('{ArrowDown}{Enter}')
-  expect(onOpen).toHaveBeenCalledWith('ECSEQ-1/Whitepaper.md')
+  expect(onOpen).toHaveBeenCalledWith('Handbook/Overview.md')
 })
 
 it('collapses a folder with the left arrow', async () => {
   show()
   await userEvent.keyboard('{ArrowRight}{ArrowLeft}')
-  expect(
-    screen.queryByRole('treeitem', { name: 'Whitepaper.md' }),
-  ).not.toBeInTheDocument()
+  expect(screen.queryByRole('treeitem', { name: 'Overview.md' })).not.toBeInTheDocument()
 })
 
 it('raises create, move and delete for the focused entry', async () => {

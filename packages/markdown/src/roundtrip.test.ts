@@ -30,15 +30,14 @@ const samples: Record<string, string> = {
   table: '| a | b |\n|---|---|\n| 1 | 2 |\n',
   tableEmptyCell: '| a | b |\n|---|---|\n| 1 | |\n',
   tablePipe: '| a | b |\n|---|---|\n| x \\| y | 2 |\n',
-  mathBlock:
-    '$$\nZ_\\text{layer}(\\omega) = R_s + \\cfrac{1}{Q\\,(j\\omega)^{\\alpha}}\n$$\n',
+  mathBlock: '$$\nE_\\text{total}(t) = E_0 + \\cfrac{1}{k\\,(t + 1)^{\\alpha}}\n$$\n',
   mathBlockMultiline:
-    '$$\nT_{\\text{genome}} = R\\left(T_{\\text{prep}}\\right), \\qquad\nR = \\left\\lceil \\frac{B}{L} \\right\\rceil\n$$\n',
+    '$$\nT_{\\text{total}} = N\\left(T_{\\text{step}}\\right), \\qquad\nN = \\left\\lceil \\frac{A}{B} \\right\\rceil\n$$\n',
   mathBlockLatexEscapes:
-    '$$\n\\Delta\\log|Z| = \\log\\!\\left(|Z|_{\\text{event}} / |Z|_{\\text{baseline}}\\right), \\qquad \\Delta\\varphi = \\varphi_{\\text{event}} - \\varphi_{\\text{baseline}}\n$$\n',
-  mathInline: 'where $\\eta$ is the occupancy yield, at the supported $L = 30$.\n',
-  mathInlineMarked: 'the **$Q\\,(j\\omega)$** term and *$\\sigma_n$* noise.\n',
-  mathAndCurrency: 'A run at $\\eta$ costs $21B, or $289k–$1.25M per box.\n',
+    '$$\n\\Delta\\log|x| = \\log\\!\\left(|x|_{\\text{after}} / |x|_{\\text{before}}\\right), \\qquad \\Delta\\varphi = \\varphi_{\\text{after}} - \\varphi_{\\text{before}}\n$$\n',
+  mathInline: 'where $\\eta$ is the packing ratio, at the supported $L = 30$.\n',
+  mathInlineMarked: 'the **$k\\,(t + 1)$** term and *$\\sigma_n$* noise.\n',
+  mathAndCurrency: 'A run at $\\eta$ costs $21, or $289–$1.25M a year.\n',
   horizontalRule: 'before\n\n---\n\nafter\n',
   frontmatter: '---\ntitle: A Note\ntags: [x, y]\n---\n\n# Body\n',
   frontmatterOnly: '---\ntitle: A Note\n---\n',
@@ -103,7 +102,7 @@ describe('frontmatter', () => {
 
 describe('math', () => {
   it('keeps LaTeX verbatim instead of parsing it as markdown', () => {
-    const latex = '\\log\\!\\left(|Z|_{\\text{event}} / |Z|_{\\text{baseline}}\\right)'
+    const latex = '\\log\\!\\left(|x|_{\\text{after}} / |x|_{\\text{before}}\\right)'
     const doc = parse(`$$\n${latex}\n$$\n`)
     expect(doc.content).toEqual([
       { type: 'mathBlock', content: [{ type: 'text', text: latex }] },
@@ -126,7 +125,7 @@ describe('math', () => {
   })
 
   it('keeps a LaTeX thin space verbatim', () => {
-    const latex = 'Q\\,(j\\omega)'
+    const latex = 'k\\,(t + 1)'
     expect(serialize(parse(`$$\n${latex}\n$$\n`))).toBe(`$$\n${latex}\n$$\n`)
     expect(serialize(parse(`inline $${latex}$ here.\n`))).toBe(
       `inline $${latex}$ here.\n`,
@@ -138,7 +137,7 @@ describe('math', () => {
   })
 
   it('leaves prices alone', () => {
-    for (const md of ['$289k–$1.25M and $21B\n', 'costs $100–345 in reagents\n']) {
+    for (const md of ['$289k–$1.25M and $21B\n', 'costs $100–345 in parts\n']) {
       expect(parse(md).content?.[0].content?.every((n) => n.type === 'text')).toBe(true)
       expect(serialize(parse(md))).toBe(md)
     }

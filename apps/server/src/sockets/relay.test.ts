@@ -105,13 +105,13 @@ describe('relay', () => {
     await until(() => a.sessions().length > 0 && b.sessions().length > 0)
     const room = a.sessions()[0]!.room
 
-    a.doc.getText('body').insert(0, 'polymerase kinetics')
+    a.doc.getText('body').insert(0, 'second draft')
     push(a, room)
-    await until(() => b.doc.getText('body').toString() === 'polymerase kinetics')
+    await until(() => b.doc.getText('body').toString() === 'second draft')
 
-    b.doc.getText('body').insert(0, 'EIS: ')
+    b.doc.getText('body').insert(0, 'the ')
     push(b, room)
-    await until(() => a.doc.getText('body').toString() === 'EIS: polymerase kinetics')
+    await until(() => a.doc.getText('body').toString() === 'the second draft')
   })
 
   it('gives a late joiner the room state it missed', async () => {

@@ -46,10 +46,10 @@ describe('SyncState', () => {
 
   it('renders conflict with a banner naming the files', async () => {
     const { onClearConflict } = show(
-      sync({ state: 'conflict', conflicted: ['ECSEQ-1/Whitepaper.md'] }),
+      sync({ state: 'conflict', conflicted: ['Handbook/Overview.md'] }),
     )
     expect(screen.getByText('conflict · 1 file')).toBeInTheDocument()
-    expect(screen.getByRole('alert')).toHaveTextContent('ECSEQ-1/Whitepaper.md')
+    expect(screen.getByRole('alert')).toHaveTextContent('Handbook/Overview.md')
     await userEvent.click(screen.getByRole('button', { name: 'clear conflict' }))
     expect(onClearConflict).toHaveBeenCalled()
   })

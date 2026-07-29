@@ -11,9 +11,9 @@ Profiles moved out of the browser and onto disk, and there is no longer a defaul
 ```
 ~/.mother/
 ├── config.json           # this machine: active profile, open vault, sync settings
-├── michael/
+├── ada/
 │   ├── profile.json      # { presenceColor, gitAuthor }
-│   └── proprium-docs/    # a vault
+│   └── handbook/    # a vault
 └── work/
     ├── profile.json
     └── handbook/

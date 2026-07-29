@@ -83,7 +83,7 @@ export function AddProject({
               setName(event.target.value)
               setError('')
             }}
-            placeholder="proprium"
+            placeholder="acme"
             required
           />
         </label>

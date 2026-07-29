@@ -25,7 +25,7 @@ The second needs no shared-types change and is what the app already assumes.
 client (`src/api/http.ts`) sends:
 
 - `GET` / `DELETE` — every field of the request type as a query-string parameter
-  (`DELETE /api/doc?path=ECSEQ-1/Whitepaper.md`)
+  (`DELETE /api/doc?path=Handbook/Overview.md`)
 - `POST` / `PUT` — the request type as a JSON body, `content-type: application/json`
 - errors — non-2xx with an `ApiError` JSON body
 

@@ -40,7 +40,7 @@ some documents.
 Pull, commit, push once the vault has been quiet for `syncIdleMs` **and** no live session is
 open. Commit before pulling, because rebasing onto a dirty tree fails and the conflict worth
 surfacing is between two commits. Commit messages are generated from the changed paths
-(`docs: update ECSEQ-1/Whitepaper`).
+(`docs: update Handbook/Overview`).
 
 **A conflict latches:** nothing syncs again until it is explicitly cleared. A loop that
 retried would keep producing conflicted states while the user was trying to read one.

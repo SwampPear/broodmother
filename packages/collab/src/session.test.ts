@@ -6,7 +6,7 @@ import { FakeRelay, codec, memoryIo } from './fixtures'
 import type { FakeTransport } from './fixtures'
 import type { Session } from './types'
 
-const PATH: VaultPath = 'ECSEQ-1/Whitepaper.md'
+const PATH: VaultPath = 'Handbook/Overview.md'
 const ROOM = `vault/${PATH}`
 
 const opened: Session[] = []

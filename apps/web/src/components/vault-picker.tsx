@@ -86,7 +86,7 @@ export function VaultPicker({ onClose }: { onClose?: () => void }) {
             <input
               value={name}
               onChange={(event) => setName(event.target.value)}
-              placeholder="proprium-docs"
+              placeholder="handbook"
               required
             />
           </label>

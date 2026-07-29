@@ -9,10 +9,10 @@ afterAll(cleanup)
 
 async function seed(): Promise<Vault> {
   const root = await tempDir()
-  await mkdir(path.join(root, 'ECSEQ-1/Whitepaper'), { recursive: true })
+  await mkdir(path.join(root, 'Handbook/Overview'), { recursive: true })
   await mkdir(path.join(root, '.mother'), { recursive: true })
   await writeFile(path.join(root, 'index.md'), '# index')
-  await writeFile(path.join(root, 'ECSEQ-1/Whitepaper/Whitepaper.md'), '# wp')
+  await writeFile(path.join(root, 'Handbook/Overview/Overview.md'), '# wp')
   await writeFile(path.join(root, '.mother/config.json'), '{}')
   return new Vault(root)
 }
@@ -21,9 +21,9 @@ describe('Vault', () => {
   it('lists a tree with directories first, skipping dotted paths', async () => {
     const vault = await seed()
     const entries = await vault.list()
-    expect(entries.map((e) => e.path)).toEqual(['ECSEQ-1', 'index.md'])
+    expect(entries.map((e) => e.path)).toEqual(['Handbook', 'index.md'])
     const dir = entries[0]!
-    expect(dir.kind === 'dir' && dir.children[0]!.path).toBe('ECSEQ-1/Whitepaper')
+    expect(dir.kind === 'dir' && dir.children[0]!.path).toBe('Handbook/Overview')
   })
 
   it('skips .git and gitignored files', async () => {
@@ -45,10 +45,7 @@ describe('Vault', () => {
     const vault = await seed()
     await mkdir(path.join(vault.root, 'attachments'))
     await writeFile(path.join(vault.root, 'attachments/chip.png'), 'binary')
-    expect(await vault.documents()).toEqual([
-      'ECSEQ-1/Whitepaper/Whitepaper.md',
-      'index.md',
-    ])
+    expect(await vault.documents()).toEqual(['Handbook/Overview/Overview.md', 'index.md'])
   })
 
   it('reads and writes, creating parent directories', async () => {
@@ -59,10 +56,10 @@ describe('Vault', () => {
 
   it('moves a document and refuses to overwrite', async () => {
     const vault = await seed()
-    await vault.move('index.md', 'ECSEQ-1/index.md')
-    expect(await vault.read('ECSEQ-1/index.md')).toBe('# index')
+    await vault.move('index.md', 'Handbook/index.md')
+    expect(await vault.read('Handbook/index.md')).toBe('# index')
     await vault.write('index.md', 'again')
-    await expect(vault.move('index.md', 'ECSEQ-1/index.md')).rejects.toThrow(
+    await expect(vault.move('index.md', 'Handbook/index.md')).rejects.toThrow(
       /already exists/,
     )
   })

@@ -5,8 +5,8 @@ import type { DivergenceReport } from '@mother/shared'
 import { DivergenceDialog } from './divergence-dialog'
 
 const report: DivergenceReport = {
-  room: 'ECSEQ-1/Whitepaper.md',
-  path: 'ECSEQ-1/Whitepaper.md',
+  room: 'Handbook/Overview.md',
+  path: 'Handbook/Overview.md',
   local: 'my version',
   remote: 'the room version',
 }
@@ -27,7 +27,7 @@ it('shows both versions and says nothing is merged', () => {
 it('spells out what adopting the room discards', async () => {
   const onChoose = show()
   const adopt = screen.getByRole('button', { name: /Adopt the room/ })
-  expect(adopt).toHaveTextContent('overwrites ECSEQ-1/Whitepaper.md on disk')
+  expect(adopt).toHaveTextContent('overwrites Handbook/Overview.md on disk')
   expect(adopt).toHaveTextContent('is lost')
   await userEvent.click(adopt)
   expect(onChoose).toHaveBeenCalledWith('adoptRoom')

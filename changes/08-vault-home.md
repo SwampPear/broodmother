@@ -11,7 +11,7 @@ which is what stops `~/.mother/config.json` from being listed as one.
 ```
 ~/.mother/
 ├── config.json          # app state: which vault is open, identity, relay
-├── proprium-docs/       # a vault — a real git clone with an origin
+├── handbook/       # a vault — a real git clone with an origin
 └── scratch/             # another, discovered automatically
 ```
 

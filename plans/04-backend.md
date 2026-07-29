@@ -26,9 +26,9 @@ argument so you're not blocked on it.
 4. **Git** — shell out to the real binary via `execa`: `status --porcelain=v2` (v2 because
    vault paths have spaces in them), `pull --rebase`, `commit`, `push`. Never run a
    destructive command — no `reset --hard`, no `clean`, no force-push, anywhere.
-5. **Sync loop** — after ~10s of no edits *and* no live session, pull → commit → push. The
+5. **Sync loop** — after ~10s of no edits _and_ no live session, pull → commit → push. The
    session check isn't optional; syncing mid-session commits half a paragraph. Commit
-   messages from changed paths (`docs: update ECSEQ-1/Whitepaper`). **Conflicts latch:**
+   messages from changed paths (`docs: update Handbook/Overview`). **Conflicts latch:**
    stop all automatic syncing until explicitly cleared, and never guess a resolution.
    Distinguish offline from diverged — collapsing them makes the status line lie.
 6. **Config** — `.mother/config.json` validated with Zod. Defaults complete enough that first

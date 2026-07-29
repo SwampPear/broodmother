@@ -79,7 +79,7 @@ it('opens the palette on the colour the profile already is', async () => {
           name: 'you',
           path: '/Users/you/.mother/profiles/you.json',
           presenceColor: '#fbbf24',
-          gitAuthor: { name: 'You', email: 'you@propriumbioscience.com' },
+          gitAuthor: { name: 'You', email: 'you@example.com' },
           sshKeyPath: null,
           claudeConfigDir: null,
         },

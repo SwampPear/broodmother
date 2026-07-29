@@ -35,14 +35,14 @@ Plus the empty shell (directory, `package.json`, `tsconfig.json`, stub `src/inde
    Anyone running `npm install` later rewrites the lockfile under four other agents.
 4. **`packages/shared`** — types only, one file per domain:
 
-   | File | Contents |
-   | --- | --- |
-   | `vault.ts` | `VaultPath` (POSIX, relative to root), `VaultEntry`, `VaultEvent` |
-   | `doc.ts` | `DocNode`, `Mark`, and **`SCHEMA_SPEC`** |
-   | `sync.ts` | `SyncState` — `idle \| syncing \| conflict \| error \| offline` |
+   | File        | Contents                                                                                                      |
+   | ----------- | ------------------------------------------------------------------------------------------------------------- |
+   | `vault.ts`  | `VaultPath` (POSIX, relative to root), `VaultEntry`, `VaultEvent`                                             |
+   | `doc.ts`    | `DocNode`, `Mark`, and **`SCHEMA_SPEC`**                                                                      |
+   | `sync.ts`   | `SyncState` — `idle \| syncing \| conflict \| error \| offline`                                               |
    | `config.ts` | `MotherConfig` — vault path, remote, branch, sync on/off, relay URL, display name, presence color, git author |
-   | `collab.ts` | `RoomId`, `Peer`, `SessionState` — `solo \| connecting \| live \| divergent` |
-   | `api.ts` | The web↔server wire: route paths with request/response types, plus the websocket message union |
+   | `collab.ts` | `RoomId`, `Peer`, `SessionState` — `solo \| connecting \| live \| divergent`                                  |
+   | `api.ts`    | The web↔server wire: route paths with request/response types, plus the websocket message union                |
 
 5. **`SCHEMA_SPEC`** — the exact markdown subset, and the most important thing in this
    plan. Nodes: `doc`, `paragraph`, `text`, `heading` (1–4), `bulletList`, `orderedList`,

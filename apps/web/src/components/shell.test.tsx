@@ -68,20 +68,20 @@ it('walks a fresh machine from the first profile to the first project', async ()
   show(client)
   await screen.findByRole('dialog', { name: 'Welcome to mother' })
 
-  await userEvent.type(screen.getByLabelText('Profile name'), 'michael')
-  await userEvent.type(screen.getByLabelText('Git author email'), 'mv@proprium.bio')
+  await userEvent.type(screen.getByLabelText('Profile name'), 'ada')
+  await userEvent.type(screen.getByLabelText('Git author email'), 'ada@example.com')
   await userEvent.click(screen.getByRole('button', { name: 'create profile' }))
 
   const { profiles } = await client.request('GET /api/profiles', null)
-  expect(profiles.map((profile) => profile.name)).toEqual(['michael'])
+  expect(profiles.map((profile) => profile.name)).toEqual(['ada'])
 
   await screen.findByRole('dialog', { name: 'Your first project' })
-  await userEvent.type(screen.getByLabelText('Project name'), 'proprium')
+  await userEvent.type(screen.getByLabelText('Project name'), 'acme')
   await userEvent.click(screen.getByRole('button', { name: 'create project' }))
 
   const { projects } = await client.request('GET /api/projects', null)
   expect(projects).toEqual([
-    { name: 'proprium', path: '/Users/you/.mother/proprium', profile: 'michael' },
+    { name: 'acme', path: '/Users/you/.mother/acme', profile: 'ada' },
   ])
 })
 
@@ -97,7 +97,7 @@ it('asks who you are in a project that names no profile', async () => {
   show(client)
 
   await screen.findByRole('dialog', { name: 'Profiles' })
-  await userEvent.click(screen.getByRole('button', { name: /you@propriumbioscience/ }))
+  await userEvent.click(screen.getByRole('button', { name: /you@example/ }))
 
   const { active } = await client.request('GET /api/projects', null)
   expect(active?.profile).toBe('you')
@@ -110,21 +110,21 @@ it('opens a tab for the document the route is on', async () => {
   const { rerender } = show(client)
   await screen.findByText('the vault')
 
-  pathname = '/doc/ECSEQ-1/Whitepaper.md'
+  pathname = '/doc/Handbook/Overview.md'
   rerender(tree(client))
 
-  const tab = await screen.findByRole('tab', { name: /Whitepaper/ })
+  const tab = await screen.findByRole('tab', { name: /Overview/ })
   expect(tab).toHaveAttribute('aria-selected', 'true')
 })
 
 it('closes a tab and goes back to the vault when it was the last one', async () => {
   const client = createMockClient()
   const { rerender } = show(client)
-  pathname = '/doc/ECSEQ-1/Whitepaper.md'
+  pathname = '/doc/Handbook/Overview.md'
   rerender(tree(client))
-  await screen.findByRole('tab', { name: /Whitepaper/ })
+  await screen.findByRole('tab', { name: /Overview/ })
 
-  await userEvent.click(screen.getByRole('button', { name: 'Close Whitepaper' }))
+  await userEvent.click(screen.getByRole('button', { name: 'Close Overview' }))
 
   expect(screen.queryByRole('tab')).not.toBeInTheDocument()
   expect(push).toHaveBeenCalledWith('/')

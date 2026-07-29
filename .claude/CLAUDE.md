@@ -10,7 +10,7 @@ chunk of work. Update it in the same commit as the code — see the Git section 
 
 ## In-depth review
 
-When I ask for a *thorough*, *deep*, or *in-depth* review — as opposed to a quick look —
+When I ask for a _thorough_, _deep_, or _in-depth_ review — as opposed to a quick look —
 reading is not enough. That request means:
 
 - **Read the actual code**, not just the docs and the diff. Follow calls into the

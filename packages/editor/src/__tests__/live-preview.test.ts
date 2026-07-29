@@ -59,8 +59,8 @@ describe('live preview', () => {
   })
 
   it('hides wikilink brackets', () => {
-    expect(hides('go to [[Whitepaper]] now', 0, 6, 8)).toBe(true)
-    expect(hides('go to [[Whitepaper]] now', 0, 18, 20)).toBe(true)
+    expect(hides('go to [[Overview]] now', 0, 6, 8)).toBe(true)
+    expect(hides('go to [[Overview]] now', 0, 16, 18)).toBe(true)
   })
 
   it('leaves a fenced code block untouched', () => {

@@ -17,7 +17,7 @@ a `/` menu, drag handles, and a keyboard map.
 3. **Slash menu** — `/` on an empty block opens a filtered block-type list. Arrows, enter,
    escape. No mouse needed.
 4. **Drag handles** — hover-revealed per block, drag to reorder.
-5. **Input rules** — `#`, `-`, `>`, ```` ``` ````, `- [ ]`, plus bold/italic/code
+5. **Input rules** — `#`, `-`, `>`, ` ``` `, `- [ ]`, plus bold/italic/code
    shortcuts and list indent/outdent.
 6. **Collab slot** — accept an optional Yjs fragment and awareness object and wire
    `y-prosemirror` when present. Define and honor the props; don't create sessions, that's

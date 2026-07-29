@@ -1,8 +1,11 @@
 # Contract requests against `packages/shared/src/doc.ts`
 
-Gaps found while building the codec against the real vault (89 files in `fixtures/`).
-Each one is a case where `parse` cannot record something the source file carries, so
-`serialize` cannot put it back. None is fixable inside `packages/markdown`.
+Gaps found while building the codec against a real Obsidian vault of ~90 pages. Each one is
+a case where `parse` cannot record something the source file carries, so `serialize` cannot
+put it back. None is fixable inside `packages/markdown`.
+
+The vault the counts below were measured against was private and does not ship with this
+repo; the file names are kept as illustrations of the shape of the problem.
 
 Ordered by how much damage it does to a real file on save. Items 2–5 are still open.
 
@@ -23,7 +26,7 @@ through inline markdown parsing. That rewrites it:
 | `Q\,(j\omega)`         | `Q,(j\omega)`                             |
 | `\|Z\|_{\text{event}}` | `\|Z\|*{\text{event}}` (parsed as italic) |
 
-`ECSEQ-1/Whitepaper/Whitepaper.md` and `Whitepaper/Appendix.md` have ~23 display-math
+`Handbook/Overview/Overview.md` and `Overview/Appendix.md` have ~23 display-math
 blocks between them, plus inline `$\eta$`-style math throughout. Opening either in the
 editor and saving would silently break the equations.
 
@@ -41,7 +44,7 @@ treatment `codeBlock` already gets.
 
 One thing the settled shape cannot record: `mathBlock` does not say whether a `$$` block was
 written on one line or three. The codec always emits the fenced form, so
-`ECSEQ-1/Peripheral Device.md`'s single one-line `$$S = …$$` becomes three lines on save.
+`Handbook/Field Notes.md`'s single one-line `$$S = …$$` becomes three lines on save.
 Content is untouched, so this needs no follow-up unless the reflow is unwanted.
 
 ## 2. Backslash escapes the source did not need
@@ -74,7 +77,7 @@ and it reparses to `text`.
 
 A list written loose (blank line between items, one paragraph each) is indistinguishable
 from a tight one in `DocNode`, so it serializes tight and Obsidian stops wrapping the items
-in `<p>`. `ECSEQ-1/Whitepaper/References.md` is the vault case.
+in `<p>`. `Handbook/Overview/References.md` is the vault case.
 
 Request: `tight: boolean` on bullet/ordered/task list attrs.
 

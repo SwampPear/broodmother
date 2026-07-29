@@ -6,8 +6,8 @@ import { Vault } from './vault'
 afterAll(cleanup)
 
 const documents = [
-  'ECSEQ-1/Whitepaper/Whitepaper.md',
-  'ECSEQ-1/Risks.md',
+  'Handbook/Overview/Overview.md',
+  'Handbook/Risks.md',
   'Business/Roadmap.md',
   'index.md',
 ]
@@ -22,35 +22,33 @@ async function indexed(files: Record<string, string>) {
 
 describe('extractLinks', () => {
   it('finds wikilinks with aliases, headings and block refs', () => {
-    const links = extractLinks('see [[Whitepaper|the paper]] and [[Risks#Kill criteria]]')
-    expect(links.map((l) => l.target)).toEqual(['Whitepaper', 'Risks'])
+    const links = extractLinks('see [[Overview|the paper]] and [[Risks#Kill criteria]]')
+    expect(links.map((l) => l.target)).toEqual(['Overview', 'Risks'])
     expect(links[0]!.context).toBe(
-      'see [[Whitepaper|the paper]] and [[Risks#Kill criteria]]',
+      'see [[Overview|the paper]] and [[Risks#Kill criteria]]',
     )
   })
 
   it('finds relative markdown links and skips external ones', () => {
     const links = extractLinks(
-      '[a](ECSEQ-1/Risks.md) [b](https://example.test) [c](#anchor)',
+      '[a](Handbook/Risks.md) [b](https://example.test) [c](#anchor)',
     )
-    expect(links.map((l) => l.target)).toEqual(['ECSEQ-1/Risks.md'])
+    expect(links.map((l) => l.target)).toEqual(['Handbook/Risks.md'])
   })
 
   it('decodes percent-escaped paths', () => {
-    expect(extractLinks('[x](ECSEQ-1/Peripheral%20Device.md)')[0]!.target).toBe(
-      'ECSEQ-1/Peripheral Device.md',
+    expect(extractLinks('[x](Handbook/Field%20Notes.md)')[0]!.target).toBe(
+      'Handbook/Field Notes.md',
     )
   })
 })
 
 describe('resolveTarget', () => {
   it('prefers an exact path, then a filename, then a filename without extension', () => {
-    expect(resolveTarget('ECSEQ-1/Risks.md', documents)).toBe('ECSEQ-1/Risks.md')
-    expect(resolveTarget('ECSEQ-1/Risks', documents)).toBe('ECSEQ-1/Risks.md')
+    expect(resolveTarget('Handbook/Risks.md', documents)).toBe('Handbook/Risks.md')
+    expect(resolveTarget('Handbook/Risks', documents)).toBe('Handbook/Risks.md')
     expect(resolveTarget('Roadmap.md', documents)).toBe('Business/Roadmap.md')
-    expect(resolveTarget('Whitepaper', documents)).toBe(
-      'ECSEQ-1/Whitepaper/Whitepaper.md',
-    )
+    expect(resolveTarget('Overview', documents)).toBe('Handbook/Overview/Overview.md')
     expect(resolveTarget('Nothing', documents)).toBeNull()
   })
 })
@@ -58,56 +56,60 @@ describe('resolveTarget', () => {
 describe('LinkIndex', () => {
   it('exposes backlinks and outbound links', async () => {
     const { links } = await indexed({
-      'index.md': 'start at [[ECSEQ-1/Risks]]',
+      'index.md': 'start at [[Handbook/Risks]]',
       'Business/Roadmap.md': 'risk register: [[Risks]]',
-      'ECSEQ-1/Risks.md': '# Risks',
+      'Handbook/Risks.md': '# Risks',
     })
 
     expect(
       links
-        .backlinks('ECSEQ-1/Risks.md')
+        .backlinks('Handbook/Risks.md')
         .map((b) => b.from)
         .sort(),
     ).toEqual(['Business/Roadmap.md', 'index.md'])
     expect(links.outbound('index.md')).toEqual([
-      { from: 'index.md', to: 'ECSEQ-1/Risks.md', context: 'start at [[ECSEQ-1/Risks]]' },
+      {
+        from: 'index.md',
+        to: 'Handbook/Risks.md',
+        context: 'start at [[Handbook/Risks]]',
+      },
     ])
     expect(links.backlinks('index.md')).toEqual([])
   })
 
   it('rewrites links in every document on a rename', async () => {
     const { vault, links } = await indexed({
-      'index.md': 'see [[Risks]] and [[ECSEQ-1/Risks]] once',
-      'Business/Roadmap.md': 'and [a](ECSEQ-1/Risks.md)',
+      'index.md': 'see [[Risks]] and [[Handbook/Risks]] once',
+      'Business/Roadmap.md': 'and [a](Handbook/Risks.md)',
       'Business/Funding.md': 'no links here',
-      'ECSEQ-1/Risks.md': '# Risks',
+      'Handbook/Risks.md': '# Risks',
     })
 
-    await vault.move('ECSEQ-1/Risks.md', 'ECSEQ-1/Risks and Kill-Criteria.md')
+    await vault.move('Handbook/Risks.md', 'Handbook/Risks and Checklist.md')
     const rewritten = await links.rewriteForMove(
-      'ECSEQ-1/Risks.md',
-      'ECSEQ-1/Risks and Kill-Criteria.md',
+      'Handbook/Risks.md',
+      'Handbook/Risks and Checklist.md',
     )
 
     expect(rewritten).toBe(2)
     expect(await vault.read('index.md')).toBe(
-      'see [[Risks and Kill-Criteria]] and [[ECSEQ-1/Risks and Kill-Criteria]] once',
+      'see [[Risks and Checklist]] and [[Handbook/Risks and Checklist]] once',
     )
     expect(await vault.read('Business/Roadmap.md')).toBe(
-      'and [a](ECSEQ-1/Risks%20and%20Kill-Criteria.md)',
+      'and [a](Handbook/Risks%20and%20Checklist.md)',
     )
     expect(await vault.read('Business/Funding.md')).toBe('no links here')
-    expect(links.backlinks('ECSEQ-1/Risks and Kill-Criteria.md')).toHaveLength(3)
+    expect(links.backlinks('Handbook/Risks and Checklist.md')).toHaveLength(3)
   })
 
   it('tracks a document created after the initial index', async () => {
-    const { vault, links } = await indexed({ 'ECSEQ-1/Risks.md': '# Risks' })
+    const { vault, links } = await indexed({ 'Handbook/Risks.md': '# Risks' })
     await vault.write('new.md', 'points at [[Risks]]')
     await links.update('new.md')
-    expect(links.backlinks('ECSEQ-1/Risks.md').map((b) => b.from)).toEqual(['new.md'])
+    expect(links.backlinks('Handbook/Risks.md').map((b) => b.from)).toEqual(['new.md'])
 
     links.forget('new.md')
-    expect(links.backlinks('ECSEQ-1/Risks.md')).toEqual([])
+    expect(links.backlinks('Handbook/Risks.md')).toEqual([])
   })
 })
 

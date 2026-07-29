@@ -9,7 +9,7 @@ const existing: Profile[] = [
     name: 'Work',
     path: '/Users/you/.mother/profiles/Work.json',
     presenceColor: '#c084fc',
-    gitAuthor: { name: 'Michael Vaden', email: 'mv@proprium.bio' },
+    gitAuthor: { name: 'Ada Lovelace', email: 'ada@example.com' },
     sshKeyPath: null,
     claudeConfigDir: null,
   },
@@ -52,21 +52,21 @@ it('will not submit until it has a name and an email', async () => {
   const add = screen.getByRole('button', { name: 'add profile' })
   expect(add).toBeDisabled()
 
-  await fill('Personal', 'mjv@example.com')
+  await fill('Personal', 'you@example.com')
 
   expect(add).toBeEnabled()
 })
 
 it('creates a profile from the name and identity you typed', async () => {
   const { onCreate } = show()
-  await fill('Personal', 'mjv@example.com')
+  await fill('Personal', 'you@example.com')
 
   await userEvent.click(screen.getByRole('button', { name: 'add profile' }))
 
   expect(onCreate).toHaveBeenCalledWith(
     expect.objectContaining({
       name: 'Personal',
-      gitAuthor: { name: 'Personal', email: 'mjv@example.com' },
+      gitAuthor: { name: 'Personal', email: 'you@example.com' },
       sshKeyPath: null,
       claudeConfigDir: null,
     }),
@@ -76,22 +76,22 @@ it('creates a profile from the name and identity you typed', async () => {
 /* The credentials are what makes a profile more than a name on a commit. */
 it('carries the credentials it was given, expanded by the server not here', async () => {
   const { onCreate } = show()
-  await fill('Personal', 'mjv@example.com')
+  await fill('Personal', 'you@example.com')
   await userEvent.type(screen.getByLabelText('SSH key'), '~/.ssh/id_personal')
-  await userEvent.type(screen.getByLabelText('Claude config directory'), '~/.claude-mjv')
+  await userEvent.type(screen.getByLabelText('Claude config directory'), '~/.claude-work')
 
   await userEvent.click(screen.getByRole('button', { name: 'add profile' }))
 
   expect(onCreate.mock.calls[0][0]).toMatchObject({
     sshKeyPath: '~/.ssh/id_personal',
-    claudeConfigDir: '~/.claude-mjv',
+    claudeConfigDir: '~/.claude-work',
   })
 })
 
 /* The name becomes a file in the profiles folder, so it has to survive being one. */
 it('refuses a name that would not be a plain file', async () => {
   const { onCreate } = show()
-  await fill('../escape', 'mjv@example.com')
+  await fill('../escape', 'you@example.com')
 
   await userEvent.click(screen.getByRole('button', { name: 'add profile' }))
 
@@ -101,12 +101,12 @@ it('refuses a name that would not be a plain file', async () => {
 
 it('takes the git author name over the profile name when one is given', async () => {
   const { onCreate } = show()
-  await fill('Personal', 'mjv@example.com')
-  await userEvent.type(screen.getByLabelText('Git author name'), 'Michael')
+  await fill('Personal', 'you@example.com')
+  await userEvent.type(screen.getByLabelText('Git author name'), 'Ada')
 
   await userEvent.click(screen.getByRole('button', { name: 'add profile' }))
 
-  expect(onCreate.mock.calls[0][0].gitAuthor.name).toBe('Michael')
+  expect(onCreate.mock.calls[0][0].gitAuthor.name).toBe('Ada')
 })
 
 /* Two profiles with one name are indistinguishable in the menu that lists them. */
@@ -134,7 +134,7 @@ it('refuses an email that is not one', async () => {
    already taken defeats the point. */
 it('offers a colour nobody is using yet', async () => {
   const { onCreate } = show()
-  await fill('Personal', 'mjv@example.com')
+  await fill('Personal', 'you@example.com')
 
   await userEvent.click(screen.getByRole('button', { name: 'add profile' }))
 

@@ -28,4 +28,4 @@ few lines. Delete entries that stop being true — a stale lesson is worse than 
 
 ---
 
-*(No lessons yet.)*
+_(No lessons yet.)_

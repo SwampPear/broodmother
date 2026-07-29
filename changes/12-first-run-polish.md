@@ -56,14 +56,14 @@ contain element, found `<div>the vault</div>`".
   left edge of the icon above it; it is inset half an icon so it runs through the middle.
 - **The resizer is quieter.** Its dashed line and its handle both take `--line-hover` while
   you are on it, a shade up from the border it lands on rather than a bright seam.
-- **Placeholders are nobody.** `Michael` / `you@proprium.bio` became `john` /
+- **Placeholders are nobody.** `Ada` / `you@example.com` became `john` /
   `john@example.com`; the git author name still mirrors the profile name you type.
 
 ## A document with a space in its name would not open
 
 ```
 ENOENT: no such file or directory, open
-'…/proprium-docs/Business/Blogs/The%20Journey%20to%20the%20Sub-Hour%20Genome.docx'
+'…/handbook/Business/Blogs/The%20Long%20Way%20Round.docx'
 ```
 
 Next hands a catch-all route its segments **as they appear in the URL**. Confirmed against

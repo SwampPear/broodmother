@@ -76,9 +76,9 @@ beforeEach(() => {
 it('sizes the shell to the panel and writes what it sends back', async () => {
   const { client } = await show()
   act(() => {
-    ;(client as MockClient).emitTerminal({ type: 'output', data: 'ECSEQ-1 $ ' })
+    ;(client as MockClient).emitTerminal({ type: 'output', data: 'Handbook $ ' })
   })
-  expect(written).toEqual(['ECSEQ-1 $ '])
+  expect(written).toEqual(['Handbook $ '])
 })
 
 it('sends what is typed to the shell', async () => {

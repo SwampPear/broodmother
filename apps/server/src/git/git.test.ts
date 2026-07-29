@@ -68,11 +68,11 @@ describe('parseStatus', () => {
     const status = parseStatus(
       [
         '# branch.ab +2 -1',
-        '1 .M N... 100644 100644 100644 aaa bbb ECSEQ-1/Peripheral Device.md',
+        '1 .M N... 100644 100644 100644 aaa bbb Handbook/Field Notes.md',
         '? new note.md',
       ].join('\0') + '\0',
     )
-    expect(status.changed).toEqual(['ECSEQ-1/Peripheral Device.md', 'new note.md'])
+    expect(status.changed).toEqual(['Handbook/Field Notes.md', 'new note.md'])
     expect({ ahead: status.ahead, behind: status.behind }).toEqual({
       ahead: 2,
       behind: 1,

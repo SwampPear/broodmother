@@ -6,7 +6,7 @@ import { Palette, type Flow, type FlowCtx } from './palette'
 
 function ctx(): FlowCtx {
   return {
-    paths: ['README.md', 'ECSEQ-1/Whitepaper.md', 'Business/Roadmap.md'],
+    paths: ['README.md', 'Handbook/Overview.md', 'Business/Roadmap.md'],
     open: vi.fn(),
     create: vi.fn(),
     move: vi.fn(),
@@ -48,8 +48,8 @@ it('walks open → pick → the chosen document', async () => {
   const flowCtx = ctx()
   open(flowCtx)
   await userEvent.keyboard('open document{Enter}')
-  await userEvent.keyboard('whitepaper{Enter}')
-  expect(flowCtx.open).toHaveBeenCalledWith('ECSEQ-1/Whitepaper.md')
+  await userEvent.keyboard('overview{Enter}')
+  expect(flowCtx.open).toHaveBeenCalledWith('Handbook/Overview.md')
 })
 
 it('moves the cursor with the arrow keys', async () => {

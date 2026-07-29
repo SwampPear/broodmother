@@ -23,17 +23,17 @@ export interface MockClient extends ApiClient {
 
 const seedDocs: Record<VaultPath, string> = {
   'README.md': '# Vault\n\nEverything lives here.\n',
-  'ECSEQ-1/Whitepaper.md':
-    '# Whitepaper\n\nA flat silicon array reads polymerase kinetics.\n',
-  'ECSEQ-1/Risks.md': '# Risks & kill-criteria\n\n- Signal-to-noise at 2 um pitch\n',
+  'Handbook/Overview.md': '# Overview\n\nWhat this handbook covers, and who it is for.\n',
+  'Handbook/Risks.md':
+    '# Risks & checklist\n\n- Nothing is backed up until it is pushed\n',
   'Business/Roadmap.md':
-    '# Roadmap\n\n1. Sequencing\n2. Home health\n3. Phenotypic modeling\n',
+    '# Roadmap\n\n1. Write it down\n2. Share it\n3. Keep it current\n',
 }
 
 const seedConfig: MotherConfig = {
-  project: 'proprium',
-  vaultPath: '/Users/you/.mother/proprium/proprium-docs',
-  remoteUrl: 'git@github.com:Proprium-Bioscience/docs.git',
+  project: 'acme',
+  vaultPath: '/Users/you/.mother/acme/handbook',
+  remoteUrl: 'git@github.com:you/handbook.git',
   branch: 'main',
   syncEnabled: true,
   syncIdleMs: 10_000,
@@ -44,14 +44,14 @@ const seedProfile: Profile = {
   name: 'you',
   path: '/Users/you/.mother/profiles/you.json',
   presenceColor: '#c084fc',
-  gitAuthor: { name: 'You', email: 'you@propriumbioscience.com' },
+  gitAuthor: { name: 'You', email: 'you@example.com' },
   sshKeyPath: null,
   claudeConfigDir: null,
 }
 
 const seedProject: Project = {
-  name: 'proprium',
-  path: '/Users/you/.mother/proprium',
+  name: 'acme',
+  path: '/Users/you/.mother/acme',
   profile: 'you',
 }
 
@@ -97,7 +97,7 @@ export function createMockClient(
     profiles.find((profile) => profile.name === project?.profile) ?? null
   const vaultHome = () => active?.path ?? home
   const vaults: VaultSummary[] = seed.vaults ?? [
-    { name: 'proprium-docs', path: `${vaultHome()}/proprium-docs` },
+    { name: 'handbook', path: `${vaultHome()}/handbook` },
   ]
   let config = { ...seedConfig, ...seed.config }
   let sync: SyncStatus = seed.sync ?? {

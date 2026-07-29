@@ -7,8 +7,8 @@ Chunks 10-15 shipped together in `d4ca390`: they were built in sequence but comm
 once, and the edits interleave through the same files, so there was no honest way to split
 them after the fact.
 
-This is a record of _what shipped and why_, not a spec — `DESIGN.md` and `plans/` hold
-intent, and the code holds the truth. Where the two disagree, the code wins and the entry
+This is a record of _what shipped and why_, not a spec — `plans/` holds intent, and the
+code holds the truth. Where the two disagree, the code wins and the entry
 here should be corrected.
 
 | #                                      | Chunk                               | Commits                                 |
@@ -28,6 +28,7 @@ here should be corrected.
 | [13](13-tabs-and-profile-options.md)   | Tabs, delete a profile              | `d4ca390`                               |
 | [14](14-projects-and-profiles.md)      | Projects, profiles with keys        | `d4ca390`                               |
 | [15](15-open-documents-follow-disk.md) | Documents follow disk, terminal fix | `d4ca390`                               |
+| [16](16-open-source-scrub.md)          | Open-source scrub                   | _uncommitted_                           |
 
 ## Where it landed
 
@@ -38,13 +39,13 @@ are the source of truth.
 ```
 apps/server    hono, vault, git sync, config, backlinks, relay, pty     167 tests
 apps/web       next app, shell, tabs, tree, palette, settings, terminal 124 tests
-packages/markdown   markdown ⇄ document codec                           276 tests
+packages/markdown   markdown ⇄ document codec                           95 tests
 packages/editor     codemirror editor, live preview, math               27 tests
 packages/collab     yjs session, divergence, disk flush                 19 tests
 packages/shared     types every side shares                             —
 ```
 
-613 tests across 36 files. `npm run check` runs the typechecker and the suite;
+432 tests across 35 files. `npm run check` runs the typechecker and the suite;
 `npm run build` also builds the site.
 
 ## Still open

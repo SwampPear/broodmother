@@ -1,6 +1,0 @@
-- squished ball ensemble method
-- assume ensemble within debye length, rewrite throughput and stuff
-- electrphoresis until sensed at surface
-- ion concentration polarization
-- other resources could be found with ion torrent (still increases size)%.  
-- 

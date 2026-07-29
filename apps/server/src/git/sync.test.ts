@@ -59,12 +59,12 @@ async function divergentRemoteCommit(remote: string, file: string, contents: str
 
 describe('commitMessage', () => {
   it.each([
-    [['ECSEQ-1/Whitepaper/Whitepaper.md'], 'docs: update ECSEQ-1/Whitepaper/Whitepaper'],
+    [['Handbook/Overview/Overview.md'], 'docs: update Handbook/Overview/Overview'],
     [
-      ['ECSEQ-1/Whitepaper/Whitepaper.md', 'ECSEQ-1/Whitepaper/Appendix.md'],
-      'docs: update ECSEQ-1/Whitepaper',
+      ['Handbook/Overview/Overview.md', 'Handbook/Overview/Appendix.md'],
+      'docs: update Handbook/Overview',
     ],
-    [['ECSEQ-1/Risks.md', 'Business/Roadmap.md'], 'docs: update 2 files'],
+    [['Handbook/Risks.md', 'Business/Roadmap.md'], 'docs: update 2 files'],
     [['a.md', 'b.md'], 'docs: update 2 files'],
   ])('%j -> %s', (paths, expected) => {
     expect(commitMessage(paths)).toBe(expected)

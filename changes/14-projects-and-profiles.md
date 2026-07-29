@@ -23,11 +23,11 @@ So the folder kept the place and gave up the identity:
 ~/.mother/
 ├── config.json          # which project and vault are open, sync settings
 ├── profiles/
-│   ├── michael.json     # identity + credentials, shared by every project
+│   ├── ada.json     # identity + credentials, shared by every project
 │   └── work.json
-├── proprium/
+├── acme/
 │   ├── project.json     # { "profile": "work" }
-│   └── proprium-docs/   # a vault
+│   └── handbook/   # a vault
 └── side-thing/
     ├── project.json
     └── notes/

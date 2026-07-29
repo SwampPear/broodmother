@@ -63,8 +63,8 @@ describe('terminals', () => {
     const shell = await open(handle)
     await until(() => handle.context.terminals.count === 1)
 
-    shell.send({ type: 'input', data: 'echo ECSEQ-$((1 + 0))\r' })
-    await until(() => shell.output().includes('ECSEQ-1\r\n'))
+    shell.send({ type: 'input', data: 'echo mother-$((1 + 0))\r' })
+    await until(() => shell.output().includes('mother-1\r\n'))
   })
 
   it('starts the shell in the project you are working in', async () => {

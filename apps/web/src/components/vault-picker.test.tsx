@@ -21,13 +21,13 @@ it('lists every folder in the vault home as a vault', async () => {
       home: '/Users/you/.mother',
       vaults: [
         { name: 'notes', path: '/Users/you/.mother/notes' },
-        { name: 'proprium-docs', path: '/Users/you/.mother/proprium-docs' },
+        { name: 'handbook', path: '/Users/you/.mother/handbook' },
       ],
     }),
   )
 
   expect(screen.getByRole('button', { name: /notes/ })).toBeInTheDocument()
-  expect(screen.getByRole('button', { name: /proprium-docs/ })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: /handbook/ })).toBeInTheDocument()
 })
 
 it('opens the vault that was clicked', async () => {

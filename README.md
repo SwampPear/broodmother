@@ -42,7 +42,7 @@ back. That round trip goes away.
 ## Architecture
 
 ```
-proprium-docs/  (git clone on disk)   <-- source of truth
+vault/  (git clone on disk)           <-- source of truth
       |
    Hono backend (localhost:3001)  -- the only thing that touches disk
       |     |
@@ -63,7 +63,7 @@ the network.
 ## Getting started
 
 ```bash
-git clone git@github.com:Proprium-Bioscience/mother.git
+git clone git@github.com:you/mother.git
 cd mother
 npm run setup            # install dependencies and put `mother` on your PATH
 ```
@@ -96,15 +96,15 @@ onto your `PATH`.
 ~/.mother/
 ├── config.json           # this machine: which project and vault are open, sync settings
 ├── profiles/
-│   ├── michael.json      # who you commit as, and the credentials you do it with
+│   ├── personal.json     # who you commit as, and the credentials you do it with
 │   └── work.json
-├── proprium/
+├── acme/
 │   ├── project.json      # { "profile": "work" }
-│   ├── proprium-docs/    # a vault
+│   ├── handbook/         # a vault
 │   └── notes/            # a vault
 └── side-thing/
-    ├── project.json      # { "profile": "michael" }
-    └── handbook/
+    ├── project.json      # { "profile": "personal" }
+    └── wiki/
 ```
 
 **Every folder in `~/.mother/` is a project, and every folder inside one is a vault** — drop
@@ -234,4 +234,4 @@ No Claude coauthor line in commits.
 
 ## License
 
-[MIT](LICENSE) © Proprium Bioscience
+[MIT](LICENSE) © Michael Vaden

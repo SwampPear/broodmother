@@ -21,11 +21,11 @@ describe('listVaults', () => {
   it('picks up every plain directory dropped into the project', async () => {
     const home = await tempDir()
     await mkdir(path.join(home, 'notes'))
-    await mkdir(path.join(home, 'proprium-docs'))
+    await mkdir(path.join(home, 'handbook'))
 
     expect((await listVaults(home)).map((vault) => vault.name)).toEqual([
+      'handbook',
       'notes',
-      'proprium-docs',
     ])
   })
 
@@ -56,7 +56,7 @@ describe('assertVaultName', () => {
   })
 
   it('accepts an ordinary folder name', () => {
-    expect(() => assertVaultName('proprium-docs')).not.toThrow()
+    expect(() => assertVaultName('handbook')).not.toThrow()
   })
 })
 
@@ -66,7 +66,7 @@ describe('createVault', () => {
     const remote = await bareRemote()
     const seed = await tempDir()
     await git(seed, 'init', '--initial-branch=main')
-    await writeFile(path.join(seed, 'Whitepaper.md'), '# Whitepaper\n')
+    await writeFile(path.join(seed, 'Overview.md'), '# Overview\n')
     await git(seed, 'add', '-A')
     await git(seed, 'commit', '-m', 'seed')
     await git(seed, 'remote', 'add', 'origin', remote)
@@ -79,8 +79,8 @@ describe('createVault', () => {
     )
 
     expect(vault).toEqual({ name: 'docs', path: path.join(home, 'docs') })
-    expect(await readFile(path.join(vault.path, 'Whitepaper.md'), 'utf8')).toBe(
-      '# Whitepaper\n',
+    expect(await readFile(path.join(vault.path, 'Overview.md'), 'utf8')).toBe(
+      '# Overview\n',
     )
     expect(await new Git(vault.path).remoteUrl()).toBe(remote)
   })

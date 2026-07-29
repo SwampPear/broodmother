@@ -29,7 +29,7 @@ describe('hasEmbeddedCredentials', () => {
     ['https://user:pass@github.com/x/y.git', true],
     ['ssh://git@github.com/x/y.git', false],
     ['ssh://git:secret@github.com/x/y.git', true],
-    ['git@github.com:Proprium-Bioscience/docs.git', false],
+    ['git@github.com:you/handbook.git', false],
     ['https://github.com/x/y.git', false],
   ])('%s -> %s', (url, expected) => {
     expect(hasEmbeddedCredentials(url)).toBe(expected)
@@ -56,7 +56,7 @@ describe('repair', () => {
     const { config, reset } = repair(
       {
         vaultPath: '/elsewhere',
-        project: 'michael',
+        project: 'ada',
         branch: 42,
         syncIdleMs: 5,
       },
@@ -64,7 +64,7 @@ describe('repair', () => {
     )
     expect(reset.sort()).toEqual(['branch', 'syncIdleMs'])
     expect(config.vaultPath).toBe('/elsewhere')
-    expect(config.project).toBe('michael')
+    expect(config.project).toBe('ada')
     expect(config.branch).toBe(defaults.branch)
     expect(config.syncIdleMs).toBe(defaults.syncIdleMs)
   })

@@ -1,0 +1,11 @@
+{
+  "name": "@mother/site",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev -H 127.0.0.1 -p 3002",
+    "build": "next build",
+    "start": "next start -H 127.0.0.1 -p 3002"
+  }
+}

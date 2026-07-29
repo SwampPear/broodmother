@@ -111,14 +111,14 @@ describe('vault routes', () => {
     expect(
       await call('POST', '/api/doc/move', {
         from: 'Risks.md',
-        to: 'ECSEQ-1/Kill-Criteria.md',
+        to: 'Handbook/Checklist.md',
       }),
     ).toEqual({
       status: 200,
-      body: { to: 'ECSEQ-1/Kill-Criteria.md', linksRewritten: 1 },
+      body: { to: 'Handbook/Checklist.md', linksRewritten: 1 },
     })
     expect((await call('GET', '/api/doc?path=index.md')).body).toEqual({
-      markdown: '# index\n\nsee [[Kill-Criteria]]\n',
+      markdown: '# index\n\nsee [[Checklist]]\n',
     })
     expect((await call('GET', '/api/doc?path=Risks.md')).status).toBe(404)
   })
@@ -352,20 +352,20 @@ describe('projects', () => {
     const { call, home } = await server({ project: null })
 
     const created = await call('POST', '/api/projects', {
-      name: 'proprium',
+      name: 'acme',
       profile: 'tester',
     })
     expect(created.status).toBe(200)
     const body = created.body as ApiResponse<'POST /api/projects'>
     expect(body.project).toEqual({
-      name: 'proprium',
-      path: path.join(home, 'proprium'),
+      name: 'acme',
+      path: path.join(home, 'acme'),
       profile: 'tester',
     })
-    expect(body.config.project).toBe('proprium')
+    expect(body.config.project).toBe('acme')
 
     const written = JSON.parse(
-      await readFile(path.join(home, 'proprium', 'project.json'), 'utf8'),
+      await readFile(path.join(home, 'acme', 'project.json'), 'utf8'),
     )
     expect(written).toEqual({ profile: 'tester' })
   })
@@ -498,7 +498,7 @@ describe('profiles', () => {
     const { call, home } = await server()
     const identity = {
       presenceColor: '#c084fc',
-      gitAuthor: { name: 'Michael', email: 'michael@proprium.bio' },
+      gitAuthor: { name: 'Ada', email: 'ada@example.com' },
       sshKeyPath: '~/.ssh/id_ed25519',
       claudeConfigDir: '~/.claude',
     }

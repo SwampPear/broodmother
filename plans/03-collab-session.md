@@ -14,8 +14,8 @@ lifecycle, the seed-versus-adopt decision, presence, and the debounced flush to 
    no editor.
 2. **Room lifecycle** — connect, sync, disconnect, reconnect. Rooms keyed
    `${repoId}/${vaultPath}`.
-3. **Seed vs adopt** — the core rule: *first client in a room seeds it from its file; later
-   clients adopt room state.* Implement the join handshake that decides which you are.
+3. **Seed vs adopt** — the core rule: _first client in a room seeds it from its file; later
+   clients adopt room state._ Implement the join handshake that decides which you are.
    Getting this wrong duplicates or erases a document, so it earns the most tests here.
 4. **Divergence** — when a joiner's file differs from room state, don't merge. Enter
    `divergent` and hand the UI both versions. Silently merging two independently-edited

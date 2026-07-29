@@ -6,7 +6,7 @@
 
 The app was renamed from `docs` to `mother` and moved out from under the `solutions` repo.
 `solutions/docs/*` was flattened to the repo root and the repo itself became `mother/`, a
-sibling of the `docs/` vault under `propriumbioscience/`.
+sibling of the `docs/` vault it was written to edit.
 
 History was preserved without rewriting: because this was a rename plus `git mv` inside one
 repo, git recorded all 239 files as renames and `git log --follow` still works. No
@@ -26,9 +26,10 @@ repo, git recorded all 239 files as renames and `git log --follow` still works. 
 
 Three categories refer to the vault or to documentation generally, not to the app:
 
-- `packages/markdown/fixtures/*` — verbatim vault pages the corpus test asserts on
-- The vault's own path and remote (`propriumbioscience/docs`, `…/docs.git`) — the Obsidian
-  vault is still called `docs`
+- `packages/markdown/fixtures/*` — verbatim vault pages the corpus test asserted on, since
+  removed in [16](16-open-source-scrub.md)
+- The vault's own path and remote (`…/docs`, `…/docs.git`) — the Obsidian vault is still
+  called `docs`
 - The `docs: update …` prefix the sync loop writes into the vault repo — a conventional
   commit type, not a product name
 

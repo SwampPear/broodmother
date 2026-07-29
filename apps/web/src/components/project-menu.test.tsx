@@ -5,24 +5,24 @@ import type { Profile, Project } from '@mother/shared'
 import { ProjectMenu } from './project-menu'
 
 const projects: Project[] = [
-  { name: 'Work', path: '/Users/you/.mother/Work', profile: 'michael' },
+  { name: 'Work', path: '/Users/you/.mother/Work', profile: 'ada' },
   { name: 'Personal', path: '/Users/you/.mother/Personal', profile: null },
 ]
 
 const profiles: Profile[] = [
   {
-    name: 'michael',
-    path: '/Users/you/.mother/profiles/michael.json',
+    name: 'ada',
+    path: '/Users/you/.mother/profiles/ada.json',
     presenceColor: '#c084fc',
-    gitAuthor: { name: 'Michael Vaden', email: 'mv@proprium.bio' },
+    gitAuthor: { name: 'Ada Lovelace', email: 'ada@example.com' },
     sshKeyPath: '~/.ssh/id_work',
     claudeConfigDir: null,
   },
   {
-    name: 'mjv',
-    path: '/Users/you/.mother/profiles/mjv.json',
+    name: 'grace',
+    path: '/Users/you/.mother/profiles/grace.json',
     presenceColor: '#34d399',
-    gitAuthor: { name: 'Michael', email: 'michaelvaden.mjv@gmail.com' },
+    gitAuthor: { name: 'Grace Hopper', email: 'grace@example.com' },
     sshKeyPath: null,
     claudeConfigDir: null,
   },
@@ -40,7 +40,7 @@ function show(activeName = 'Work') {
       projects={projects}
       activeName={activeName}
       profiles={profiles}
-      activeProfile="michael"
+      activeProfile="ada"
       onSelect={onSelect}
       onAdd={onAdd}
       onDelete={onDelete}
@@ -64,7 +64,7 @@ it('lists every project with the profile it works as', async () => {
   show()
   await open()
   const rows = screen.getAllByRole('menuitemradio')
-  expect(rows[0]).toHaveTextContent('michael')
+  expect(rows[0]).toHaveTextContent('ada')
   expect(rows[1]).toHaveTextContent('no profile yet')
   expect(rows[0]).toHaveAttribute('aria-checked', 'true')
 })
@@ -90,15 +90,15 @@ it('picks the profile the project works as, without leaving the menu', async () 
   const { onSelectProfile } = show()
   await open()
 
-  await userEvent.click(screen.getByRole('menuitemradio', { name: /mjv/ }))
+  await userEvent.click(screen.getByRole('menuitemradio', { name: /grace/ }))
 
-  await waitFor(() => expect(onSelectProfile).toHaveBeenCalledWith('mjv'))
+  await waitFor(() => expect(onSelectProfile).toHaveBeenCalledWith('grace'))
 })
 
 it('does not re-apply the profile already in use', async () => {
   const { onSelectProfile } = show()
   await open()
-  await userEvent.click(screen.getByRole('menuitemradio', { name: /mv@proprium\.bio/ }))
+  await userEvent.click(screen.getByRole('menuitemradio', { name: /ada@example\.com/ }))
   expect(onSelectProfile).not.toHaveBeenCalled()
 })
 

@@ -4,7 +4,7 @@ import { expect, it, vi } from 'vitest'
 import { TabStrip, docTab, type Tab } from './tabs'
 
 const tabs: Tab[] = [
-  docTab('ECSEQ-1/Whitepaper.md'),
+  docTab('Handbook/Overview.md'),
   { id: 'terminal:1', kind: 'terminal', shell: 'shell' },
 ]
 
@@ -26,11 +26,11 @@ function show(activeId: string | null = tabs[0]!.id) {
 
 it('names a document tab by its basename, without the extension', () => {
   show()
-  expect(screen.getByRole('tab', { name: /Whitepaper/ })).toHaveAttribute(
+  expect(screen.getByRole('tab', { name: /Overview/ })).toHaveAttribute(
     'aria-selected',
     'true',
   )
-  expect(screen.queryByText('ECSEQ-1/Whitepaper.md')).not.toBeInTheDocument()
+  expect(screen.queryByText('Handbook/Overview.md')).not.toBeInTheDocument()
 })
 
 it('picks the tab that was clicked', async () => {
@@ -42,7 +42,7 @@ it('picks the tab that was clicked', async () => {
 /* The close button sits inside the tab, so the click that closes must not also select. */
 it('closes without picking', async () => {
   const { onClose, onPick } = show()
-  await userEvent.click(screen.getByRole('button', { name: 'Close Whitepaper' }))
+  await userEvent.click(screen.getByRole('button', { name: 'Close Overview' }))
   expect(onClose).toHaveBeenCalledWith(tabs[0])
   expect(onPick).not.toHaveBeenCalled()
 })

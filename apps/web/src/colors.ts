@@ -1,4 +1,4 @@
-/** The opalescent palette from the brand Design Reference — presence colors come from here. */
+/** The opalescent palette presence colors are drawn from. */
 export const opal = [
   { name: 'violet', hex: '#c084fc' },
   { name: 'indigo', hex: '#818cf8' },

@@ -8,8 +8,8 @@ afterAll(cleanup)
 
 describe('normalize', () => {
   it('accepts a relative posix path', () => {
-    expect(normalize('ECSEQ-1/Whitepaper/Whitepaper.md')).toBe(
-      'ECSEQ-1/Whitepaper/Whitepaper.md',
+    expect(normalize('Handbook/Overview/Overview.md')).toBe(
+      'Handbook/Overview/Overview.md',
     )
   })
 

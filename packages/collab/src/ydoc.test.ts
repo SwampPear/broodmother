@@ -5,7 +5,7 @@ import { FRAGMENT, clearDoc, readDoc, writeDoc } from './ydoc'
 
 const document: DocNode = {
   type: 'doc',
-  attrs: { frontmatter: '---\ntitle: ECSEQ-1\n---' },
+  attrs: { frontmatter: '---\ntitle: Handbook\n---' },
   content: [
     {
       type: 'heading',
