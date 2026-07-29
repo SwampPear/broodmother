@@ -1,7 +1,0 @@
-node_modules/
-.next/
-next-env.d.ts
-dist/
-*.tsbuildinfo
-.docs/
-.DS_Store

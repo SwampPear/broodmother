@@ -1,19 +1,67 @@
-# Solutions
+# mother
 
-Custom apps the business runs on. One repo, one directory per app.
+In-house documentation app. A cross between Obsidian and Notion.
+
+**A local website, not a desktop app.** You run it on your own machine and open
+`localhost:3000` in a browser tab — Next.js front, Hono backend, no installer. It works
+against a local clone of a vault repo. Markdown files on disk are the source of truth; git
+is the history and the backup. A config page points it at a remote and it syncs
+automatically.
+
+The one thing Obsidian can't do — and the reason this exists — is **live collaborative
+editing**. Today we export to Google Docs to work on something together and then paste it
+back. That round trip goes away.
+
+## Principles
+
+- **Files, not a database.** Plain `.md` in a plain git repo. Obsidian, `grep`, and any
+  editor keep working on the same folder.
+- **Local-first.** Everything works offline. The network is only for sharing.
+- **Small.** One process, one dependency-light UI, no accounts, no server to babysit
+  except a stateless relay.
+- **Keyboard-first.** Dense, monospace, command-palette driven — closer to a CLI than to
+  a document suite.
+
+## Shape
 
 ```
-solutions/
-├── .claude/     # Claude Code context, agents, commands, settings
-├── .agents/     # context for every other agent that works in this repo
-└── docs/        # in-house documentation app — local-first Markdown + git + live collab
+proprium-docs/  (git clone on disk)   <-- source of truth
+      |
+   Hono backend (localhost:3001)  -- the only thing that touches disk
+      |     |
+      |     +-- git remote          async sync: pull, commit, push
+      |     +-- relay (websocket)   live sync: CRDT updates + presence, nothing stored
+      |
+   Next.js website (localhost:3000)  -- open in a browser tab
 ```
 
-Each app directory owns its own README and DESIGN. Read them before working in that
-directory and prefer them over anything assumed here.
+## Running it
 
-- `docs/README.md` — what the docs app is and why it exists
-- `docs/DESIGN.md` — architecture, stack, build order
+```
+npm run setup            # install dependencies and put `mother` on your PATH
+mother ~/path/to/vault   # start the backend and the site; ctrl-c stops both
+```
+
+Your browser opens at http://127.0.0.1:3000 once the site is ready. With no argument,
+`mother` treats the current directory as the vault, and prints which one it picked. Both
+processes bind loopback only — the vault is unauthenticated, so nothing is served to the
+network.
+
+From inside this directory, `npm run dev` does the same thing without installing anything.
+`npm test` runs every package, `npm run build` typechecks and builds the site.
+
+## Status
+
+Local editing works end to end: vault tree, open, edit, save to disk, git sync, settings,
+command palette. Live collaboration is built and tested as a package but is **not yet
+wired into the app** — editing is currently local-only.
+
+- [DESIGN.md](DESIGN.md) — high-level design and build order
+- [plans/](plans/README.md) — six implementation plans, partitioned so they can be built in
+  parallel without collisions
+
+Everything targets one laptop. No deployment, no hosting, no CI — `npm run dev` and a
+browser tab.
 
 Business-wide context (ECSEQ-1, the vault, chip and model specs) lives in the parent
 `propriumbioscience/CLAUDE.md`.
@@ -24,8 +72,7 @@ Business-wide context (ECSEQ-1, the vault, chip and model specs) lives in the pa
 
 `.agents/LESSONS.md` records mistakes agents have made here more than once. Read it before
 starting work. When you catch yourself repeating a correction already made in this repo,
-add an entry. Once is a fix; twice is a lesson. Nothing goes in preemptively, and a lesson
-that only holds for one app belongs in that app's docs.
+add an entry. Once is a fix; twice is a lesson. Nothing goes in preemptively.
 
 Per-agent context (Codex, Cursor, anything else we try) is one file or directory in
 `.agents/`, named after the tool, and holds tool-specific guidance only.
@@ -45,10 +92,10 @@ exceptions are narrow: a non-obvious *why* (a workaround, a spec quirk, an order
 looks wrong but isn't), or a subtlety a reader would otherwise reintroduce as a bug.
 
 Match the file you're in — consistency with the surrounding code outranks everything above.
-When a convention isn't obvious, go read what's already here: the nearest code in the same
-app, then the other apps in this repo, then the sibling projects in the parent monorepo
-(`dodgson/`, `data/`, `strata/`, `website/`). This repo is young, so sometimes there is no
-precedent — then make the call and say which convention you established and why.
+When a convention isn't obvious, go read what's already here, then the sibling projects in
+the parent monorepo (`dodgson/`, `data/`, `strata/`, `website/`). This repo is young, so
+sometimes there is no precedent — then make the call and say which convention you
+established and why.
 
 ## Git
 

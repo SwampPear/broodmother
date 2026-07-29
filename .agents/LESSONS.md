@@ -3,8 +3,8 @@
 Things agents got wrong more than once. Every entry here exists because the same mistake
 happened twice — this is not a style guide, and nothing goes in preemptively.
 
-Applies to every agent and every app in this repo. A lesson that only holds for one app
-belongs in that app's docs instead.
+Applies to every agent working in this repo. A lesson that only holds for one package
+belongs next to that package instead.
 
 ## When to add an entry
 

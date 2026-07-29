@@ -1,7 +1,8 @@
-# Solutions
+# mother
 
-Read `README.md` at the repo root — repo layout, per-app docs, agent context, code style,
-and git conventions all live there. Then read `.agents/LESSONS.md` before starting work.
+Read `README.md` at the repo root — what mother is, how to run it, agent context, code
+style, and git conventions all live there. Then read `.agents/LESSONS.md` before starting
+work.
 
 ## In-depth review
 
