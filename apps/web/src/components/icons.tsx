@@ -11,6 +11,8 @@ export type IconName =
   | 'chevrons-up-down'
   | 'check'
   | 'plus'
+  | 'settings'
+  | 'x'
 
 /** Lucide, the set Obsidian ships: 24×24, stroke 2, round caps and joins. */
 const GLYPHS: Record<IconName, ReactNode> = {
@@ -65,6 +67,20 @@ const GLYPHS: Record<IconName, ReactNode> = {
     <>
       <path d="M5 12h14" />
       <path d="M12 5v14" />
+    </>
+  ),
+  settings: (
+    <>
+      <path d="M14 17H5" />
+      <path d="M19 7h-9" />
+      <circle cx="17" cy="17" r="3" />
+      <circle cx="7" cy="7" r="3" />
+    </>
+  ),
+  x: (
+    <>
+      <path d="M18 6 6 18" />
+      <path d="m6 6 12 12" />
     </>
   ),
 }

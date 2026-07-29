@@ -71,6 +71,7 @@ wired into the app** — editing is currently local-only.
 - [DESIGN.md](DESIGN.md) — high-level design and build order
 - [plans/](plans/README.md) — six implementation plans, partitioned so they can be built in
   parallel without collisions
+- [changes/](changes/README.md) — what actually shipped, chunk by chunk, with the commits
 
 Everything targets one laptop. No deployment, no hosting, no CI — `npm run dev` and a
 browser tab.
