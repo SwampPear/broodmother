@@ -7,6 +7,7 @@
     "packages/*"
   ],
   "scripts": {
+    "setup": "npm install && npm link",
     "dev": "concurrently -k -n server,web -c magenta,cyan \"npm run dev -w @docs/server\" \"npm run dev -w @docs/web\"",
     "start": "concurrently -k -n server,web -c magenta,cyan \"npm run start -w @docs/server\" \"npm run start -w @docs/web\"",
     "build": "npm run typecheck && npm run build -w @docs/web",
@@ -70,5 +71,8 @@
     "y-protocols": "^1.0.7",
     "yjs": "^13.6.31",
     "zod": "^4.4.3"
+  },
+  "bin": {
+    "docs": "./scripts/docs.mjs"
   }
 }
