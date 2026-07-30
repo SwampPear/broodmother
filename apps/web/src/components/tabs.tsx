@@ -68,7 +68,9 @@ export function TabStrip({
             ? [
                 {
                   id: 'rename',
-                  label: 'Rename…',
+                  // No ellipsis: the name is typed on the row in the tree, and nothing
+                  // opens to ask for it.
+                  label: 'Rename',
                   description: 'the file this tab stands for',
                   onSelect: () => onRename(tab),
                 },

@@ -18,6 +18,15 @@ export const LIGHT = 'light-plus'
  */
 const GROUND = '#0A0A0A'
 
+/**
+ * Monaco draws its own scrollbar instead of the browser's, so the app's `--scroll-thumb`
+ * cannot reach it and the colour has to be restated here. These are the same two values —
+ * `--white` at 10% and at 20% over the ground — so a code file, a note and the terminal all
+ * scroll on the same grey. The track is left transparent, as it is everywhere else.
+ */
+const SLIDER = '#FFFEEE1A'
+const SLIDER_HOVER = '#FFFEEE33'
+
 const GROUNDED: Record<string, string> = {
   'editor.background': GROUND,
   'editorGutter.background': GROUND,
@@ -29,6 +38,10 @@ const GROUNDED: Record<string, string> = {
   // highlight has no background, and a box around the caret line reads as an error.
   'editor.lineHighlightBackground': '#FFFEEE0A',
   'editor.lineHighlightBorder': '#00000000',
+  'scrollbar.shadow': '#00000000',
+  'scrollbarSlider.background': SLIDER,
+  'scrollbarSlider.hoverBackground': SLIDER_HOVER,
+  'scrollbarSlider.activeBackground': SLIDER_HOVER,
 }
 
 /** Loaded up front because they are what a vault holds, and what a code fence usually is. */

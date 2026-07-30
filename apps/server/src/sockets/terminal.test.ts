@@ -16,10 +16,10 @@ afterAll(async () => {
 })
 
 const IDENTITY = {
-  presenceColor: '#8fb8d8',
+  color: '#8fb8d8',
   gitAuthor: { name: 'Test', email: 'test@localhost' },
   sshKeyPath: null,
-  claudeConfigDir: null,
+  claudeCfgDir: null,
 }
 
 async function server() {
@@ -94,7 +94,7 @@ describe('terminals', () => {
   /* A profile carries the Claude login its shells run as, or Claude picks its own. */
   it('runs the shell with the profile’s Claude config directory', async () => {
     const handle = await server()
-    await handle.context.setIdentity({ ...IDENTITY, claudeConfigDir: '~/claude-work' })
+    await handle.context.setIdentity({ ...IDENTITY, claudeCfgDir: '~/claude-work' })
 
     const shell = await open(handle)
     shell.send({ type: 'input', data: 'echo "dir=$CLAUDE_CONFIG_DIR"\r' })

@@ -1,39 +1,84 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import type { Identity, BroodmotherConfig } from '@broodmother/shared'
+import type { GitSettings, Identity, BroodmotherConfig } from '@broodmother/shared'
 import { opalFrom } from '../colors'
 import { useApp } from '../state'
 
 type TestResult = { ok: boolean; message: string } | null
 
+/** Each switch, and the one sentence that says what turning it off costs you. */
+const SYNC_SWITCHES: { key: keyof GitSettings; label: string; hint: string }[] = [
+  {
+    key: 'autoCommit',
+    label: 'Commit automatically',
+    hint: 'Off leaves committing to you. The loop still moves the commits you make.',
+  },
+  {
+    key: 'pull',
+    label: 'Pull before pushing',
+    hint: 'Off never rebases onto the remote, so anything pushed from elsewhere stays there.',
+  },
+  {
+    key: 'push',
+    label: 'Push after committing',
+    hint: 'Off keeps the history in this vault. Nothing leaves the machine.',
+  },
+]
+
+/**
+ * The settings said back as the behaviour they add up to. Four switches is enough
+ * combinations that reading them off one at a time is not the same as knowing what happens.
+ */
+function describeSync(git: GitSettings, repo: boolean, remote: boolean): string {
+  if (!repo) return 'Nothing syncs: this vault has no repository.'
+  if (!git.enabled) return 'Nothing syncs: sync is off for this vault.'
+
+  const steps = [
+    git.autoCommit && 'commits what changed',
+    git.pull && remote && 'pulls',
+    git.push && remote && 'pushes',
+  ].filter(Boolean) as string[]
+
+  if (!steps.length) return 'Sync is on but every step is off, so nothing happens.'
+  const seconds = Math.round(git.idleMs / 1000)
+  const tail =
+    (git.pull || git.push) && !remote
+      ? ' There is no remote, so the history stays in this vault.'
+      : ''
+  return `After ${seconds}s of quiet, broodmother ${steps.join(', then ')}.${tail}`
+}
+
 export function SettingsView() {
   const app = useApp()
   const [draft, setDraft] = useState<BroodmotherConfig | null>(null)
+  const [git, setGit] = useState<GitSettings>(app.gitSettings)
   const [identity, setIdentity] = useState<Identity | null>(null)
   const [remoteResult, setRemoteResult] = useState<TestResult>(null)
 
   useEffect(() => setDraft(app.config), [app.config])
+  useEffect(() => setGit(app.gitSettings), [app.gitSettings])
   useEffect(() => {
     if (app.profile)
       setIdentity({
-        presenceColor: app.profile.presenceColor,
+        color: app.profile.color,
         gitAuthor: app.profile.gitAuthor,
         sshKeyPath: app.profile.sshKeyPath,
-        claudeConfigDir: app.profile.claudeConfigDir,
+        claudeCfgDir: app.profile.claudeCfgDir,
       })
   }, [app.profile])
 
   if (!draft) return <div className="empty" />
 
-  const set = <K extends keyof BroodmotherConfig>(key: K, value: BroodmotherConfig[K]) =>
-    setDraft({ ...draft, [key]: value })
+  const { gitState } = app
+  const setGitField = <K extends keyof GitSettings>(key: K, value: GitSettings[K]) =>
+    setGit({ ...git, [key]: value })
 
   const testRemote = async () =>
     setRemoteResult(
       await app.client.request('POST /api/config/test-remote', {
-        remoteUrl: draft.remoteUrl ?? '',
-        branch: draft.branch,
+        remoteUrl: gitState.remoteUrl ?? '',
+        branch: gitState.branch ?? 'main',
       }),
     )
 
@@ -54,59 +99,108 @@ export function SettingsView() {
         </p>
       )}
 
-      {/* Both are settled when the vault is created and read from it afterwards: retyping
-          them here would point broodmother at a folder it never cloned. */}
+      {/* Settled when the vault is created and read from it afterwards: retyping it here
+          would point broodmother at a folder it never made. */}
       <label>
         Vault path
         <input value={draft.vaultPath ?? ''} readOnly />
       </label>
 
-      <label>
-        Remote URL
-        <input value={draft.remoteUrl ?? ''} readOnly />
-      </label>
-
       <p className="hint">
-        The vault folder and its remote belong to the vault. To work somewhere else, make
-        another vault — every folder in your broodmother home is one.
+        The vault folder belongs to the vault. To work somewhere else, make another vault —
+        every folder in your broodmother home is one.
       </p>
 
-      <label>
-        Branch
-        <input
-          value={draft.branch}
-          onChange={(event) => set('branch', event.target.value)}
-        />
-      </label>
+      <fieldset className="git-settings">
+        <legend>Git sync{app.vault ? ` · ${app.vault.name}` : ''}</legend>
 
-      <div className="row">
-        <button type="button" onClick={() => void testRemote()}>
-          test remote
-        </button>
-        {remoteResult && (
-          <span className="result" data-ok={remoteResult.ok}>
-            {remoteResult.ok ? 'ok' : 'failed'} · {remoteResult.message}
-          </span>
+        {/* Read off the checkout rather than stored, so a repository started or repointed
+            in a terminal is reported the way it actually is. */}
+        <label>
+          Repository
+          <input
+            value={
+              gitState.repo
+                ? (gitState.remoteUrl ?? 'local only — no remote')
+                : 'none — this vault is a plain folder'
+            }
+            readOnly
+          />
+        </label>
+
+        {gitState.repo ? (
+          <p className="hint">
+            {gitState.branch
+              ? `On ${gitState.branch}. Syncing follows the checkout you are in, so a worktree syncs its own branch.`
+              : 'This checkout is not on a branch, so nothing can be pulled or pushed until it is.'}
+          </p>
+        ) : (
+          <p className="hint">
+            Git is optional. This vault keeps its markdown on disk and nothing else — turn
+            it into a repository from a terminal and these settings start applying.
+          </p>
         )}
-      </div>
 
-      <label className="check">
-        <input
-          type="checkbox"
-          checked={draft.syncEnabled}
-          onChange={(event) => set('syncEnabled', event.target.checked)}
-        />
-        Sync enabled
-      </label>
+        <label className="check">
+          <input
+            type="checkbox"
+            checked={git.enabled}
+            disabled={!gitState.repo}
+            onChange={(event) => setGitField('enabled', event.target.checked)}
+          />
+          Sync this vault
+        </label>
 
-      <label>
-        Idle before sync (ms)
-        <input
-          type="number"
-          value={draft.syncIdleMs}
-          onChange={(event) => set('syncIdleMs', Number(event.target.value))}
-        />
-      </label>
+        {/* Nested under the switch that governs them: with sync off they change nothing,
+            and offering them as live choices would say otherwise. */}
+        <div className="sub" data-disabled={!git.enabled || !gitState.repo}>
+          {SYNC_SWITCHES.map((row) => (
+            <label key={row.key} className="check" title={row.hint}>
+              <input
+                type="checkbox"
+                checked={Boolean(git[row.key])}
+                disabled={!git.enabled || !gitState.repo}
+                onChange={(event) => setGitField(row.key, event.target.checked)}
+              />
+              {row.label}
+            </label>
+          ))}
+
+          <label>
+            Idle before sync (ms)
+            <input
+              type="number"
+              min={1000}
+              step={1000}
+              value={git.idleMs}
+              disabled={!git.enabled || !gitState.repo}
+              onChange={(event) => setGitField('idleMs', Number(event.target.value))}
+            />
+          </label>
+        </div>
+
+        <p className="hint">
+          {describeSync(git, gitState.repo, Boolean(gitState.remoteUrl))}
+        </p>
+
+        <div className="row">
+          <button
+            type="button"
+            onClick={() => void testRemote()}
+            disabled={!gitState.remoteUrl}
+          >
+            test remote
+          </button>
+          <button type="button" onClick={() => void app.saveGitSettings(git)}>
+            save sync settings
+          </button>
+          {remoteResult && (
+            <span className="result" data-ok={remoteResult.ok}>
+              {remoteResult.ok ? 'ok' : 'failed'} · {remoteResult.message}
+            </span>
+          )}
+        </div>
+      </fieldset>
 
       <button type="submit">save</button>
 
@@ -125,12 +219,12 @@ export function SettingsView() {
           <label>
             Presence color
             <select
-              value={identity.presenceColor}
+              value={identity.color}
               onChange={(event) =>
-                setIdentity({ ...identity, presenceColor: event.target.value })
+                setIdentity({ ...identity, color: event.target.value })
               }
             >
-              {opalFrom(app.profile?.presenceColor).map((color) => (
+              {opalFrom(app.profile?.color).map((color) => (
                 <option key={color.hex} value={color.hex}>
                   opal {color.name}
                 </option>
@@ -178,10 +272,10 @@ export function SettingsView() {
           <label>
             Claude config directory
             <input
-              value={identity.claudeConfigDir ?? ''}
+              value={identity.claudeCfgDir ?? ''}
               placeholder="~/.claude"
               onChange={(event) =>
-                setIdentity({ ...identity, claudeConfigDir: event.target.value || null })
+                setIdentity({ ...identity, claudeCfgDir: event.target.value || null })
               }
             />
           </label>

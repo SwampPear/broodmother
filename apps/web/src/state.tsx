@@ -8,16 +8,19 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import type {
-  Identity,
-  BroodmotherConfig,
-  Profile,
-  SyncStatus,
-  VaultEntry,
-  VaultEvent,
-  VaultPath,
-  VaultSummary,
-  Worktree,
+import {
+  defaultGitSettings,
+  type GitSettings,
+  type GitState,
+  type Identity,
+  type BroodmotherConfig,
+  type Profile,
+  type SyncStatus,
+  type VaultEntry,
+  type VaultEvent,
+  type VaultPath,
+  type VaultSummary,
+  type Worktree,
 } from '@broodmother/shared'
 import { api, type ApiClient, type Connection } from './api'
 
@@ -44,6 +47,11 @@ export interface App {
   /** The checkouts in the open vault, and which one you are in. */
   worktrees: Worktree[]
   worktree: string
+  /** What git says about the open checkout — `repo: false` is a vault with none, which is
+   *  an ordinary thing for a vault to be. */
+  gitState: GitState
+  /** How the open vault is set to sync. */
+  gitSettings: GitSettings
   /** Which checkout is open, as one string: the vault, and the worktree inside it. Anything
    *  kept per checkout is filed under this, and anything read out of one goes stale the
    *  moment it changes — the same document name on another branch is another document.
@@ -62,10 +70,12 @@ export interface App {
   syncNow(): Promise<Failure>
   clearConflict(): Promise<Failure>
   saveConfig(config: BroodmotherConfig): Promise<Failure>
+  saveGitSettings(settings: GitSettings): Promise<Failure>
   createVault(input: {
     name: string
-    remoteUrl: string
-    branch: string
+    git: 'none' | 'local' | 'remote'
+    remoteUrl?: string | null
+    branch?: string | null
   }): Promise<Failure>
   openVault(path: string): Promise<Failure>
   deleteVault(name: string): Promise<Failure>
@@ -81,11 +91,15 @@ export interface App {
 const TREE_COALESCE_MS = 60
 
 const idleSync: SyncStatus = {
-  state: 'idle',
+  state: 'off',
   lastSyncedAt: null,
   conflicted: [],
   message: null,
 }
+
+/** What the app assumes before the server answers: a vault with no repository, which is the
+ *  quiet claim. Guessing the other way would flash a git UI at a folder that has none. */
+const noGit: GitState = { repo: false, remoteUrl: null, branch: null }
 
 const AppContext = createContext<App | null>(null)
 
@@ -111,6 +125,8 @@ export function AppProvider({
   const [vaults, setVaults] = useState<VaultSummary[]>([])
   const [worktrees, setWorktrees] = useState<Worktree[]>([])
   const [worktree, setWorktree] = useState('local')
+  const [gitState, setGitState] = useState<GitState>(noGit)
+  const [gitSettings, setGitSettings] = useState<GitSettings>(defaultGitSettings)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [profiles, setProfiles] = useState<Profile[]>([])
   const [home, setHome] = useState('')
@@ -167,9 +183,20 @@ export function AppProvider({
       setConfigReset(result.reset)
     })
 
+  const loadGit = () =>
+    client
+      .request('GET /api/git', null)
+      .then((result) => {
+        setGitState(result.state)
+        setGitSettings(result.settings)
+      })
+      // 409s until a vault is open, which is a state and not a failure.
+      .catch(() => setGitState(noGit))
+
   useEffect(() => {
     void loadVault()
     void loadWorktrees()
+    void loadGit()
     void Promise.allSettled([loadVaults(), loadProfiles(), loadConfig()]).then(() =>
       setReady(true),
     )
@@ -228,6 +255,8 @@ export function AppProvider({
     vaults,
     worktrees,
     worktree,
+    gitState,
+    gitSettings,
     checkout: `${config?.vaultPath ?? ''}#${worktree}`,
     vaultEvent,
     notice,
@@ -274,19 +303,40 @@ export function AppProvider({
         return 'settings saved'
       }),
 
+    saveGitSettings: (settings) =>
+      run(async () => {
+        const result = await client.request('PUT /api/git', settings)
+        setGitSettings(result.settings)
+        return 'sync settings saved'
+      }),
+
     createVault: (input) =>
       run(async () => {
         const result = await client.request('POST /api/vaults', input)
         setConfig(result.config)
-        await Promise.all([loadVaults(), loadProfiles(), loadWorktrees(), loadVault()])
+        await Promise.all([
+          loadVaults(),
+          loadProfiles(),
+          loadWorktrees(),
+          loadVault(),
+          loadGit(),
+        ])
         return `created ${result.vault.name}`
       }),
 
+    // Every switch below reloads git: whether there is a repository, and where it points,
+    // is a fact about the checkout you land in and not about the one you left.
     openVault: (path) =>
       run(async () => {
         const result = await client.request('POST /api/vaults/open', { path })
         setConfig(result.config)
-        await Promise.all([loadVaults(), loadProfiles(), loadWorktrees(), loadVault()])
+        await Promise.all([
+          loadVaults(),
+          loadProfiles(),
+          loadWorktrees(),
+          loadVault(),
+          loadGit(),
+        ])
         return `opened ${path}`
       }),
 
@@ -294,7 +344,7 @@ export function AppProvider({
       run(async () => {
         const result = await client.request('DELETE /api/vaults', { name })
         setConfig(result.config)
-        await Promise.all([loadVaults(), loadProfiles(), loadVault()])
+        await Promise.all([loadVaults(), loadProfiles(), loadVault(), loadGit()])
         return `deleted ${name}`
       }),
 
@@ -302,7 +352,7 @@ export function AppProvider({
       run(async () => {
         const result = await client.request('POST /api/worktrees', input)
         setConfig(result.config)
-        await Promise.all([loadWorktrees(), loadVault()])
+        await Promise.all([loadWorktrees(), loadVault(), loadGit()])
         return `created ${result.worktree.name}`
       }),
 
@@ -310,7 +360,7 @@ export function AppProvider({
       run(async () => {
         const result = await client.request('POST /api/worktrees/open', { name })
         setConfig(result.config)
-        await Promise.all([loadWorktrees(), loadVault()])
+        await Promise.all([loadWorktrees(), loadVault(), loadGit()])
         return `switched to ${name}`
       }),
 
@@ -318,7 +368,7 @@ export function AppProvider({
       run(async () => {
         const result = await client.request('DELETE /api/worktrees', { name })
         setConfig(result.config)
-        await Promise.all([loadWorktrees(), loadVault()])
+        await Promise.all([loadWorktrees(), loadVault(), loadGit()])
         return `removed ${name}`
       }),
 

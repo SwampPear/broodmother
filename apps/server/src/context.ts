@@ -1,13 +1,16 @@
 import { mkdir, stat } from 'node:fs/promises'
 import path from 'node:path'
-import type {
-  Identity,
-  BroodmotherConfig,
-  Profile,
-  ServerMessage,
-  VaultEvent,
-  VaultSummary,
-  Worktree,
+import {
+  defaultGitSettings,
+  type GitSettings,
+  type GitState,
+  type Identity,
+  type BroodmotherConfig,
+  type Profile,
+  type ServerMessage,
+  type VaultEvent,
+  type VaultSummary,
+  type Worktree,
 } from '@broodmother/shared'
 import { ConfigStore, defaultConfig } from './config'
 import { Git } from './git/git'
@@ -81,7 +84,7 @@ export class AppContext {
     this.terminals = new Terminals(() => this.session())
     this.sync = new SyncLoop({
       git: () => this.current?.git ?? null,
-      config: () => this.config,
+      settings: () => this.gitSettings,
       author: () => this.activeProfile?.gitAuthor ?? null,
       onStatus: (status) => this.broadcast({ type: 'sync', status }),
     })
@@ -131,6 +134,35 @@ export class AppContext {
 
   get profile(): Profile | null {
     return this.activeProfile
+  }
+
+  /** How the open vault syncs. A vault nobody has configured uses the defaults, which sync
+   *  nothing — git is opt-in, the same way it is optional. */
+  get gitSettings(): GitSettings {
+    return this.settingsFor(this.config.vaultPath)
+  }
+
+  settingsFor(vaultPath: string | null): GitSettings {
+    return (vaultPath && this.config.git[vaultPath]) || defaultGitSettings()
+  }
+
+  async setGitSettings(settings: GitSettings): Promise<GitSettings> {
+    const target = this.requireVault.path
+    await this.store.save({
+      ...this.config,
+      git: { ...this.config.git, [target]: settings },
+    })
+    await this.sync.refresh()
+    return settings
+  }
+
+  /** What git says about the open checkout, which is the truth about whether this vault has
+   *  a repository at all and where it syncs. */
+  async gitState(): Promise<GitState> {
+    const git = this.current?.git
+    if (!git || !(await git.isRepo()))
+      return { repo: false, remoteUrl: null, branch: null }
+    return { repo: true, remoteUrl: await git.remoteUrl(), branch: await git.branch() }
   }
 
   /** Throws rather than returning null: nothing that commits works without an identity. */
@@ -184,16 +216,24 @@ export class AppContext {
     if (!gone) throw new VaultError(`no vault named "${name}"`)
     await deleteVault(name, this.home)
 
-    // The binding outlives nothing: a folder of that name made later is a different vault.
+    // Nothing filed under the path outlives it: a folder of that name made later is a
+    // different vault, and it does not inherit this one's identity or its sync settings.
     const profiles = { ...this.config.profiles }
+    const git = { ...this.config.git }
     delete profiles[gone.path]
+    delete git[gone.path]
     if (this.config.vaultPath !== gone.path) {
-      await this.store.save({ ...this.config, profiles })
+      await this.store.save({ ...this.config, profiles, git })
       return this.vault
     }
 
     const next = (await listVaults(this.home, profiles))[0] ?? null
-    await this.store.save({ ...this.config, profiles, vaultPath: next?.path ?? null })
+    await this.store.save({
+      ...this.config,
+      profiles,
+      git,
+      vaultPath: next?.path ?? null,
+    })
     await this.loadProfile()
     await this.useVault(next?.path ?? null)
     return this.vault
@@ -261,14 +301,18 @@ export class AppContext {
   }
 
   private session(): TerminalSession {
-    const claudeConfigDir = this.activeProfile?.claudeConfigDir
+    const claudeCfgDir = this.activeProfile?.claudeCfgDir
     return {
       cwd: this.root ?? this.home,
-      env: claudeConfigDir ? { CLAUDE_CONFIG_DIR: expandHome(claudeConfigDir) } : {},
+      env: claudeCfgDir ? { CLAUDE_CONFIG_DIR: expandHome(claudeCfgDir) } : {},
     }
   }
 
-  /** A vault is created as the profile you are working as, and stays bound to it. */
+  /**
+   * A vault is created as the profile you are working as, and stays bound to it. A vault
+   * given a remote starts syncing, because asking for one is asking for that; a plain folder
+   * or a local repository does not, because there is nowhere for it to sync to.
+   */
   async addVault(input: NewVault): Promise<VaultSummary> {
     const profile = this.requireProfile
     const vault = await createVault(input, profile, this.home)
@@ -276,24 +320,23 @@ export class AppContext {
       ...this.config,
       vaultPath: vault.path,
       profiles: { ...this.config.profiles, [vault.path]: profile.name },
-      remoteUrl: input.remoteUrl,
-      branch: input.branch,
-      syncEnabled: true,
+      git: {
+        ...this.config.git,
+        [vault.path]: { ...defaultGitSettings(), enabled: input.git === 'remote' },
+      },
     })
     await this.useVault(vault.path)
     return vault
   }
 
-  /** Opens a vault, adopting the remote that the vault's own clone already points at. */
+  /** Opens a vault. Nothing about git is copied out of it: how it syncs is its own setting,
+   *  and where it syncs is a question for the repository every time it is asked. */
   async openVault(vaultPath: string): Promise<BroodmotherConfig> {
     const config = await this.store.save({ ...this.config, vaultPath })
     // The profile is settled before the vault opens: it is what picks the key git offers.
     await this.loadProfile()
     await this.useVault(vaultPath)
-    const remoteUrl = (await this.current?.git.remoteUrl()) ?? null
-    return remoteUrl
-      ? this.store.save({ ...config, remoteUrl, syncEnabled: true })
-      : config
+    return config
   }
 
   start(): void {
@@ -358,6 +401,7 @@ export class AppContext {
     await this.current?.watcher.close()
     if (!vaultPath) {
       this.current = null
+      await this.sync.refresh()
       return
     }
     // The vault is a folder of checkouts; what is opened is the one you are in.
@@ -373,6 +417,9 @@ export class AppContext {
       git: new Git(target, this.activeProfile?.sshKeyPath ?? null),
       watcher: new VaultWatcher(target, (event) => this.onVaultEvent(event)),
     }
+    // The vault underneath changed, so what the status line says about syncing has to. A
+    // clone and a plain folder do not report the same thing.
+    await this.sync.refresh()
   }
 
   private onVaultEvent(event: VaultEvent): void {

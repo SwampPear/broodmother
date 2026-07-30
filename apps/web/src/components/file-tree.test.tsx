@@ -132,12 +132,12 @@ it('collapses a folder with the left arrow', async () => {
   expect(screen.queryByRole('treeitem', { name: 'Overview.md' })).not.toBeInTheDocument()
 })
 
-it('raises create, move and delete for the focused entry', async () => {
+it('raises create, rename and delete for the focused entry', async () => {
   const { onCommand } = show()
   await userEvent.keyboard('{ArrowDown}n')
   expect(onCommand).toHaveBeenCalledWith('create', 'README.md')
   await userEvent.keyboard('r')
-  expect(onCommand).toHaveBeenCalledWith('move', 'README.md')
+  expect(onCommand).toHaveBeenCalledWith('rename', 'README.md')
   await userEvent.keyboard('d')
   expect(onCommand).toHaveBeenCalledWith('delete', 'README.md')
 })
@@ -290,7 +290,7 @@ it('offers the row commands on a right click, deleting through the same path as 
     within(menu)
       .getAllByRole('menuitem')
       .map((item) => item.textContent),
-  ).toEqual(['New note here', 'Rename or move…', 'Delete…'])
+  ).toEqual(['New note here', 'Rename', 'Delete…'])
 
   await userEvent.click(within(menu).getByRole('menuitem', { name: 'Delete…' }))
   expect(onCommand).toHaveBeenCalledWith('delete', 'README.md')

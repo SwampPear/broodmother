@@ -4,7 +4,7 @@ import { cors } from 'hono/cors'
 import type { Context } from 'hono'
 import { z } from 'zod'
 import { imageTypeOf, type BroodmotherConfig } from '@broodmother/shared'
-import { configSchema } from './config'
+import { configSchema, gitSettingsSchema, remoteUrlSchema } from './config'
 import { NoProfileError, NoVaultError, type AppContext } from './context'
 import { ProfileError, identitySchema } from './profiles'
 import { PathError, normalize } from './vault/paths'
@@ -16,11 +16,19 @@ export const WEB_ORIGINS = ['http://localhost:6767', 'http://127.0.0.1:6767']
 const docBody = z.object({ path: z.string(), markdown: z.string() })
 const moveBody = z.object({ from: z.string(), to: z.string() })
 const remoteBody = z.object({ remoteUrl: z.string(), branch: z.string() })
-const newVaultBody = z.object({
-  name: z.string().min(1),
-  remoteUrl: z.string().min(1),
-  branch: z.string().min(1),
-})
+/** Git is optional, so the remote and branch are too — but a vault asked to sync needs
+ *  somewhere to sync to, and that is worth refusing early rather than half-creating. */
+const newVaultBody = z
+  .object({
+    name: z.string().min(1),
+    git: z.enum(['none', 'local', 'remote']),
+    remoteUrl: remoteUrlSchema.nullish(),
+    branch: z.string().min(1).nullish(),
+  })
+  .refine(
+    (body) => body.git !== 'remote' || Boolean(body.remoteUrl?.trim()),
+    'a vault that syncs needs a remote',
+  )
 const openVaultBody = z.object({ path: z.string().min(1) })
 const newProfileBody = identitySchema.extend({ name: z.string().min(1) })
 const pickProfileBody = z.object({ profile: z.string().min(1) })
@@ -188,6 +196,16 @@ export function createApp(ctx: AppContext): Hono {
     const { remoteUrl, branch } = await parse(c, remoteBody)
     return c.json(await ctx.open.git.testRemote(remoteUrl, branch))
   })
+
+  /** What git says about the open checkout, and how this vault is set to sync. Two halves
+   *  of one answer: the first is read off disk, the second is the machine's own setting. */
+  app.get('/api/git', async (c) =>
+    c.json({ state: await ctx.gitState(), settings: ctx.gitSettings }),
+  )
+
+  app.put('/api/git', async (c) =>
+    c.json({ settings: await ctx.setGitSettings(await parse(c, gitSettingsSchema)) }),
+  )
 
   app.get('/api/sync', (c) => c.json(ctx.sync.state))
   app.post('/api/sync/now', async (c) => c.json(await ctx.sync.syncNow()))

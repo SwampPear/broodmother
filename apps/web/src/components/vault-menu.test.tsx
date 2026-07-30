@@ -13,18 +13,18 @@ const profiles: Profile[] = [
   {
     name: 'ada',
     path: '/Users/you/.broodmother/profiles/ada.json',
-    presenceColor: '#c084fc',
+    color: '#c084fc',
     gitAuthor: { name: 'Ada Lovelace', email: 'ada@example.com' },
     sshKeyPath: '~/.ssh/id_work',
-    claudeConfigDir: null,
+    claudeCfgDir: null,
   },
   {
     name: 'grace',
     path: '/Users/you/.broodmother/profiles/grace.json',
-    presenceColor: '#34d399',
+    color: '#34d399',
     gitAuthor: { name: 'Grace Hopper', email: 'grace@example.com' },
     sshKeyPath: null,
-    claudeConfigDir: null,
+    claudeCfgDir: null,
   },
 ]
 

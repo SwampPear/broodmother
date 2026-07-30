@@ -16,14 +16,49 @@ async function show(client = createMockClient()) {
   return client
 }
 
-it('edits and saves the config', async () => {
+const NO_GIT = { repo: false, remoteUrl: null, branch: null }
+
+it('saves the sync settings for the open vault', async () => {
   const client = await show()
-  const branch = screen.getByLabelText('Branch')
-  await userEvent.clear(branch)
-  await userEvent.type(branch, 'trunk')
-  await userEvent.click(screen.getByRole('button', { name: 'save' }))
-  const { config } = await client.request('GET /api/config', null)
-  expect(config.branch).toBe('trunk')
+  await userEvent.click(screen.getByRole('checkbox', { name: 'Push after committing' }))
+  const idle = screen.getByLabelText('Idle before sync (ms)')
+  await userEvent.clear(idle)
+  await userEvent.type(idle, '30000')
+  await userEvent.click(screen.getByRole('button', { name: 'save sync settings' }))
+
+  const { settings } = await client.request('GET /api/git', null)
+  expect(settings).toMatchObject({ enabled: true, push: false, idleMs: 30_000 })
+})
+
+it('says what the switches add up to, rather than leaving it to be worked out', async () => {
+  await show()
+  expect(
+    screen.getByText('After 10s of quiet, broodmother commits what changed, then pulls, then pushes.'),
+  ).toBeInTheDocument()
+
+  await userEvent.click(screen.getByRole('checkbox', { name: 'Push after committing' }))
+  expect(
+    screen.getByText('After 10s of quiet, broodmother commits what changed, then pulls.'),
+  ).toBeInTheDocument()
+})
+
+it('reports a vault with no repository, and offers it no sync switches', async () => {
+  await show(createMockClient({ gitState: NO_GIT }))
+
+  expect(screen.getByLabelText('Repository')).toHaveValue(
+    'none — this vault is a plain folder',
+  )
+  expect(screen.getByText(/Nothing syncs: this vault has no repository/)).toBeVisible()
+  expect(screen.getByRole('checkbox', { name: 'Sync this vault' })).toBeDisabled()
+  expect(screen.getByRole('button', { name: 'test remote' })).toBeDisabled()
+})
+
+it('reports a repository that has no remote as local only', async () => {
+  await show(
+    createMockClient({ gitState: { repo: true, remoteUrl: null, branch: 'main' } }),
+  )
+  expect(screen.getByLabelText('Repository')).toHaveValue('local only — no remote')
+  expect(screen.getByRole('button', { name: 'test remote' })).toBeDisabled()
 })
 
 it('reports a specific result from the remote test', async () => {
@@ -35,20 +70,12 @@ it('reports a specific result from the remote test', async () => {
   )
 })
 
-it('reports failure when there is no remote to test', async () => {
-  await show(createMockClient({ config: { remoteUrl: null } as never }))
-  await userEvent.click(screen.getByRole('button', { name: 'test remote' }))
-  expect(await screen.findByText(/no remote configured/)).toHaveAttribute(
-    'data-ok',
-    'false',
-  )
-})
-
-/* Pointing the config at a folder broodmother never cloned is not a setting, it is a break. */
-it('will not let the vault folder or its remote be retyped', async () => {
+/* Pointing the config at a folder broodmother never made is not a setting, it is a break.
+   The repository is read off the checkout, so it is not typed here either. */
+it('will not let the vault folder or its repository be retyped', async () => {
   await show()
   expect(screen.getByLabelText('Vault path')).toHaveAttribute('readonly')
-  expect(screen.getByLabelText('Remote URL')).toHaveAttribute('readonly')
+  expect(screen.getByLabelText('Repository')).toHaveAttribute('readonly')
   expect(screen.getByText(/make\s+another vault/)).toBeInTheDocument()
 })
 
@@ -57,12 +84,10 @@ it('names the fields the backend had to reset', async () => {
   const request = client.request.bind(client)
   client.request = (async (route: ApiRoute, body: never) => {
     const result = await request(route, body)
-    return route === 'GET /api/config'
-      ? { ...result, reset: ['branch', 'syncIdleMs'] }
-      : result
+    return route === 'GET /api/config' ? { ...result, reset: ['git', 'worktrees'] } : result
   }) as typeof client.request
   await show(client)
-  expect(screen.getByRole('alert')).toHaveTextContent('branch, syncIdleMs')
+  expect(screen.getByRole('alert')).toHaveTextContent('git, worktrees')
 })
 
 it('opens the palette on the colour the profile already is', async () => {
@@ -72,10 +97,10 @@ it('opens the palette on the colour the profile already is', async () => {
         {
           name: 'you',
           path: '/Users/you/.broodmother/profiles/you.json',
-          presenceColor: '#fbbf24',
+          color: '#fbbf24',
           gitAuthor: { name: 'You', email: 'you@example.com' },
           sshKeyPath: null,
-          claudeConfigDir: null,
+          claudeCfgDir: null,
         },
       ],
     }),
@@ -117,6 +142,6 @@ it('saves the credentials the profile works with', async () => {
   const { active } = await client.request('GET /api/profiles', null)
   expect(active).toMatchObject({
     sshKeyPath: '~/.ssh/id_ed25519',
-    claudeConfigDir: '~/.claude-work',
+    claudeCfgDir: '~/.claude-work',
   })
 })

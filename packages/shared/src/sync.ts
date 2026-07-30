@@ -1,6 +1,8 @@
 import type { VaultPath } from './vault'
 
-export type SyncState = 'idle' | 'syncing' | 'conflict' | 'error' | 'offline'
+/** `off` is a vault that does not sync — no repository, or sync turned off — and is a
+ *  standing state rather than a failure. `idle` means syncing, and nothing to do right now. */
+export type SyncState = 'off' | 'idle' | 'syncing' | 'conflict' | 'error' | 'offline'
 
 export interface SyncStatus {
   state: SyncState

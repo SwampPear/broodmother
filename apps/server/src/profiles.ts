@@ -17,10 +17,10 @@ export const PROFILES_DIR = 'profiles'
 const credential = z.string().min(1).nullable()
 
 export const identitySchema = z.object({
-  presenceColor: z.string().regex(/^#[0-9a-fA-F]{6}$/, 'presence color must be #rrggbb'),
+  color: z.string().regex(/^#[0-9a-fA-F]{6}$/, 'presence color must be #rrggbb'),
   gitAuthor: z.object({ name: z.string().min(1), email: z.string().min(1) }),
   sshKeyPath: credential,
-  claudeConfigDir: credential,
+  claudeCfgDir: credential,
 })
 
 export function broodmotherHome(): string {
@@ -49,10 +49,10 @@ export function expandHome(target: string): string {
  */
 async function identityOf(file: string, name: string): Promise<Identity> {
   const identity: Identity = {
-    presenceColor: DEFAULT_COLOR,
+    color: DEFAULT_COLOR,
     gitAuthor: { name, email: `${name}@localhost` },
     sshKeyPath: null,
-    claudeConfigDir: null,
+    claudeCfgDir: null,
   }
   const raw = await readFile(file, 'utf8')
     .then(JSON.parse)

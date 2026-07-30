@@ -4,7 +4,14 @@ import type { SyncStatus } from '@broodmother/shared'
 
 function syncLabel(sync: SyncStatus): string {
   switch (sync.state) {
+    // A vault with no repository, or with sync turned off. Saying "idle" here would claim a
+    // backup that is not happening.
+    case 'off':
+      return `not syncing · ${sync.message ?? 'sync is off for this vault'}`
+    // A pass can succeed and still have done less than the whole round — auto-commit off,
+    // no remote to push to — and that is what the message says.
     case 'idle':
+      if (sync.message) return `idle · ${sync.message}`
       return sync.lastSyncedAt
         ? `idle · synced ${new Date(sync.lastSyncedAt).toLocaleTimeString()}`
         : 'idle · never synced'

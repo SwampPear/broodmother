@@ -40,6 +40,10 @@ export function assertWorktreeName(name: string): void {
  * Every checkout in the vault folder. The branch comes from the checkout rather than from
  * the name, because a worktree can be moved onto another branch from a terminal and the
  * folder name would not know.
+ *
+ * `local` is listed whether or not it is a checkout: a vault with no repository still has
+ * the one folder you work in, and it is the same folder either way. Everything beside it has
+ * to be a real checkout, because that is the only thing a second folder here can be.
  */
 export async function listWorktrees(vault: string): Promise<Worktree[]> {
   await mkdir(vault, { recursive: true })
@@ -49,12 +53,16 @@ export async function listWorktrees(vault: string): Promise<Worktree[]> {
   for (const entry of entries) {
     if (!entry.isDirectory() || entry.name.startsWith('.')) continue
     const target = path.join(vault, entry.name)
-    if (!(await isCheckout(target))) continue
+    const primary = entry.name === PRIMARY
+    const checkout = await isCheckout(target)
+    if (!checkout && !primary) continue
     found.push({
       name: entry.name,
       path: target,
-      branch: await branchOf(target),
-      primary: entry.name === PRIMARY,
+      // Only asked of a real checkout: a plain folder inside somebody's git-backed home
+      // would otherwise report that repository's branch as its own.
+      branch: checkout ? await branchOf(target) : null,
+      primary,
     })
   }
 

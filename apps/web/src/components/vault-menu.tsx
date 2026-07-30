@@ -94,7 +94,7 @@ export function VaultMenu({
             id: `profile:${profile.name}`,
             label: profile.name,
             description: profile.gitAuthor.email,
-            badge: { text: initial(profile.name), color: profile.presenceColor },
+            badge: { text: initial(profile.name), color: profile.color },
             selected: profile.name === activeProfile,
             onSelect: () => {
               close()

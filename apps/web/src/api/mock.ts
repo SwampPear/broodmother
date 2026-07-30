@@ -1,17 +1,20 @@
-import type {
-  ApiRequest,
-  ApiResponse,
-  ApiRoute,
-  Identity,
-  BroodmotherConfig,
-  Profile,
-  ServerMessage,
-  SyncStatus,
-  TerminalServerMessage,
-  VaultEntry,
-  VaultPath,
-  VaultSummary,
-  Worktree,
+import {
+  defaultGitSettings,
+  type ApiRequest,
+  type ApiResponse,
+  type ApiRoute,
+  type GitSettings,
+  type GitState,
+  type Identity,
+  type BroodmotherConfig,
+  type Profile,
+  type ServerMessage,
+  type SyncStatus,
+  type TerminalServerMessage,
+  type VaultEntry,
+  type VaultPath,
+  type VaultSummary,
+  type Worktree,
 } from '@broodmother/shared'
 import type { ApiClient, Connection } from './client'
 
@@ -30,23 +33,29 @@ const seedDocs: Record<VaultPath, string> = {
     '# Roadmap\n\n1. Write it down\n2. Share it\n3. Keep it current\n',
 }
 
+const HANDBOOK = '/Users/you/.broodmother/handbook'
+
 const seedConfig: BroodmotherConfig = {
-  vaultPath: '/Users/you/.broodmother/handbook',
-  profiles: { '/Users/you/.broodmother/handbook': 'you' },
+  vaultPath: HANDBOOK,
+  profiles: { [HANDBOOK]: 'you' },
   worktrees: {},
+  git: { [HANDBOOK]: { ...defaultGitSettings(), enabled: true } },
+}
+
+/** The seeded vault is a clone, which is the case with the most UI hanging off it. */
+const seedGitState: GitState = {
+  repo: true,
   remoteUrl: 'git@github.com:you/handbook.git',
   branch: 'main',
-  syncEnabled: true,
-  syncIdleMs: 10_000,
 }
 
 const seedProfile: Profile = {
   name: 'you',
   path: '/Users/you/.broodmother/profiles/you.json',
-  presenceColor: '#c084fc',
+  color: '#c084fc',
   gitAuthor: { name: 'You', email: 'you@example.com' },
   sshKeyPath: null,
-  claudeConfigDir: null,
+  claudeCfgDir: null,
 }
 
 function tree(paths: VaultPath[]): VaultEntry[] {
@@ -80,6 +89,8 @@ export function createMockClient(
     active?: VaultSummary | null
     worktrees?: Worktree[]
     worktree?: string
+    gitState?: GitState
+    gitSettings?: GitSettings
   } = {},
 ): MockClient {
   const docs = { ...seedDocs, ...seed.docs }
@@ -112,6 +123,13 @@ export function createMockClient(
     { name: 'local', path: `${home}/handbook/local`, branch: 'main', primary: true },
   ]
   let worktree = seed.worktree ?? 'local'
+  let gitState: GitState = seed.gitState ?? seedGitState
+  let gitSettings: GitSettings =
+    seed.gitSettings ??
+    config.git[config.vaultPath ?? ''] ?? {
+      ...defaultGitSettings(),
+      enabled: gitState.repo,
+    }
   let sync: SyncStatus = seed.sync ?? {
     state: 'idle',
     lastSyncedAt: Date.now(),
@@ -180,9 +198,11 @@ export function createMockClient(
         return { profile }
       },
       'GET /api/vaults': async () => ({ home, vaults: [...vaults], active }),
-      'POST /api/vaults': async ({ name, remoteUrl, branch }) => {
+      'POST /api/vaults': async ({ name, git, remoteUrl, branch }) => {
         if (vaults.some((vault) => vault.name === name))
           throw new Error(`a vault named "${name}" already exists`)
+        if (git === 'remote' && !remoteUrl?.trim())
+          throw new Error('a vault that syncs needs a remote')
         const vault = {
           name,
           path: `${home}/${name}`,
@@ -191,12 +211,16 @@ export function createMockClient(
         vaults.push(vault)
         active = vault
         pending = null
+        gitSettings = { ...defaultGitSettings(), enabled: git === 'remote' }
+        gitState = {
+          repo: git !== 'none',
+          remoteUrl: git === 'remote' ? (remoteUrl?.trim() ?? null) : null,
+          branch: git === 'none' ? null : (branch?.trim() || 'main'),
+        }
         config = {
           ...config,
           vaultPath: vault.path,
-          remoteUrl,
-          branch,
-          syncEnabled: true,
+          git: { ...config.git, [vault.path]: gitSettings },
         }
         return { vault, config }
       },
@@ -259,6 +283,13 @@ export function createMockClient(
         ok: Boolean(remoteUrl),
         message: remoteUrl ? `reached ${remoteUrl} (${branch})` : 'no remote configured',
       }),
+      'GET /api/git': async () => ({ state: gitState, settings: gitSettings }),
+      'PUT /api/git': async (settings) => {
+        gitSettings = settings
+        if (config.vaultPath)
+          config = { ...config, git: { ...config.git, [config.vaultPath]: settings } }
+        return { settings }
+      },
       'GET /api/sync': async () => sync,
       'POST /api/sync/now': async () => {
         sync = { state: 'idle', lastSyncedAt: Date.now(), conflicted: [], message: null }

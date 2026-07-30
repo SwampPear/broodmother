@@ -1,47 +1,53 @@
-import { writeFile } from 'node:fs/promises'
+import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
-import type { BroodmotherConfig, SyncStatus } from '@broodmother/shared'
-import { defaultConfig } from '../config'
+import { defaultGitSettings, type GitSettings, type SyncStatus } from '@broodmother/shared'
 import { bareRemote, cleanup, cloneOf, git, tempDir } from '../test/fixtures'
 import { Git } from './git'
 import { SyncLoop, commitMessage } from './sync'
 
 afterAll(cleanup)
 
-async function harness(overrides: Partial<BroodmotherConfig> = {}) {
-  const remote = await bareRemote()
-  const dir = await cloneOf(remote)
-  await writeFile(path.join(dir, 'index.md'), '# index\n')
-  await git(dir, 'add', '-A')
-  await git(dir, 'commit', '-m', 'init')
-  await git(dir, 'push', 'origin', 'HEAD:main')
+async function harness(
+  overrides: Partial<GitSettings> = {},
+  options: { dir?: string; remote?: string | null } = {},
+) {
+  const remote = options.remote === undefined ? await bareRemote() : options.remote
+  let dir = options.dir
+  if (!dir) {
+    if (!remote) throw new Error('a harness with no remote needs a directory')
+    dir = await cloneOf(remote)
+    await writeFile(path.join(dir, 'index.md'), '# index\n')
+    await git(dir, 'add', '-A')
+    await git(dir, 'commit', '-m', 'init')
+    await git(dir, 'push', 'origin', 'HEAD:main')
+  }
 
   let clock = 1_000_000
   const statuses: SyncStatus[] = []
-  const config: BroodmotherConfig = {
-    ...defaultConfig(dir),
-    remoteUrl: remote,
-    branch: 'main',
-    syncEnabled: true,
-    ...overrides,
-  }
+  const settings: GitSettings = { ...defaultGitSettings(), enabled: true, ...overrides }
   const loop = new SyncLoop({
-    git: () => new Git(dir),
-    config: () => config,
+    git: () => new Git(dir!),
+    settings: () => settings,
     author: () => ({ name: 'Test', email: 'test@localhost' }),
     onStatus: (status) => statuses.push(status),
     now: () => clock,
   })
 
+  // The app settles the standing state when it opens a vault, so the harness does too —
+  // otherwise every test starts from the constructor's `off` rather than from a vault.
+  await loop.refresh()
+  statuses.length = 0
+
   return {
-    remote,
+    remote: remote!,
     dir,
     loop,
     statuses,
-    config,
+    settings,
     advance: (ms: number) => (clock += ms),
-    remoteLog: async () => (await git(remote, 'log', '--oneline')).stdout,
+    log: async () => (await git(dir!, 'log', '--oneline')).stdout,
+    remoteLog: async () => (await git(remote!, 'log', '--oneline')).stdout,
   }
 }
 
@@ -85,19 +91,98 @@ describe('SyncLoop', () => {
     expect(await h.remoteLog()).toContain('docs: update note')
   })
 
-  it('does nothing when sync is disabled or no remote is configured', async () => {
-    const disabled = await harness({ syncEnabled: false })
-    await writeFile(path.join(disabled.dir, 'note.md'), 'body\n')
-    disabled.loop.noteEdit()
-    disabled.advance(60_000)
-    expect((await disabled.loop.tick()).state).toBe('idle')
-    expect(await disabled.remoteLog()).not.toContain('docs: update note')
+  it('does nothing when sync is turned off for the vault', async () => {
+    const h = await harness({ enabled: false })
+    await writeFile(path.join(h.dir, 'note.md'), 'body\n')
+    h.loop.noteEdit()
+    h.advance(60_000)
 
-    const remoteless = await harness({ remoteUrl: null })
-    remoteless.loop.noteEdit()
-    remoteless.advance(60_000)
-    expect((await remoteless.loop.tick()).state).toBe('idle')
-    expect((await remoteless.loop.syncNow()).message).toBe('no remote configured')
+    expect((await h.loop.tick()).state).toBe('off')
+    expect((await h.loop.syncNow()).message).toBe('sync is off for this vault')
+    expect(await h.remoteLog()).not.toContain('docs: update note')
+  })
+
+  it('reports off, and never touches git, in a vault with no repository', async () => {
+    const plain = await tempDir()
+    await writeFile(path.join(plain, 'note.md'), 'body\n')
+    const h = await harness({}, { dir: plain, remote: null })
+    h.loop.noteEdit()
+    h.advance(60_000)
+
+    const status = await h.loop.tick()
+    expect(status.state).toBe('off')
+    expect(status.message).toBe('this vault has no git repo')
+    expect(status.lastSyncedAt).toBeNull()
+  })
+
+  it('commits locally when the repository has no remote', async () => {
+    const solo = await tempDir()
+    await git(solo, 'init', '--initial-branch=main')
+    await writeFile(path.join(solo, 'note.md'), 'body\n')
+    const h = await harness({}, { dir: solo, remote: null })
+    h.loop.noteEdit()
+    h.advance(60_000)
+
+    const status = await h.loop.tick()
+    expect(status.state).toBe('idle')
+    expect(status.message).toBe('no remote — commits stay in this vault')
+    expect(await h.log()).toContain('docs: update note')
+  })
+
+  it('leaves changes alone when auto-commit is off, and still pushes what was committed', async () => {
+    const h = await harness({ autoCommit: false })
+    await writeFile(path.join(h.dir, 'by-hand.md'), 'mine\n')
+    await git(h.dir, 'add', '-A')
+    await git(h.dir, 'commit', '-m', 'by hand')
+    await writeFile(path.join(h.dir, 'loose.md'), 'not committed\n')
+    h.loop.noteEdit()
+    h.advance(60_000)
+
+    const status = await h.loop.tick()
+    expect(status.state).toBe('idle')
+    expect(status.message).toMatch(/auto-commit is off/)
+    expect(await h.remoteLog()).toContain('by hand')
+    // The loose file is still exactly where it was: uncommitted, and nobody's business.
+    expect((await new Git(h.dir).status()).changed).toEqual(['loose.md'])
+  })
+
+  it('keeps commits local when push is off', async () => {
+    const h = await harness({ push: false })
+    await writeFile(path.join(h.dir, 'note.md'), 'body\n')
+    h.loop.noteEdit()
+    h.advance(60_000)
+
+    const status = await h.loop.tick()
+    expect(status.state).toBe('idle')
+    expect(status.message).toBe('push is off — commits stay in this vault')
+    expect(await h.log()).toContain('docs: update note')
+    expect(await h.remoteLog()).not.toContain('docs: update note')
+  })
+
+  it('is off when sync is on but every step is switched off', async () => {
+    const h = await harness({ autoCommit: false, pull: false, push: false })
+    h.loop.noteEdit()
+    h.advance(60_000)
+    expect((await h.loop.tick()).message).toBe('sync has nothing turned on')
+  })
+
+  it('syncs the branch the checkout is on, not one named in settings', async () => {
+    const h = await harness()
+    await git(h.dir, 'checkout', '-b', 'side')
+    await writeFile(path.join(h.dir, 'note.md'), 'body\n')
+    h.loop.noteEdit()
+    h.advance(60_000)
+
+    expect((await h.loop.tick()).state).toBe('idle')
+    const heads = await git(h.remote, 'branch', '--list')
+    expect(heads.stdout).toContain('side')
+    expect(await git(h.remote, 'log', 'side', '--oneline')).toMatchObject({
+      stdout: expect.stringContaining('docs: update note'),
+    })
+    // main is where it was: the checkout said `side`, so `side` is what moved.
+    expect((await git(h.remote, 'log', 'main', '--oneline')).stdout).not.toContain(
+      'docs: update note',
+    )
   })
 
   it('latches a conflict and stays latched until it is explicitly cleared', async () => {
@@ -135,7 +220,7 @@ describe('SyncLoop', () => {
   })
 
   it('reports offline rather than error when the remote is unreachable', async () => {
-    const h = await harness({ remoteUrl: 'ssh://127.0.0.1:1/repo.git' })
+    const h = await harness()
     await git(h.dir, 'remote', 'set-url', 'origin', 'ssh://127.0.0.1:1/repo.git')
     await writeFile(path.join(h.dir, 'note.md'), 'body\n')
     h.loop.noteEdit()

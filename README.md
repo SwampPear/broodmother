@@ -7,8 +7,8 @@
 <p align="center"><strong>Local markdown optimized for collaboration between people and agents.</strong></p>
 
 broodmother is a Mac app for reading and writing a folder of markdown files. The files on
-disk are the source of truth and git is the history and the backup. It carries its own editor,
-backend and terminals in one window.
+disk are the source of truth, and git — when you want it — is the history and the backup. It
+carries its own editor, backend and terminals in one window.
 
 ## Download
 
@@ -36,18 +36,21 @@ colour you are shown in, and optionally an SSH key for git to offer and a
 `CLAUDE_CONFIG_DIR` for the terminals to run with. One profile is enough; make more when you
 want work and personal commits signed differently.
 
-**Where you work — a vault.** A folder of markdown with git behind it. Creating one asks for
-a name, a git remote and a branch, and the remote is checked before anything is written,
-because a vault with nowhere to push is a vault you lose. An existing branch is cloned; an
-empty one is initialised and pushed on the first sync.
+**Where you work — a vault.** A folder of markdown, with as much git behind it as you want.
+Creating one asks for a name and how much: none at all, a repository with no remote, or one
+that syncs. Given a remote, it is checked before anything is written, because a vault that
+was asked to sync and cannot is worse than one that was never asked — an existing branch is
+cloned, an empty one is initialised and pushed on the first sync.
 
 After that the window is a file tree, tabs, and the document. **⌘K opens everything**: it
 searches your documents and the app's commands in one list, so a file name and "Toggle
 terminal" are the same keystroke away. **⌘J** shows the terminal panel, and a tab can be a
 shell or Claude Code running inside the vault.
 
-Sync is off until you turn it on, in Settings, where the idle delay before it commits and
-pushes lives too.
+Sync is off until you turn it on, in Settings, and it is set per vault — one can push on
+every quiet moment while the next keeps its history to itself. Under the switch are the
+steps it is made of: whether to commit for you, whether to pull, whether to push, and how
+long the vault has to be quiet first. A vault with no repository has nothing to set.
 
 ## Vaults, worktrees and profiles
 
@@ -56,7 +59,7 @@ pushes lives too.
 ```
 ~/.broodmother/
 ├── config.json           # this machine: which vault is open, which checkout in it, which
-│                         # profile each commits as, sync settings
+│                         # profile each commits as, and how each one syncs
 ├── profiles/
 │   ├── personal.json     # who you commit as, and the credentials you do it with
 │   └── work.json
@@ -77,6 +80,13 @@ the home still open fine: pass a path or set `BROODMOTHER_VAULT`.
 
 Switching between them, and making a new one, is the vault menu at the top of the tree —
 or `Switch or create vault` from ⌘K.
+
+Git is optional, and it is optional one vault at a time. A vault can be a plain folder of
+markdown, a repository with no remote, or a clone that syncs — and nothing else in the app
+changes between them: the same tree, the same tabs, the same `local/` you work in. Whether a
+vault has a repository is never read out of the config; it is asked of the folder, so a vault
+you `git init` in a terminal is git-backed from the next time it is opened, and one whose
+remote you repoint is pointed there.
 
 ### A worktree is the same vault on another branch
 

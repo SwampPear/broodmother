@@ -1,8 +1,9 @@
 import { mkdir, readFile, stat, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import { execa } from 'execa'
 import { afterAll, describe, expect, it } from 'vitest'
-import type { ApiResponse } from '@broodmother/shared'
+import { defaultGitSettings, type ApiResponse } from '@broodmother/shared'
 import { WEB_ORIGINS } from './app'
 import { defaultConfig } from './config'
 import { createProfile } from './profiles'
@@ -10,10 +11,10 @@ import { bareRemote, cleanup, cloneOf, git, tempDir } from './test/fixtures'
 import { HOST, type ServerHandle, startServer } from './index'
 
 const IDENTITY = {
-  presenceColor: '#8fb8d8',
+  color: '#8fb8d8',
   gitAuthor: { name: 'Test', email: 'test@localhost' },
   sshKeyPath: null,
-  claudeConfigDir: null,
+  claudeCfgDir: null,
 }
 
 const running: ServerHandle[] = []
@@ -221,24 +222,20 @@ describe('config routes', () => {
     const { body } = await call('GET', '/api/config')
     const response = body as ApiResponse<'GET /api/config'>
     expect(response.reset).toEqual([])
-    expect(response.config.branch).toBe('main')
+    expect(response.config.git).toEqual({})
   })
 
   it('PUT /api/config saves and rejects an invalid config', async () => {
-    const { call } = await server()
+    const { call, vault } = await server()
     const { config } = (await call('GET', '/api/config'))
       .body as ApiResponse<'GET /api/config'>
 
-    const saved = await call('PUT', '/api/config', { ...config, syncIdleMs: 30_000 })
-    expect((saved.body as ApiResponse<'PUT /api/config'>).config.syncIdleMs).toBe(30_000)
-    expect((await call('GET', '/api/config')).body).toMatchObject({
-      config: { syncIdleMs: 30_000 },
-    })
+    const git = { [vault]: { ...defaultGitSettings(), enabled: true } }
+    const saved = await call('PUT', '/api/config', { ...config, git })
+    expect((saved.body as ApiResponse<'PUT /api/config'>).config.git).toEqual(git)
+    expect((await call('GET', '/api/config')).body).toMatchObject({ config: { git } })
 
-    const bad = await call('PUT', '/api/config', {
-      ...config,
-      remoteUrl: 'https://token@github.com/x.git',
-    })
+    const bad = await call('PUT', '/api/config', { ...config, worktrees: 7 })
     expect(bad.status).toBe(400)
   })
 
@@ -282,20 +279,65 @@ describe('config routes', () => {
 
 describe('sync routes', () => {
   it('GET /api/sync, POST /api/sync/now and POST /api/sync/clear-conflict', async () => {
+    // The fixture vault is a plain folder, which is a vault that does not sync — reported
+    // as `off`, and for the reason that matters, rather than as an idle one that never
+    // gets round to it.
     const { call } = await server()
     expect((await call('GET', '/api/sync')).body).toEqual({
-      state: 'idle',
+      state: 'off',
       lastSyncedAt: null,
       conflicted: [],
-      message: null,
+      message: 'this vault has no git repo',
     })
     expect((await call('POST', '/api/sync/now')).body).toMatchObject({
-      state: 'idle',
-      message: 'no remote configured',
+      state: 'off',
+      message: 'this vault has no git repo',
     })
     expect((await call('POST', '/api/sync/clear-conflict')).body).toMatchObject({
-      state: 'idle',
+      state: 'off',
     })
+  })
+})
+
+describe('git routes', () => {
+  it('GET /api/git reports a vault with no repository as one', async () => {
+    const { call } = await server()
+    const { body } = await call('GET', '/api/git')
+    const response = body as ApiResponse<'GET /api/git'>
+    expect(response.state).toEqual({ repo: false, remoteUrl: null, branch: null })
+    expect(response.settings).toEqual(defaultGitSettings())
+  })
+
+  it('GET /api/git reads the remote and branch off the checkout', async () => {
+    const { call, root } = await server()
+    const remote = await bareRemote()
+    await git(root, 'init', '--initial-branch=main')
+    await git(root, 'remote', 'add', 'origin', remote)
+    await git(root, 'add', '-A')
+    await git(root, 'commit', '-m', 'init')
+
+    const { body } = await call('GET', '/api/git')
+    expect((body as ApiResponse<'GET /api/git'>).state).toEqual({
+      repo: true,
+      remoteUrl: remote,
+      branch: 'main',
+    })
+  })
+
+  it('PUT /api/git saves settings for the open vault and rejects a bad one', async () => {
+    const { call, vault } = await server()
+    const settings = { ...defaultGitSettings(), enabled: true, push: false }
+
+    const saved = await call('PUT', '/api/git', settings)
+    expect(saved.body).toEqual({ settings })
+    expect((await call('GET', '/api/git')).body).toMatchObject({ settings })
+    // Filed under the vault, not loose on the machine.
+    expect((await call('GET', '/api/config')).body).toMatchObject({
+      config: { git: { [vault]: settings } },
+    })
+
+    const bad = await call('PUT', '/api/git', { ...settings, idleMs: 5 })
+    expect(bad.status).toBe(400)
   })
 })
 
@@ -313,12 +355,13 @@ describe('vaults', () => {
     expect(body.vaults.map((vault) => vault.name)).toEqual(['notes'])
   })
 
-  it('creates a vault against a real remote and opens it', async () => {
+  it('creates a vault against a real remote, opens it and turns sync on', async () => {
     const { call } = await server()
     const remote = await bareRemote()
 
     const created = await call('POST', '/api/vaults', {
       name: 'fresh',
+      git: 'remote',
       remoteUrl: remote,
       branch: 'main',
     })
@@ -327,8 +370,69 @@ describe('vaults', () => {
     const body = created.body as ApiResponse<'POST /api/vaults'>
     expect(body.vault.name).toBe('fresh')
     expect(body.config.vaultPath).toBe(body.vault.path)
-    expect(body.config.remoteUrl).toBe(remote)
-    expect(body.config.syncEnabled).toBe(true)
+    expect(body.config.git[body.vault.path]).toEqual({
+      ...defaultGitSettings(),
+      enabled: true,
+    })
+
+    const state = (await call('GET', '/api/git')).body as ApiResponse<'GET /api/git'>
+    expect(state.state).toMatchObject({ repo: true, remoteUrl: remote, branch: 'main' })
+  })
+
+  it('creates a vault with no git at all, and leaves sync off', async () => {
+    const { call } = await server()
+
+    const created = await call('POST', '/api/vaults', { name: 'plain', git: 'none' })
+    expect(created.status).toBe(200)
+    const body = created.body as ApiResponse<'POST /api/vaults'>
+    expect(body.config.git[body.vault.path]).toEqual(defaultGitSettings())
+
+    const state = (await call('GET', '/api/git')).body as ApiResponse<'GET /api/git'>
+    expect(state.state).toEqual({ repo: false, remoteUrl: null, branch: null })
+    // Its `local` is still the folder you work in, so the tree and the worktree list work.
+    expect((await call('GET', '/api/vault')).status).toBe(200)
+    const trees = (await call('GET', '/api/worktrees'))
+      .body as ApiResponse<'GET /api/worktrees'>
+    expect(trees.worktrees).toEqual([
+      {
+        name: 'local',
+        path: path.join(body.vault.path, 'local'),
+        branch: null,
+        primary: true,
+      },
+    ])
+  })
+
+  it('creates a repository with no remote when asked for one', async () => {
+    const { call } = await server()
+
+    const created = await call('POST', '/api/vaults', {
+      name: 'solo',
+      git: 'local',
+      branch: 'main',
+    })
+    expect(created.status).toBe(200)
+
+    const state = (await call('GET', '/api/git')).body as ApiResponse<'GET /api/git'>
+    expect(state.state).toEqual({ repo: true, remoteUrl: null, branch: 'main' })
+  })
+
+  it('rejects a vault asked to sync with no remote to sync to', async () => {
+    const { call } = await server()
+    expect((await call('POST', '/api/vaults', { name: 'nowhere', git: 'remote' })).status).toBe(
+      400,
+    )
+  })
+
+  it('rejects a remote with credentials baked into the URL', async () => {
+    const { call } = await server()
+    const created = await call('POST', '/api/vaults', {
+      name: 'leaky',
+      git: 'remote',
+      remoteUrl: 'https://token@github.com/x/y.git',
+      branch: 'main',
+    })
+    expect(created.status).toBe(400)
   })
 
   it('rejects an unreachable remote rather than creating an unlinked vault', async () => {
@@ -336,6 +440,7 @@ describe('vaults', () => {
 
     const created = await call('POST', '/api/vaults', {
       name: 'broken',
+      git: 'remote',
       remoteUrl: path.join(os.tmpdir(), 'definitely-not-a-repo.git'),
       branch: 'main',
     })
@@ -352,6 +457,7 @@ describe('vaults', () => {
 
     const created = await call('POST', '/api/vaults', {
       name: '../escape',
+      git: 'remote',
       remoteUrl: remote,
       branch: 'main',
     })
@@ -359,17 +465,22 @@ describe('vaults', () => {
     expect(created.status).toBe(400)
   })
 
-  it('adopts the remote of the vault it opens', async () => {
+  it('opens a vault without copying anything about git out of it', async () => {
     const { call } = await server()
     const remote = await bareRemote()
-    const clone = await cloneOf(remote)
+    const vault = await tempDir()
+    await execa('git', ['clone', remote, path.join(vault, 'local')])
 
-    const opened = await call('POST', '/api/vaults/open', { path: clone })
+    const opened = await call('POST', '/api/vaults/open', { path: vault })
 
     expect(opened.status).toBe(200)
     const body = opened.body as ApiResponse<'POST /api/vaults/open'>
-    expect(body.config.vaultPath).toBe(clone)
-    expect(body.config.remoteUrl).toBe(remote)
+    expect(body.config.vaultPath).toBe(vault)
+    // The remote is not in the config; it is read back off the checkout every time.
+    const state = (await call('GET', '/api/git')).body as ApiResponse<'GET /api/git'>
+    expect(state.state.remoteUrl).toBe(remote)
+    // And opening it did not sign it up for syncing.
+    expect(state.settings.enabled).toBe(false)
   })
 })
 
@@ -504,10 +615,10 @@ describe('profiles', () => {
   it('PUT /api/profiles writes the identity and its credentials through to disk', async () => {
     const { call, home } = await server()
     const identity = {
-      presenceColor: '#c084fc',
+      color: '#c084fc',
       gitAuthor: { name: 'Ada', email: 'ada@example.com' },
       sshKeyPath: '~/.ssh/id_ed25519',
-      claudeConfigDir: '~/.claude',
+      claudeCfgDir: '~/.claude',
     }
 
     const saved = await call('PUT', '/api/profiles', identity)
@@ -519,7 +630,7 @@ describe('profiles', () => {
     ).toEqual(identity)
 
     expect(
-      (await call('PUT', '/api/profiles', { ...identity, presenceColor: 'red' })).status,
+      (await call('PUT', '/api/profiles', { ...identity, color: 'red' })).status,
     ).toBe(400)
   })
 })

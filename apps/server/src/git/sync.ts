@@ -1,10 +1,12 @@
-import type {
-  GitAuthor,
-  BroodmotherConfig,
-  SyncStatus,
-  VaultPath,
-} from '@broodmother/shared'
+import type { GitAuthor, GitSettings, SyncStatus, VaultPath } from '@broodmother/shared'
 import type { Git } from './git'
+
+const same = (a: SyncStatus, b: SyncStatus) =>
+  a.state === b.state &&
+  a.lastSyncedAt === b.lastSyncedAt &&
+  a.message === b.message &&
+  a.conflicted.length === b.conflicted.length &&
+  a.conflicted.every((path, i) => path === b.conflicted[i])
 
 export function commitMessage(paths: readonly VaultPath[]): string {
   if (paths.length === 0) return 'docs: update'
@@ -23,21 +25,32 @@ export function commitMessage(paths: readonly VaultPath[]): string {
 }
 
 export interface SyncDeps {
+  /** Null when no vault is open. A vault that is a plain folder still has a Git here — it
+   *  is the one that reports there is no repository. */
   git: () => Git | null
-  config: () => BroodmotherConfig
+  /** The open vault's own settings. Every vault answers this differently. */
+  settings: () => GitSettings
   /** Null until a profile exists: a commit needs someone to commit as. */
   author: () => GitAuthor | null
   onStatus: (status: SyncStatus) => void
   now?: () => number
 }
 
+/** Nothing here syncs, and that is a state rather than a fault. */
+const OFF = (message: string): Partial<SyncStatus> => ({
+  state: 'off',
+  conflicted: [],
+  message,
+})
+
 /**
- * Pull, commit, push once the vault has been quiet for `syncIdleMs`. A conflict latches:
+ * Pull, commit and push once the vault has been quiet for its idle period — as much of that
+ * as its settings ask for, and none of it in a vault with no repository. A conflict latches:
  * nothing syncs again until it is explicitly cleared.
  */
 export class SyncLoop {
   private status: SyncStatus = {
-    state: 'idle',
+    state: 'off',
     lastSyncedAt: null,
     conflicted: [],
     message: null,
@@ -76,30 +89,66 @@ export class SyncLoop {
     return this.state
   }
 
+  /**
+   * Recomputes the standing state without syncing, for when the vault underneath changes.
+   * Switching from a clone to a plain folder has to stop saying "synced two minutes ago".
+   */
+  async refresh(): Promise<SyncStatus> {
+    if (this.status.state === 'conflict') return this.state
+    const reason = await this.idleReason()
+    if (reason) return this.set({ ...OFF(reason), lastSyncedAt: null })
+    // Coming back from `off` is a fresh start: the reason it was off no longer holds, and
+    // leaving it on screen would explain a state the vault is not in any more.
+    return this.status.state === 'off'
+      ? this.set({ state: 'idle', message: null, lastSyncedAt: null })
+      : this.state
+  }
+
+  /**
+   * Why this vault does not sync, or null when it does. Having no repository is checked
+   * before the switch is: it is the reason the switch cannot be turned on, so it is the more
+   * useful of the two things to be told.
+   */
+  private async idleReason(): Promise<string | null> {
+    const git = this.deps.git()
+    if (!git) return 'no vault is open'
+    if (!(await git.isRepo())) return 'this vault has no git repo'
+    const settings = this.deps.settings()
+    if (!settings.enabled) return 'sync is off for this vault'
+    if (!settings.autoCommit && !settings.pull && !settings.push)
+      return 'sync has nothing turned on'
+    return null
+  }
+
   /** The automatic path: only syncs once the quiet period has passed. */
   async tick(): Promise<SyncStatus> {
-    const config = this.deps.config()
-    if (this.status.state === 'conflict' || !config.syncEnabled || !config.remoteUrl)
-      return this.state
+    if (this.status.state === 'conflict') return this.state
+    const settings = this.deps.settings()
+    if (!settings.enabled) return this.state
     if (this.lastEditAt === null) return this.state
-    if (this.now() - this.lastEditAt < config.syncIdleMs) return this.state
+    if (this.now() - this.lastEditAt < settings.idleMs) return this.state
     return this.sync()
   }
 
-  /** The manual path, still refused while a conflict is latched. */
+  /**
+   * The manual path, still refused while a conflict is latched. Someone asked, so someone
+   * is told: an unchanged status is not news the loop volunteers, but it is an answer here.
+   */
   async syncNow(): Promise<SyncStatus> {
     if (this.status.state === 'conflict') return this.state
-    return this.sync()
+    const before = this.state
+    const after = await this.sync()
+    if (same(before, after)) this.deps.onStatus(after)
+    return after
   }
 
   private async sync(): Promise<SyncStatus> {
-    const config = this.deps.config()
+    const settings = this.deps.settings()
     const git = this.deps.git()
     const author = this.deps.author()
-    if (!git) return this.set({ state: 'idle', message: 'no vault is open' })
-    if (!author) return this.set({ state: 'idle', message: 'no profile set up' })
-    if (!config.remoteUrl)
-      return this.set({ state: 'idle', message: 'no remote configured' })
+    const reason = await this.idleReason()
+    if (reason) return this.set({ ...OFF(reason), lastSyncedAt: this.status.lastSyncedAt })
+    if (!git) return this.set(OFF('no vault is open'))
     if (this.running) return this.state
     this.running = true
     this.set({ state: 'syncing', message: null })
@@ -109,44 +158,85 @@ export class SyncLoop {
       if (before.conflicted.length)
         return this.latch(before.conflicted, 'unresolved conflict')
 
+      // The branch comes from the checkout rather than from settings: a worktree is the
+      // same repository on another branch, and it syncs to the branch it is on.
+      const branch = await git.branch()
+      if (!branch)
+        return this.set({
+          state: 'error',
+          message: 'the checkout is not on a branch',
+        })
+
       // Commit before pulling: rebasing onto a dirty tree fails, and the conflict we do
       // want to see is between two commits.
+      let uncommitted = false
       if (before.changed.length) {
-        await git.stageAll()
-        const committed = await git.commit(commitMessage(before.changed), author)
-        if (!committed.ok)
+        if (!settings.autoCommit) uncommitted = true
+        else if (!author) return this.set(OFF('no profile set up'))
+        else {
+          await git.stageAll()
+          const committed = await git.commit(commitMessage(before.changed), author)
+          if (!committed.ok)
+            return this.set({
+              state: 'error',
+              message: committed.message.trim() || 'commit failed',
+            })
+        }
+      }
+
+      // A remote is the vault's, not the config's. Without one there is nothing to pull
+      // from or push to, and a vault whose history stays local is a working vault.
+      const remote = settings.pull || settings.push ? await git.remoteUrl() : null
+
+      if (settings.pull && remote && !uncommitted) {
+        const pulled = await git.pull(branch)
+        if (!pulled.ok) {
+          if (pulled.failure === 'conflict') {
+            const after = await git.status()
+            return this.latch(after.conflicted, pulled.message)
+          }
           return this.set({
-            state: 'error',
-            message: committed.message.trim() || 'commit failed',
+            state: pulled.failure === 'offline' ? 'offline' : 'error',
+            message: `${pulled.failure}: ${pulled.message.trim()}`,
+          })
+        }
+      }
+
+      if (settings.push && remote) {
+        const pushed = await git.push(branch)
+        if (!pushed.ok)
+          return this.set({
+            state: pushed.failure === 'offline' ? 'offline' : 'error',
+            message: `${pushed.failure}: ${pushed.message.trim()}`,
           })
       }
 
-      const pulled = await git.pull(config.branch)
-      if (!pulled.ok) {
-        if (pulled.failure === 'conflict') {
-          const after = await git.status()
-          return this.latch(after.conflicted, pulled.message)
-        }
-        return this.set({
-          state: pulled.failure === 'offline' ? 'offline' : 'error',
-          message: `${pulled.failure}: ${pulled.message.trim()}`,
-        })
-      }
-
-      const pushed = await git.push(config.branch)
-      if (!pushed.ok)
-        return this.set({
-          state: pushed.failure === 'offline' ? 'offline' : 'error',
-          message: `${pushed.failure}: ${pushed.message.trim()}`,
-        })
-
-      this.lastEditAt = null
-      return this.set({ state: 'idle', lastSyncedAt: this.now(), message: null })
+      // Held work is not synced work, so the clock only moves when nothing was left behind.
+      if (!uncommitted) this.lastEditAt = null
+      return this.set({
+        state: 'idle',
+        conflicted: [],
+        lastSyncedAt: uncommitted ? this.status.lastSyncedAt : this.now(),
+        message: this.settledMessage(settings, remote, uncommitted),
+      })
     } catch (error) {
       return this.set({ state: 'error', message: (error as Error).message })
     } finally {
       this.running = false
     }
+  }
+
+  /** What a successful pass has to say for itself, when it did less than the full round. */
+  private settledMessage(
+    settings: GitSettings,
+    remote: string | null,
+    uncommitted: boolean,
+  ): string | null {
+    if (uncommitted) return 'auto-commit is off — your changes are waiting to be committed'
+    if ((settings.pull || settings.push) && !remote)
+      return 'no remote — commits stay in this vault'
+    if (!settings.push) return 'push is off — commits stay in this vault'
+    return null
   }
 
   private latch(conflicted: VaultPath[], message: string): SyncStatus {
@@ -157,8 +247,12 @@ export class SyncLoop {
     })
   }
 
+  /** Silent when nothing moved: the loop wakes every second, and a status that has not
+   *  changed is not news anyone downstream needs another copy of. */
   private set(patch: Partial<SyncStatus>): SyncStatus {
-    this.status = { ...this.status, ...patch }
+    const next = { ...this.status, ...patch }
+    if (same(this.status, next)) return this.state
+    this.status = next
     this.deps.onStatus(this.state)
     return this.state
   }

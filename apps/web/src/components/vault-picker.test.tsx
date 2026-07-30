@@ -43,7 +43,7 @@ it('opens the vault that was clicked', async () => {
   expect(config.vaultPath).toBe('/Users/you/.broodmother/notes')
 })
 
-it('creates a vault with the git remote it was given', async () => {
+it('creates a vault with the git remote it was given, and turns sync on', async () => {
   const client = await show()
 
   await userEvent.type(screen.getByLabelText('Name'), 'fresh')
@@ -55,17 +55,54 @@ it('creates a vault with the git remote it was given', async () => {
 
   const { vaults } = await client.request('GET /api/vaults', null)
   expect(vaults.map((vault) => vault.name)).toContain('fresh')
-  const { config } = await client.request('GET /api/config', null)
-  expect(config.remoteUrl).toBe('git@github.com:you/fresh.git')
-  expect(config.syncEnabled).toBe(true)
+  const { state, settings } = await client.request('GET /api/git', null)
+  expect(state).toMatchObject({ repo: true, remoteUrl: 'git@github.com:you/fresh.git' })
+  expect(settings.enabled).toBe(true)
 })
 
-it('will not submit without a remote, because a vault is always git-backed', async () => {
+it('will not submit a syncing vault without a remote to sync to', async () => {
   await show()
 
   await userEvent.type(screen.getByLabelText('Name'), 'fresh')
 
   expect(screen.getByRole('button', { name: 'create vault' })).toBeDisabled()
+})
+
+it('creates a vault with no git, and asks for no remote to do it', async () => {
+  const client = await show()
+
+  await userEvent.type(screen.getByLabelText('Name'), 'plain')
+  await userEvent.click(screen.getByRole('radio', { name: 'No git' }))
+
+  // The remote and branch fields are gone: a plain folder has nowhere to put them.
+  expect(screen.queryByLabelText('Git remote')).not.toBeInTheDocument()
+  expect(screen.queryByLabelText('Branch')).not.toBeInTheDocument()
+
+  const create = screen.getByRole('button', { name: 'create vault' })
+  expect(create).toBeEnabled()
+  await userEvent.click(create)
+
+  const { vaults } = await client.request('GET /api/vaults', null)
+  expect(vaults.map((vault) => vault.name)).toContain('plain')
+  const { state, settings } = await client.request('GET /api/git', null)
+  expect(state).toEqual({ repo: false, remoteUrl: null, branch: null })
+  expect(settings.enabled).toBe(false)
+})
+
+it('creates a repository with no remote, keeping the branch but not the remote', async () => {
+  const client = await show()
+
+  await userEvent.type(screen.getByLabelText('Name'), 'solo')
+  await userEvent.click(screen.getByRole('radio', { name: 'Git, no remote' }))
+
+  expect(screen.queryByLabelText('Git remote')).not.toBeInTheDocument()
+  expect(screen.getByLabelText('Branch')).toBeInTheDocument()
+  await userEvent.click(screen.getByRole('button', { name: 'create vault' }))
+
+  const { state, settings } = await client.request('GET /api/git', null)
+  expect(state).toEqual({ repo: true, remoteUrl: null, branch: 'main' })
+  // A repository with nowhere to push is not signed up for pushing.
+  expect(settings.enabled).toBe(false)
 })
 
 it('closes after a vault is chosen', async () => {

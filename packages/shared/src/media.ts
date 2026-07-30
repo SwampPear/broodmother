@@ -1,4 +1,3 @@
-/** What a vault can hold that is not text, and how it is served. */
 export const IMAGE_TYPES: Record<string, string> = {
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
@@ -8,7 +7,7 @@ export const IMAGE_TYPES: Record<string, string> = {
   '.avif': 'image/avif',
   '.bmp': 'image/bmp',
   '.ico': 'image/x-icon',
-  '.svg': 'image/svg+xml',
+  '.svg': 'image/svg+xml'
 }
 
 export function extensionOf(path: string): string {
@@ -17,7 +16,6 @@ export function extensionOf(path: string): string {
   return dot > 0 ? name.slice(dot) : ''
 }
 
-/** An image is opened by looking at it, not by editing its bytes as text. */
 export function isImage(path: string): boolean {
   return extensionOf(path) in IMAGE_TYPES
 }

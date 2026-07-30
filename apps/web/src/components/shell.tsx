@@ -11,8 +11,15 @@ import {
 } from 'react'
 import type { VaultPath } from '@broodmother/shared'
 import { useApp } from '../state'
-import { FileTree, filePaths, folderOf, untitledIn, type TreeCommand } from './file-tree'
-import { deleteFlow, moveFlow, Palette, type Flow, type FlowCtx } from './palette'
+import {
+  FileTree,
+  filePaths,
+  folderOf,
+  parentOf,
+  untitledIn,
+  type TreeCommand,
+} from './file-tree'
+import { deleteFlow, Palette, type Flow, type FlowCtx } from './palette'
 import { VaultMenu } from './vault-menu'
 import { AddWorktree } from './add-worktree'
 import { WorktreeMenu } from './worktree-menu'
@@ -267,12 +274,32 @@ export function Shell({ children }: { children: ReactNode }) {
     })
   }
 
-  /** What the tree hands back when a name is typed, or abandoned. Nothing is a rename that
-   *  goes nowhere: an empty field, or the name it already had. */
+  /**
+   * Opens a row as a field, a frame from now. Every rename is raised from a menu, and a
+   * menu that is still closing puts focus back where it was opened — onto a field that has
+   * just mounted and taken it. That blur is read as finishing the rename, so the field
+   * would commit the name the row already had and disappear before a key was pressed.
+   * A frame later the menu is gone and the field is the only thing asking for focus.
+   *
+   * A new note does not need this only because creating it is a round trip, which is
+   * already longer than the menu takes to go.
+   */
+  const startRename = (path: VaultPath) => {
+    requestAnimationFrame(() => setRenaming(path))
+  }
+
+  /**
+   * What the tree hands back when a name is typed, or abandoned. Nothing is a rename that
+   * goes nowhere: an empty field, or the name it already had.
+   *
+   * The new path is built on the parent rather than on `folderOf`, which answers a folder
+   * with itself — right for "where does a new note go", wrong here, where it would rename
+   * a folder into a child of itself.
+   */
   const renamed = (from: VaultPath, name: string | null) => {
     setRenaming(null)
     if (!name) return
-    const folder = folderOf(app.entries, from)
+    const folder = parentOf(from)
     const to = folder ? `${folder}/${name}` : name
     if (to !== from) void app.move(from, to)
   }
@@ -295,11 +322,10 @@ export function Shell({ children }: { children: ReactNode }) {
 
   const fromTree = (command: TreeCommand, path: VaultPath) => {
     if (command === 'create') return newNote(path)
-    const flows: Record<'move' | 'delete', Flow> = {
-      move: moveFlow(ctx, path),
-      delete: deleteFlow(ctx, path),
-    }
-    setFlow(flows[command])
+    // Renaming is the row turning into a field, not a dialog over the top of it — the same
+    // thing a new note does the moment it exists, so there is one way to name anything.
+    if (command === 'rename') return startRename(path)
+    setFlow(deleteFlow(ctx, path))
   }
 
   // First run is the app with nothing in it, not a different app: the home renders empty
@@ -345,7 +371,10 @@ export function Shell({ children }: { children: ReactNode }) {
             onPick={pick}
             onClose={closeTab}
             onNew={newTab}
-            onRename={(tab) => tab.kind === 'doc' && setFlow(moveFlow(ctx, tab.path))}
+            // A tab stands for a file, and the file's name is typed where the file is
+            // shown: this hands the rename to that row, opening whatever folders were
+            // shut around it on the way.
+            onRename={(tab) => tab.kind === 'doc' && startRename(tab.path)}
             onCloseMany={closeMany}
           />
           {app.worktrees.length > 0 && (
@@ -412,7 +441,7 @@ export function Shell({ children }: { children: ReactNode }) {
       {branching && (
         <AddWorktree
           existing={app.worktrees}
-          accent={app.profile?.presenceColor}
+          accent={app.profile?.color}
           onCreate={async (input) => {
             const reason = await app.addWorktree(input)
             if (!reason) setBranching(false)

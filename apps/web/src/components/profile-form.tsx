@@ -12,7 +12,7 @@ export interface ProfileDraft extends Identity {
  *  is live, and the colour it is being asked to wear. */
 export interface ProfileFormState {
   ready: boolean
-  presenceColor: string
+  color: string
 }
 
 /**
@@ -37,20 +37,20 @@ export function ProfileForm({
   const [authorName, setAuthorName] = useState('')
   const [email, setEmail] = useState('')
   const [sshKeyPath, setSshKeyPath] = useState('')
-  const [claudeConfigDir, setClaudeConfigDir] = useState('')
-  const [presenceColor, setColor] = useState(
+  const [claudeCfgDir, setclaudeCfgDir] = useState('')
+  const [color, setColor] = useState(
     opal.find(
-      (option) => !existing.some((profile) => profile.presenceColor === option.hex),
+      (option) => !existing.some((profile) => profile.color === option.hex),
     )?.hex ?? opal[0]!.hex,
   )
   // Rotated once, off the colour this form opened on: swatches that reshuffle under the
   // cursor as you pick are worse than a palette that starts somewhere unexpected.
-  const [palette] = useState(() => opalFrom(presenceColor))
+  const [palette] = useState(() => opalFrom(color))
   const [error, setError] = useState('')
 
   useEffect(
-    () => onState?.({ ready: Boolean(name.trim() && email.trim()), presenceColor }),
-    [name, email, presenceColor, onState],
+    () => onState?.({ ready: Boolean(name.trim() && email.trim()), color }),
+    [name, email, color, onState],
   )
 
   const submit = (event: FormEvent) => {
@@ -65,10 +65,10 @@ export function ProfileForm({
     if (!email.includes('@')) return setError('The git author email needs an @ in it.')
     onSubmit({
       name: trimmed,
-      presenceColor,
+      color,
       gitAuthor: { name: authorName.trim() || trimmed, email: email.trim() },
       sshKeyPath: sshKeyPath.trim() || null,
-      claudeConfigDir: claudeConfigDir.trim() || null,
+      claudeCfgDir: claudeCfgDir.trim() || null,
     })
   }
 
@@ -123,8 +123,8 @@ export function ProfileForm({
       <label>
         Claude config directory
         <input
-          value={claudeConfigDir}
-          onChange={(event) => setClaudeConfigDir(event.target.value)}
+          value={claudeCfgDir}
+          onChange={(event) => setclaudeCfgDir(event.target.value)}
           placeholder="~/.claude"
         />
       </label>
@@ -143,7 +143,7 @@ export function ProfileForm({
               type="radio"
               name="presence"
               value={option.hex}
-              checked={presenceColor === option.hex}
+              checked={color === option.hex}
               onChange={() => setColor(option.hex)}
             />
             <span style={{ background: option.hex }} aria-hidden />

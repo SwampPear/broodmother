@@ -1,6 +1,10 @@
+import { realpath } from 'node:fs/promises'
 import { execa } from 'execa'
 import type { GitAuthor, VaultPath } from '@broodmother/shared'
 import { expandHome } from '../profiles'
+
+/** Compared through the link so `/tmp` and `/private/tmp` are not two different folders. */
+const real = (target: string) => realpath(target).catch(() => target)
 
 export interface GitStatus {
   changed: VaultPath[]
@@ -129,9 +133,28 @@ export class Git {
     })
   }
 
+  /**
+   * Whether this directory is itself a checkout, rather than merely sitting inside one.
+   * `--git-dir` alone answers yes for any folder under a repository, which would call a
+   * plain vault git-backed the moment someone kept their broodmother home in one.
+   */
   async isRepo(): Promise<boolean> {
-    const result = await this.run(['rev-parse', '--git-dir'])
-    return result.exitCode === 0
+    const result = await this.run(['rev-parse', '--show-toplevel'])
+    if (result.exitCode !== 0) return false
+    const top = String(result.stdout).trim()
+    if (!top) return false
+    return (await real(top)) === (await real(this.root))
+  }
+
+  /**
+   * The branch the checkout is on, or null when it is detached or not a checkout at all.
+   * `symbolic-ref` rather than `rev-parse`, because a repository with no commits yet is on
+   * a branch — an unborn one — and `rev-parse HEAD` has nothing to resolve and fails.
+   */
+  async branch(): Promise<string | null> {
+    const result = await this.run(['symbolic-ref', '--short', 'HEAD'])
+    if (result.exitCode !== 0) return null
+    return String(result.stdout).trim() || null
   }
 
   /** The vault's own clone is the truth about where it syncs, not the app's config. */

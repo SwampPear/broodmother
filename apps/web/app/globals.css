@@ -80,6 +80,12 @@
   --line: color-mix(in srgb, var(--white) 10%, transparent);
   --line-hover: color-mix(in srgb, var(--white) 20%, transparent);
 
+  /* One scrollbar for the whole app. Monaco draws its own rather than the browser's, so it
+     is given the same two values in `highlighter.ts` and the same 8px in `editor.tsx` —
+     these are the numbers those have to agree with. */
+  --scroll-thumb: var(--line);
+  --scroll-thumb-hover: var(--line-hover);
+
   /* Apple's own type, everywhere: SF Pro for text, SF Mono where it must be fixed-width. */
   --sans:
     -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', ui-sans-serif,
@@ -108,6 +114,18 @@
 
 * {
   box-sizing: border-box;
+}
+
+/* Every scrolling surface in the app wears the same scrollbar: the document, the tree, the
+   palette, a modal, a code block, the terminal. Set on `*` rather than per pane because the
+   list of things that scroll is not a list anyone can keep up to date, and one pane left on
+   the platform default is exactly the inconsistency this exists to stop.
+
+   The standard properties only — Chromium ignores `::-webkit-scrollbar` rules once
+   `scrollbar-width` is set, so styling it both ways styles it neither. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scroll-thumb) transparent;
 }
 
 body {
@@ -1446,11 +1464,6 @@ body[data-resizing='panel'] {
   color: var(--opal-gold);
   font-family: var(--mono);
   font-size: 0.72rem;
-}
-
-.terminal-body .xterm-viewport {
-  scrollbar-width: thin;
-  scrollbar-color: var(--line) transparent;
 }
 
 /* ---------- status line ---------- */

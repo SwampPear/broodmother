@@ -13,7 +13,7 @@ import { ContextMenu } from './context-menu'
 import { Icon, displayName, fileTag, iconFor } from './icons'
 import type { MenuSection } from './menu'
 
-export type TreeCommand = 'create' | 'move' | 'delete'
+export type TreeCommand = 'create' | 'rename' | 'delete'
 
 /** How long a shut folder waits under a drag before it opens on its own. Finder's
  *  spring-loaded folders: the way into a subfolder is to hover over the folder above it,
@@ -26,7 +26,7 @@ interface Row {
 }
 
 /** The vault root is the empty path, which is also what a top-level entry's parent is. */
-function parentOf(path: VaultPath): VaultPath {
+export function parentOf(path: VaultPath): VaultPath {
   const cut = path.lastIndexOf('/')
   return cut === -1 ? '' : path.slice(0, cut)
 }
@@ -268,7 +268,8 @@ export function FileTree({
     onMove(from, folder ? `${folder}/${basename(from)}` : basename(from))
   }
 
-  // The same three commands the keys run, for the hand that reached for the mouse.
+  // The same three commands the keys run, for the hand that reached for the mouse. Rename
+  // carries no ellipsis because nothing opens: the row itself becomes the field.
   const menuFor = (path: VaultPath): MenuSection[] => [
     {
       actions: [
@@ -279,10 +280,10 @@ export function FileTree({
           onSelect: () => onCommand('create', path),
         },
         {
-          id: 'move',
-          label: 'Rename or move…',
+          id: 'rename',
+          label: 'Rename',
           icon: 'file-text',
-          onSelect: () => onCommand('move', path),
+          onSelect: () => onCommand('rename', path),
         },
         {
           id: 'delete',
@@ -304,7 +305,7 @@ export function FileTree({
       ArrowLeft: () => row.entry.kind === 'dir' && toggle(row.entry.path, false),
       Enter: () => activate(row),
       n: () => onCommand('create', row.entry.path),
-      r: () => onCommand('move', row.entry.path),
+      r: () => onCommand('rename', row.entry.path),
       d: () => onCommand('delete', row.entry.path),
     }
     const handler = keys[event.key]

@@ -220,6 +220,57 @@ it('follows the note to the name it is given', async () => {
   await waitFor(() => expect(push).toHaveBeenCalledWith('/doc/Ideas.md'))
 })
 
+/* Rename used to be "Rename or move…", a dialog asking for a whole path. The name is typed
+   where the name is shown, so nothing opens over the top of the tree. */
+it('renames from the row itself rather than a dialog', async () => {
+  const client = createMockClient()
+  show(client)
+  await screen.findByText('the vault')
+  await waitFor(() => expect(screen.getByRole('treeitem', { name: 'README.md' })))
+
+  await userEvent.pointer({
+    keys: '[MouseRight]',
+    target: screen.getByRole('treeitem', { name: 'README.md' }),
+  })
+  await userEvent.click(
+    await screen.findByRole('menuitem', { name: 'Rename' }),
+  )
+
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  const field = await screen.findByRole('textbox', { name: 'Rename README.md' })
+  // The extension is the tag beside the name, not something to type around.
+  expect(field).toHaveValue('README')
+  expect(field).toHaveFocus()
+})
+
+/* A folder answers `folderOf` with itself, so building the new path that way renamed
+   `Handbook` to `Handbook/Manual` — a folder moved inside itself. It is the parent that
+   the new name hangs off. */
+it('renames a folder beside itself, not into itself', async () => {
+  const client = createMockClient()
+  const request = vi.spyOn(client, 'request')
+  show(client)
+  await screen.findByText('the vault')
+  await waitFor(() => expect(screen.getByRole('treeitem', { name: 'Handbook' })))
+
+  await userEvent.pointer({
+    keys: '[MouseRight]',
+    target: screen.getByRole('treeitem', { name: 'Handbook' }),
+  })
+  await userEvent.click(
+    await screen.findByRole('menuitem', { name: 'Rename' }),
+  )
+  await screen.findByRole('textbox', { name: 'Rename Handbook' })
+  await userEvent.keyboard('Manual{Enter}')
+
+  await waitFor(() =>
+    expect(request).toHaveBeenCalledWith('POST /api/doc/move', {
+      from: 'Handbook',
+      to: 'Manual',
+    }),
+  )
+})
+
 /* A second note made before the first is named cannot be called the same thing. */
 it('numbers the next Untitled rather than colliding with it', async () => {
   const client = createMockClient()

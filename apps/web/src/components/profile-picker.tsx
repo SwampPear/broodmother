@@ -34,7 +34,7 @@ export function ProfilePicker({
 }) {
   const [form, setForm] = useState<ProfileFormState>({
     ready: false,
-    presenceColor: opal[0].hex,
+    color: opal[0].hex,
   })
   const onState = useCallback((next: ProfileFormState) => setForm(next), [])
   const [busy, setBusy] = useState(false)
@@ -76,7 +76,7 @@ export function ProfilePicker({
           <button
             type="submit"
             form="new-profile"
-            style={{ '--accent': form.presenceColor } as CSSProperties}
+            style={{ '--accent': form.color } as CSSProperties}
             disabled={!form.ready || busy}
           >
             {busy ? 'creating…' : first ? 'create profile' : 'add profile'}

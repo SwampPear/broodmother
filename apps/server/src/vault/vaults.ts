@@ -4,14 +4,32 @@ import type { Profile, VaultSummary } from '@broodmother/shared'
 import { Git, classifyRemoteError } from '../git/git'
 import { PROFILES_DIR } from '../profiles'
 import { nameProblem } from './paths'
+import { PRIMARY, worktreePath } from './worktrees'
 
 export class VaultError extends Error {}
 
+/**
+ * How much git a new vault gets. `none` is a folder of markdown and nothing else — no
+ * repository, no history, no sync. `local` is a repository with no remote: history and
+ * worktrees, kept on this machine. `remote` is one that syncs.
+ */
+export type VaultGit = 'none' | 'local' | 'remote'
+
 export interface NewVault {
   name: string
-  remoteUrl: string
-  branch: string
+  git: VaultGit
+  /** Required for `remote`, ignored otherwise. */
+  remoteUrl?: string | null
+  /** The branch to clone or to start on. Ignored for `none`. */
+  branch?: string | null
 }
+
+const DEFAULT_BRANCH = 'main'
+
+const readme = (name: string, git: VaultGit) =>
+  `# ${name}\n\nA broodmother vault. Markdown on disk${
+    git === 'none' ? '' : ', git for history'
+  }.\n`
 
 /** Which profile a vault commits as, keyed by the vault's absolute path. */
 export type ProfileBindings = Record<string, string>
@@ -55,51 +73,76 @@ export function assertVaultName(name: string): void {
 }
 
 /**
- * Git is the history and the backup, so a vault is never created unlinked: the remote is
- * proven reachable first, then either cloned or initialised to push into.
+ * A vault is a folder of checkouts and `local` is the one it starts with, so that is what
+ * gets made — whether it is a clone, a fresh repository or a plain directory. Git is
+ * optional: a vault with none is still a vault, and the only thing it lacks is history.
+ *
+ * A remote is proven reachable before anything is written, because a vault that was asked to
+ * sync and cannot is worse than one that was never asked.
  */
 export async function createVault(
-  { name, remoteUrl, branch }: NewVault,
+  { name, git: kind, remoteUrl, branch }: NewVault,
   profile: Profile,
   home: string,
 ): Promise<VaultSummary> {
   assertVaultName(name)
+  if (kind === 'remote' && !remoteUrl?.trim())
+    throw new VaultError('a vault that syncs needs a remote')
   await mkdir(home, { recursive: true })
 
   const target = path.join(home, name)
   const taken = await readdir(home).then((names) => names.includes(name))
   if (taken) throw new VaultError(`a vault named "${name}" already exists`)
 
-  const outer = new Git(home, profile.sshKeyPath)
-  const probe = await outer.run(['ls-remote', '--heads', remoteUrl, branch], 15_000)
-  if (probe.exitCode !== 0) {
-    const message = `${probe.stdout}\n${probe.stderr}`
-    throw new VaultError(
-      `${classifyRemoteError(message)}: ${String(probe.stderr).trim() || 'remote unreachable'}`,
-    )
+  const local = worktreePath(target, PRIMARY)
+  const head = branch?.trim() || DEFAULT_BRANCH
+  const created: VaultSummary = { name, path: target, profile: profile.name }
+
+  if (kind === 'none') {
+    await mkdir(local, { recursive: true })
+    await writeFile(path.join(local, 'README.md'), readme(name, kind))
+    return created
   }
 
-  if (String(probe.stdout).trim()) {
-    const clone = await outer.run(['clone', '--branch', branch, remoteUrl, name])
-    if (clone.exitCode !== 0)
-      throw new VaultError(String(clone.stderr).trim() || 'git clone failed')
-    return { name, path: target, profile: profile.name }
+  if (kind === 'remote') {
+    const url = remoteUrl!.trim()
+    const outer = new Git(home, profile.sshKeyPath)
+    const probe = await outer.run(['ls-remote', '--heads', url, head], 15_000)
+    if (probe.exitCode !== 0) {
+      const message = `${probe.stdout}\n${probe.stderr}`
+      throw new VaultError(
+        `${classifyRemoteError(message)}: ${String(probe.stderr).trim() || 'remote unreachable'}`,
+      )
+    }
+
+    if (String(probe.stdout).trim()) {
+      // Cloned into the vault's `local`, so the checkouts added later are its peers.
+      const clone = await outer.run([
+        'clone',
+        '--branch',
+        head,
+        url,
+        path.join(name, PRIMARY),
+      ])
+      if (clone.exitCode !== 0) {
+        await rm(target, { recursive: true, force: true })
+        throw new VaultError(String(clone.stderr).trim() || 'git clone failed')
+      }
+      return created
+    }
   }
 
-  // Remote is reachable but the branch has no commits yet — start it here and let the
-  // first sync push it.
-  await mkdir(target)
-  const git = new Git(target, profile.sshKeyPath)
-  await git.run(['init', '-b', branch])
-  await git.run(['remote', 'add', 'origin', remoteUrl])
-  await writeFile(
-    path.join(target, 'README.md'),
-    `# ${name}\n\nA broodmother vault. Markdown on disk, git for history.\n`,
-  )
+  // Either a repository of its own, or a reachable remote whose branch has no commits yet —
+  // both start here, and the second gets pushed by the first sync.
+  await mkdir(local, { recursive: true })
+  const git = new Git(local, profile.sshKeyPath)
+  await git.run(['init', '-b', head])
+  if (kind === 'remote') await git.run(['remote', 'add', 'origin', remoteUrl!.trim()])
+  await writeFile(path.join(local, 'README.md'), readme(name, kind))
   await git.stageAll()
   const commit = await git.commit(`broodmother: create vault ${name}`, profile.gitAuthor)
   if (!commit.ok) throw new VaultError(commit.message)
-  return { name, path: target, profile: profile.name }
+  return created
 }
 
 /**

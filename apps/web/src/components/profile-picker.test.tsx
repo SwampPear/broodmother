@@ -8,10 +8,10 @@ const existing: Profile[] = [
   {
     name: 'Work',
     path: '/Users/you/.broodmother/profiles/Work.json',
-    presenceColor: '#c084fc',
+    color: '#c084fc',
     gitAuthor: { name: 'Ada Lovelace', email: 'ada@example.com' },
     sshKeyPath: null,
-    claudeConfigDir: null,
+    claudeCfgDir: null,
   },
 ]
 
@@ -68,7 +68,7 @@ it('creates a profile from the name and identity you typed', async () => {
       name: 'Personal',
       gitAuthor: { name: 'Personal', email: 'you@example.com' },
       sshKeyPath: null,
-      claudeConfigDir: null,
+      claudeCfgDir: null,
     }),
   )
 })
@@ -84,7 +84,7 @@ it('carries the credentials it was given, expanded by the server not here', asyn
 
   expect(onCreate.mock.calls[0][0]).toMatchObject({
     sshKeyPath: '~/.ssh/id_personal',
-    claudeConfigDir: '~/.claude-work',
+    claudeCfgDir: '~/.claude-work',
   })
 })
 
@@ -138,7 +138,7 @@ it('offers a colour nobody is using yet', async () => {
 
   await userEvent.click(screen.getByRole('button', { name: 'add profile' }))
 
-  expect(onCreate.mock.calls[0][0].presenceColor).not.toBe('#c084fc')
+  expect(onCreate.mock.calls[0][0].color).not.toBe('#c084fc')
 })
 
 /* And leads with it, so the swatch that is already selected is the one on the left. */

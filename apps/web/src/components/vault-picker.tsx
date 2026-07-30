@@ -4,6 +4,27 @@ import { useState, type CSSProperties, type FormEvent } from 'react'
 import { useApp } from '../state'
 import { Modal } from './modal'
 
+type VaultGit = 'none' | 'local' | 'remote'
+
+/** What each choice actually gets you, in the order of how much git it is. */
+const GIT_CHOICES: { value: VaultGit; label: string; hint: string }[] = [
+  {
+    value: 'none',
+    label: 'No git',
+    hint: 'A plain folder of markdown. No history, no sync — you can make it a repository later from a terminal.',
+  },
+  {
+    value: 'local',
+    label: 'Git, no remote',
+    hint: 'A repository on this machine: history and worktrees, nothing pushed anywhere.',
+  },
+  {
+    value: 'remote',
+    label: 'Git with a remote',
+    hint: 'The remote is checked before anything is written. An existing branch is cloned; an empty one is initialised and pushed on the first sync.',
+  },
+]
+
 /**
  * Every folder in the broodmother home is a vault, so this both lists them and makes one. It
  * is the whole app until a vault is open — a modal with no way out — and the same surface
@@ -12,6 +33,7 @@ import { Modal } from './modal'
 export function VaultPicker({ onClose }: { onClose?: () => void }) {
   const app = useApp()
   const [name, setName] = useState('')
+  const [git, setGit] = useState<VaultGit>('remote')
   const [remoteUrl, setRemoteUrl] = useState('')
   const [branch, setBranch] = useState('main')
   const [busy, setBusy] = useState(false)
@@ -21,17 +43,19 @@ export function VaultPicker({ onClose }: { onClose?: () => void }) {
   // First run is having none, not being unable to dismiss: a home with vaults in it that
   // simply has none open is the picker, not an introduction.
   const first = app.vaults.length === 0
+  const chosen = GIT_CHOICES.find((choice) => choice.value === git)!
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
     setBusy(true)
     setFailed(null)
-    // The remote is proven reachable before anything is written, so this is where an
+    // A remote is proven reachable before anything is written, so this is where an
     // unreachable one is found out — and where it has to be said.
     const reason = await app.createVault({
       name: name.trim(),
-      remoteUrl: remoteUrl.trim(),
-      branch,
+      git,
+      remoteUrl: git === 'remote' ? remoteUrl.trim() : null,
+      branch: git === 'none' ? null : branch,
     })
     setBusy(false)
     if (reason) return setFailed(reason)
@@ -46,14 +70,14 @@ export function VaultPicker({ onClose }: { onClose?: () => void }) {
   }
 
   // The colour picked at setup follows you here: same flow, same button.
-  const accent = app.profile?.presenceColor
+  const accent = app.profile?.color
 
   return (
     <Modal
       title={first ? 'Your first vault' : 'Vaults'}
       description={
         first
-          ? `A vault is where you work: a folder of markdown in ${app.home || '~/.broodmother'}, with git behind it.`
+          ? `A vault is where you work: a folder of markdown in ${app.home || '~/.broodmother'}, with git behind it if you want one.`
           : `Every folder in ${app.home || '~/.broodmother'} is a vault.`
       }
       onClose={onClose}
@@ -68,7 +92,7 @@ export function VaultPicker({ onClose }: { onClose?: () => void }) {
             type="submit"
             form="new-vault"
             style={accent ? ({ '--accent': accent } as CSSProperties) : undefined}
-            disabled={busy || !name.trim() || !remoteUrl.trim()}
+            disabled={busy || !name.trim() || (git === 'remote' && !remoteUrl.trim())}
           >
             {busy ? 'creating…' : 'create vault'}
           </button>
@@ -113,27 +137,44 @@ export function VaultPicker({ onClose }: { onClose?: () => void }) {
               required
             />
           </label>
-          <label>
-            Git remote
-            <input
-              value={remoteUrl}
-              onChange={(event) => setRemoteUrl(event.target.value)}
-              placeholder="git@github.com:you/vault.git"
-              required
-            />
-          </label>
-          <label>
-            Branch
-            <input
-              value={branch}
-              onChange={(event) => setBranch(event.target.value)}
-              required
-            />
-          </label>
-          <p className="hint">
-            The remote is checked before anything is written. An existing branch is
-            cloned; an empty one is initialised and pushed on the first sync.
-          </p>
+          <fieldset className="git-choice">
+            <legend>Git</legend>
+            {GIT_CHOICES.map((choice) => (
+              <label key={choice.value} className="check">
+                <input
+                  type="radio"
+                  name="vault-git"
+                  value={choice.value}
+                  checked={git === choice.value}
+                  onChange={() => setGit(choice.value)}
+                />
+                {choice.label}
+              </label>
+            ))}
+          </fieldset>
+
+          {git === 'remote' && (
+            <label>
+              Git remote
+              <input
+                value={remoteUrl}
+                onChange={(event) => setRemoteUrl(event.target.value)}
+                placeholder="git@github.com:you/vault.git"
+                required
+              />
+            </label>
+          )}
+          {git !== 'none' && (
+            <label>
+              Branch
+              <input
+                value={branch}
+                onChange={(event) => setBranch(event.target.value)}
+                required
+              />
+            </label>
+          )}
+          <p className="hint">{chosen.hint}</p>
 
           {failed && (
             <p className="field-error" role="alert">

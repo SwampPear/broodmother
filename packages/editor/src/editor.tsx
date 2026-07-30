@@ -26,6 +26,16 @@ const SHARED: Monaco.editor.IStandaloneEditorConstructionOptions = {
   cursorBlinking: 'smooth',
   scrollBeyondLastLine: false,
   tabSize: 2,
+  // The same scrollbar prose gets, because a code file scrolling differently from a note is
+  // two scrollbars in one app. 8px is `scrollbar-width: thin`, which is what every surface
+  // the browser scrolls uses; the colour is set on the theme, where Monaco keeps it.
+  // Horizontal is off in both: `wordWrap` is on, so there is nothing to scroll sideways to.
+  scrollbar: {
+    vertical: 'auto',
+    horizontal: 'hidden',
+    verticalScrollbarSize: 8,
+    useShadows: false,
+  },
 }
 
 /** A source file is a source file, so it gets the editor VS Code would have given it. */
@@ -64,7 +74,6 @@ const PROSE: Monaco.editor.IStandaloneEditorConstructionOptions = {
   overviewRulerLanes: 0,
   overviewRulerBorder: false,
   hideCursorInOverviewRuler: true,
-  scrollbar: { vertical: 'auto', horizontal: 'hidden', verticalScrollbarSize: 8 },
   quickSuggestions: false,
   suggestOnTriggerCharacters: false,
   contextmenu: false,
