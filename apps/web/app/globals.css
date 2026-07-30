@@ -632,7 +632,9 @@ body[data-resizing='panel'] {
   -webkit-app-region: drag;
 }
 
-/* Which checkout the tabs beside it belong to, at the end of the row they belong to. */
+/* Where you are working and which checkout of it you are in: two chips at the end of the row
+   whose tabs they change. */
+.vault-menu,
 .worktree-menu {
   display: flex;
   align-items: center;
@@ -640,6 +642,7 @@ body[data-resizing='panel'] {
   padding: 0 0.45rem 0 0.35rem;
 }
 
+.vault-anchor,
 .worktree-anchor {
   display: flex;
   align-items: center;
@@ -655,6 +658,16 @@ body[data-resizing='panel'] {
   -webkit-app-region: no-drag;
 }
 
+/* A vault is a folder somebody named, not a ref: it reads as prose, where a branch reads as
+   something typed at a terminal. */
+.vault-anchor {
+  font-family: var(--display);
+  font-size: 0.76rem;
+  font-weight: 550;
+}
+
+.vault-anchor:hover,
+.vault-anchor[data-state='open'],
 .worktree-anchor:hover,
 .worktree-anchor[data-state='open'] {
   border-color: var(--line-hover);
@@ -662,17 +675,33 @@ body[data-resizing='panel'] {
   color: var(--white);
 }
 
+.vault-anchor .name,
 .worktree-anchor .name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+.vault-anchor .icon,
 .worktree-anchor .icon {
   flex: none;
   width: 0.85rem;
   height: 0.85rem;
   opacity: 0.75;
+}
+
+/* The profile the vault commits as, worn by the button that changes it. */
+.vault-anchor .menu-badge {
+  width: 0.95rem;
+  height: 0.95rem;
+  font-size: 0.55rem;
+}
+
+.vault-menu .logo {
+  flex: none;
+  width: 0.95rem;
+  height: 0.95rem;
+  object-fit: contain;
 }
 
 .tab,
