@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { findMath } from '../math'
+import { findMath } from '../preview'
 
 const latex = (source: string) => findMath(source).map((span) => span.latex)
 

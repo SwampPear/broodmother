@@ -2,8 +2,8 @@ import { mkdir, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
 import type { VaultEvent } from '@broodmother/shared'
-import { cleanup, delay, tempDir, until } from '../test/fixtures'
-import { Vault } from './vault'
+import { cleanup, delay, tempDir, until } from '../test'
+import { Vault } from './core'
 import { VaultWatcher } from './watcher'
 
 afterAll(cleanup)

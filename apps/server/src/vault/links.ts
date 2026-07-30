@@ -1,5 +1,5 @@
-import type { Backlink, VaultPath } from '@broodmother/shared'
-import type { Vault } from './vault'
+import { basename, type Backlink, type VaultPath } from '@broodmother/shared'
+import type { Vault } from './core'
 
 export interface DocLink {
   kind: 'wiki' | 'md'
@@ -14,10 +14,6 @@ const MD = /\[[^\]]*\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g
 
 function stripExtension(p: string): string {
   return p.replace(/\.md$/i, '')
-}
-
-function basename(p: string): string {
-  return p.slice(p.lastIndexOf('/') + 1)
 }
 
 export function extractLinks(markdown: string): DocLink[] {

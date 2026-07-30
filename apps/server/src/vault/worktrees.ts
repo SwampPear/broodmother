@@ -1,8 +1,8 @@
 import { mkdir, readdir, rm, stat } from 'node:fs/promises'
 import path from 'node:path'
 import type { Worktree } from '@broodmother/shared'
-import { Git } from '../git/git'
-import { nameProblem } from './paths'
+import { Git } from '../git'
+import { nameProblem } from '../fs'
 
 export class WorktreeError extends Error {}
 
@@ -29,7 +29,7 @@ async function isCheckout(target: string): Promise<boolean> {
   )
 }
 
-export function assertWorktreeName(name: string): void {
+function assertWorktreeName(name: string): void {
   const problem = nameProblem(name)
   if (problem) throw new WorktreeError(`worktree name ${problem}`)
   if (name === PRIMARY)
@@ -61,7 +61,7 @@ export async function listWorktrees(vault: string): Promise<Worktree[]> {
       path: target,
       // Only asked of a real checkout: a plain folder inside somebody's git-backed home
       // would otherwise report that repository's branch as its own.
-      branch: checkout ? await branchOf(target) : null,
+      branch: (checkout ? await branchOf(target) : null) ?? undefined,
       primary,
     })
   }
@@ -73,7 +73,7 @@ export async function listWorktrees(vault: string): Promise<Worktree[]> {
   )
 }
 
-export async function branchOf(target: string): Promise<string | null> {
+async function branchOf(target: string): Promise<string | null> {
   const result = await new Git(target).run(['rev-parse', '--abbrev-ref', 'HEAD'])
   if (result.exitCode !== 0) return null
   const branch = String(result.stdout).trim()

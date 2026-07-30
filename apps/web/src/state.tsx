@@ -92,9 +92,9 @@ const TREE_COALESCE_MS = 60
 
 const idleSync: SyncStatus = {
   state: 'off',
-  lastSyncedAt: null,
+  lastSyncedAt: undefined,
   conflicted: [],
-  message: null,
+  message: undefined,
 }
 
 /** What the app assumes before the server answers: a vault with no repository, which is the

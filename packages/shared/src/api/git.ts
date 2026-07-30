@@ -1,5 +1,4 @@
-import type { BroodmotherConfig } from '../config/config'
-import type { GitSettings, GitState } from '../config/git'
+import type { BroodmotherConfig, GitSettings, GitState } from '../config'
 import type { SyncStatus } from '../sync'
 
 export interface GetConfig {

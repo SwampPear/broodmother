@@ -2,12 +2,12 @@ import type { VaultPath } from '../vault'
 
 export interface Backlink {
   from: VaultPath // the document that links
-  to: VaultPath   // the document linked to
+  to: VaultPath // the document linked to
   context: string // the sentence the link sits in
 }
 
-export interface MoveResult {
-  to: VaultPath          // where it landed
+interface MoveResult {
+  to: VaultPath // where it landed
   linksRewritten: number // documents whose links were fixed; the rename dialog reports it
 }
 

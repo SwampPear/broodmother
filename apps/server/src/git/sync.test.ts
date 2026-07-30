@@ -1,9 +1,13 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
-import { defaultGitSettings, type GitSettings, type SyncStatus } from '@broodmother/shared'
-import { bareRemote, cleanup, cloneOf, git, tempDir } from '../test/fixtures'
-import { Git } from './git'
+import {
+  defaultGitSettings,
+  type GitSettings,
+  type SyncStatus,
+} from '@broodmother/shared'
+import { bareRemote, cleanup, cloneOf, git, tempDir } from '../test'
+import { Git } from './core'
 import { SyncLoop, commitMessage } from './sync'
 
 afterAll(cleanup)
@@ -112,7 +116,7 @@ describe('SyncLoop', () => {
     const status = await h.loop.tick()
     expect(status.state).toBe('off')
     expect(status.message).toBe('this vault has no git repo')
-    expect(status.lastSyncedAt).toBeNull()
+    expect(status.lastSyncedAt).toBeUndefined()
   })
 
   it('commits locally when the repository has no remote', async () => {

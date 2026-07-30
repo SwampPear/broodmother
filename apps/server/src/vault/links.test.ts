@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, it } from 'vitest'
-import { cleanup, tempDir } from '../test/fixtures'
+import { cleanup, tempDir } from '../test'
 import { LinkIndex, extractLinks, resolveTarget, rewriteLinks } from './links'
-import { Vault } from './vault'
+import { Vault } from './core'
 
 afterAll(cleanup)
 

@@ -17,6 +17,7 @@ example-vault/
 # agent config
 .agents/
 .claude/
+/CLAUDE.md
 
 # os
 .DS_Store

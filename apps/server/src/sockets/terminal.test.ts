@@ -6,7 +6,7 @@ import type { TerminalClientMessage, TerminalServerMessage } from '@broodmother/
 import { writeFile } from 'node:fs/promises'
 import { defaultConfig } from '../config'
 import { createProfile } from '../profiles'
-import { cleanup, delay, tempDir, until } from '../test/fixtures'
+import { cleanup, delay, tempDir, until } from '../test'
 import { type ServerHandle, startServer } from '../index'
 
 const running: ServerHandle[] = []

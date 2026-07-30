@@ -1,10 +1,12 @@
 # Implementation plans
 
 Wave 1 is six plans: one runs first, the other five run in parallel. Wave 2 is
-[06](06-editors-and-viewers.md), which starts once wave 1 is wired together.
+[06](06-editors-and-viewers.md), which starts once wave 1 is wired together. Wave 3 is
+[07](07-p2p-collab.md), which revives the collab session 03 planned and never built.
 
-Everything here targets **one laptop**. No deployment, no CI, no Docker, no auth. Done
-means `npm run dev` works on your machine.
+Waves 1 and 2 target **one laptop**. No deployment, no CI, no Docker, no auth. Done means
+`npm run dev` works on your machine. Wave 3 adds the one exception and names it as one: a
+relay, which is a process on a network so that two laptops can reach each other.
 
 | #   | Plan                                           | Owns                                                      | Wave         |
 | --- | ---------------------------------------------- | --------------------------------------------------------- | ------------ |
@@ -15,6 +17,7 @@ means `npm run dev` works on your machine.
 | 04  | [Backend](04-backend.md)                       | `apps/server/`                                            | parallel     |
 | 05  | [Web app](05-web-app.md)                       | `apps/web/`                                               | parallel     |
 | 06  | [Editors & viewers](06-editors-and-viewers.md) | viewer registry, `packages/editor/` rebuilt on CodeMirror | wave 2       |
+| 07  | [Live collab over a relay](07-p2p-collab.md)   | `packages/collab/`, `apps/relay/`                         | wave 3       |
 
 ## Rules
 

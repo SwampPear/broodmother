@@ -1,5 +1,5 @@
 import type { GitAuthor, GitSettings, SyncStatus, VaultPath } from '@broodmother/shared'
-import type { Git } from './git'
+import type { Git } from './core'
 
 const same = (a: SyncStatus, b: SyncStatus) =>
   a.state === b.state &&
@@ -51,9 +51,9 @@ const OFF = (message: string): Partial<SyncStatus> => ({
 export class SyncLoop {
   private status: SyncStatus = {
     state: 'off',
-    lastSyncedAt: null,
+    lastSyncedAt: undefined,
     conflicted: [],
-    message: null,
+    message: undefined,
   }
   private lastEditAt: number | null = null
   private running = false
@@ -85,7 +85,7 @@ export class SyncLoop {
 
   clearConflict(): SyncStatus {
     if (this.status.state === 'conflict')
-      this.set({ state: 'idle', conflicted: [], message: null })
+      this.set({ state: 'idle', conflicted: [], message: undefined })
     return this.state
   }
 
@@ -96,11 +96,11 @@ export class SyncLoop {
   async refresh(): Promise<SyncStatus> {
     if (this.status.state === 'conflict') return this.state
     const reason = await this.idleReason()
-    if (reason) return this.set({ ...OFF(reason), lastSyncedAt: null })
+    if (reason) return this.set({ ...OFF(reason), lastSyncedAt: undefined })
     // Coming back from `off` is a fresh start: the reason it was off no longer holds, and
     // leaving it on screen would explain a state the vault is not in any more.
     return this.status.state === 'off'
-      ? this.set({ state: 'idle', message: null, lastSyncedAt: null })
+      ? this.set({ state: 'idle', message: undefined, lastSyncedAt: undefined })
       : this.state
   }
 
@@ -147,11 +147,12 @@ export class SyncLoop {
     const git = this.deps.git()
     const author = this.deps.author()
     const reason = await this.idleReason()
-    if (reason) return this.set({ ...OFF(reason), lastSyncedAt: this.status.lastSyncedAt })
+    if (reason)
+      return this.set({ ...OFF(reason), lastSyncedAt: this.status.lastSyncedAt })
     if (!git) return this.set(OFF('no vault is open'))
     if (this.running) return this.state
     this.running = true
-    this.set({ state: 'syncing', message: null })
+    this.set({ state: 'syncing', message: undefined })
 
     try {
       const before = await git.status()
@@ -231,12 +232,13 @@ export class SyncLoop {
     settings: GitSettings,
     remote: string | null,
     uncommitted: boolean,
-  ): string | null {
-    if (uncommitted) return 'auto-commit is off — your changes are waiting to be committed'
+  ): string | undefined {
+    if (uncommitted)
+      return 'auto-commit is off — your changes are waiting to be committed'
     if ((settings.pull || settings.push) && !remote)
       return 'no remote — commits stay in this vault'
     if (!settings.push) return 'push is off — commits stay in this vault'
-    return null
+    return undefined
   }
 
   private latch(conflicted: VaultPath[], message: string): SyncStatus {

@@ -7,7 +7,7 @@ import { defaultGitSettings, type ApiResponse } from '@broodmother/shared'
 import { WEB_ORIGINS } from './app'
 import { defaultConfig } from './config'
 import { createProfile } from './profiles'
-import { bareRemote, cleanup, cloneOf, git, tempDir } from './test/fixtures'
+import { bareRemote, cleanup, cloneOf, git, tempDir } from './test'
 import { HOST, type ServerHandle, startServer } from './index'
 
 const IDENTITY = {
@@ -285,7 +285,7 @@ describe('sync routes', () => {
     const { call } = await server()
     expect((await call('GET', '/api/sync')).body).toEqual({
       state: 'off',
-      lastSyncedAt: null,
+      lastSyncedAt: undefined,
       conflicted: [],
       message: 'this vault has no git repo',
     })
@@ -397,7 +397,7 @@ describe('vaults', () => {
       {
         name: 'local',
         path: path.join(body.vault.path, 'local'),
-        branch: null,
+        branch: undefined,
         primary: true,
       },
     ])
@@ -419,9 +419,9 @@ describe('vaults', () => {
 
   it('rejects a vault asked to sync with no remote to sync to', async () => {
     const { call } = await server()
-    expect((await call('POST', '/api/vaults', { name: 'nowhere', git: 'remote' })).status).toBe(
-      400,
-    )
+    expect(
+      (await call('POST', '/api/vaults', { name: 'nowhere', git: 'remote' })).status,
+    ).toBe(400)
   })
 
   it('rejects a remote with credentials baked into the URL', async () => {

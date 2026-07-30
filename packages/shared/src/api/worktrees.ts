@@ -1,4 +1,4 @@
-import type { BroodmotherConfig } from '../config/config'
+import type { BroodmotherConfig } from '../config'
 import type { Worktree } from '../vault'
 
 export interface GetWorktrees {

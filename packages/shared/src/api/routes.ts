@@ -25,7 +25,7 @@ import type {
   PostWorktrees,
 } from './worktrees'
 
-export interface ApiRoutes {
+interface ApiRoutes {
   'GET /api/profiles': GetProfiles
   'POST /api/profiles': PostProfiles
   'PUT /api/profiles': PutProfiles

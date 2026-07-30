@@ -1,9 +1,9 @@
 import { mkdir, readdir, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import type { Profile, VaultSummary } from '@broodmother/shared'
-import { Git, classifyRemoteError } from '../git/git'
+import { Git, classifyRemoteError } from '../git'
 import { PROFILES_DIR } from '../profiles'
-import { nameProblem } from './paths'
+import { nameProblem } from '../fs'
 import { PRIMARY, worktreePath } from './worktrees'
 
 export class VaultError extends Error {}

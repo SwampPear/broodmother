@@ -2,7 +2,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { z } from 'zod'
 import { defaultGitSettings, type BroodmotherConfig } from '@broodmother/shared'
-import { atomicWrite } from './vault/atomic'
+import { atomicWrite } from './fs'
 
 /** `https://token@host` is a credential in a file we sync; `ssh://git@host` is a username. */
 export function hasEmbeddedCredentials(url: string): boolean {
@@ -66,7 +66,9 @@ export function adoptLegacySync(
         ...settings,
         enabled: typeof enabled === 'boolean' ? enabled : settings.enabled,
         idleMs:
-          typeof idleMs === 'number' && idleMs >= 1000 ? Math.trunc(idleMs) : settings.idleMs,
+          typeof idleMs === 'number' && idleMs >= 1000
+            ? Math.trunc(idleMs)
+            : settings.idleMs,
       },
     },
   }

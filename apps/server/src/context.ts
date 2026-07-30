@@ -13,9 +13,9 @@ import {
   type Worktree,
 } from '@broodmother/shared'
 import { ConfigStore, defaultConfig } from './config'
-import { Git } from './git/git'
+import { Git } from './git'
 import { migrateProjects, migrateWorktrees } from './migrate'
-import { LinkIndex } from './vault/links'
+import { LinkIndex } from './vault'
 import {
   ProfileError,
   createProfile,
@@ -25,10 +25,10 @@ import {
   broodmotherHome,
   writeIdentity,
 } from './profiles'
-import { Relay } from './sockets/relay'
-import { SyncLoop } from './git/sync'
-import { Terminals, type TerminalSession } from './sockets/terminal'
-import { Vault } from './vault/vault'
+import { Relay } from './sockets'
+import { SyncLoop } from './git'
+import { Terminals, type TerminalSession } from './sockets'
+import { Vault } from './vault'
 import {
   VaultError,
   createVault,
@@ -36,7 +36,7 @@ import {
   findVault,
   listVaults,
   type NewVault,
-} from './vault/vaults'
+} from './vault'
 import {
   PRIMARY,
   WorktreeError,
@@ -46,8 +46,8 @@ import {
   removeWorktree,
   worktreePath,
   type NewWorktree,
-} from './vault/worktrees'
-import { VaultWatcher } from './vault/watcher'
+} from './vault'
+import { VaultWatcher } from './vault'
 
 export interface ContextOptions {
   root?: string

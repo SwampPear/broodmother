@@ -1,4 +1,4 @@
-import { DocView } from '../../../src/components/doc-view'
+import { DocView } from '../../../src/components/doc'
 
 /** Next hands catch-all segments as they appear in the URL, so a document with a space in
  *  its name arrives as `The%20Journey.md` and reaches the server — and `open()` — that way.

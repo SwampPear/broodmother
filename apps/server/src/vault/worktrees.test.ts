@@ -1,7 +1,7 @@
 import { mkdir, readdir, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
-import { bareRemote, cleanup, git, tempDir } from '../test/fixtures'
+import { bareRemote, cleanup, git, tempDir } from '../test'
 import {
   PRIMARY,
   createWorktree,

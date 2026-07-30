@@ -3,7 +3,7 @@ import path from 'node:path'
 import WebSocket from 'ws'
 import { afterAll, describe, expect, it } from 'vitest'
 import type { ServerMessage } from '@broodmother/shared'
-import { cleanup, tempDir, until } from '../test/fixtures'
+import { cleanup, tempDir, until } from '../test'
 import { type ServerHandle, startServer } from '../index'
 
 const running: ServerHandle[] = []

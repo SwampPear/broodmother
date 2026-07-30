@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { revealed, scan, type Span } from '../scan'
+import { revealed, scan, type Span } from '../preview'
 
 /** What the editor would hide with the cursor at `caret`, rendered back into the text. */
 function hidden(text: string, caret = -1): string {

@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest'
-import { renderTable } from '../preview'
-import { scan, type Table } from '../scan'
+import { renderTable, scan, type Table } from '../preview'
 
 const only = (markdown: string): Table => scan(markdown).tables[0]!
 

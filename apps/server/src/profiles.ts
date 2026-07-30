@@ -3,12 +3,12 @@ import os from 'node:os'
 import path from 'node:path'
 import { z } from 'zod'
 import type { Identity, Profile } from '@broodmother/shared'
-import { atomicWrite } from './vault/atomic'
-import { nameProblem } from './vault/paths'
+import { atomicWrite } from './fs'
+import { nameProblem } from './fs'
 
 export class ProfileError extends Error {}
 
-export const DEFAULT_COLOR = '#8fb8d8'
+const DEFAULT_COLOR = '#8fb8d8'
 
 /** Profiles are files rather than folders, so they live in one of their own beside the
  *  projects instead of being mistaken for one. */
@@ -27,12 +27,12 @@ export function broodmotherHome(): string {
   return process.env.BROODMOTHER_HOME ?? path.join(os.homedir(), '.broodmother')
 }
 
-export const profilesDir = (home = broodmotherHome()) => path.join(home, PROFILES_DIR)
+const profilesDir = (home = broodmotherHome()) => path.join(home, PROFILES_DIR)
 
 const profileFile = (home: string, name: string) =>
   path.join(profilesDir(home), `${name}.json`)
 
-export function assertProfileName(name: string): void {
+function assertProfileName(name: string): void {
   const problem = nameProblem(name)
   if (problem) throw new ProfileError(`profile name ${problem}`)
 }

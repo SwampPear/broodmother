@@ -7,4 +7,3 @@ export type ServerMessage =
   | { type: 'vault'; event: VaultEvent }
   | { type: 'sync'; status: SyncStatus }
   | { type: 'error'; message: string }
-  

@@ -124,8 +124,7 @@ export function createMockClient(
   ]
   let worktree = seed.worktree ?? 'local'
   let gitState: GitState = seed.gitState ?? seedGitState
-  let gitSettings: GitSettings =
-    seed.gitSettings ??
+  let gitSettings: GitSettings = seed.gitSettings ??
     config.git[config.vaultPath ?? ''] ?? {
       ...defaultGitSettings(),
       enabled: gitState.repo,
@@ -134,7 +133,7 @@ export function createMockClient(
     state: 'idle',
     lastSyncedAt: Date.now(),
     conflicted: [],
-    message: null,
+    message: undefined,
   }
   let listener: ((message: ServerMessage) => void) | null = null
   let shell: ((message: TerminalServerMessage) => void) | null = null
@@ -215,7 +214,7 @@ export function createMockClient(
         gitState = {
           repo: git !== 'none',
           remoteUrl: git === 'remote' ? (remoteUrl?.trim() ?? null) : null,
-          branch: git === 'none' ? null : (branch?.trim() || 'main'),
+          branch: git === 'none' ? null : branch?.trim() || 'main',
         }
         config = {
           ...config,
@@ -292,7 +291,12 @@ export function createMockClient(
       },
       'GET /api/sync': async () => sync,
       'POST /api/sync/now': async () => {
-        sync = { state: 'idle', lastSyncedAt: Date.now(), conflicted: [], message: null }
+        sync = {
+          state: 'idle',
+          lastSyncedAt: Date.now(),
+          conflicted: [],
+          message: undefined,
+        }
         emit({ type: 'sync', status: sync })
         return sync
       },

@@ -10,8 +10,8 @@ import {
   remoteUrlSchema,
   repair,
 } from './config'
-import { cleanup, initRepo, tempDir } from './test/fixtures'
-import { Git } from './git/git'
+import { cleanup, initRepo, tempDir } from './test'
+import { Git } from './git'
 
 afterAll(cleanup)
 
@@ -38,7 +38,9 @@ describe('hasEmbeddedCredentials', () => {
   })
 
   it('is rejected where a remote is accepted', () => {
-    expect(remoteUrlSchema.safeParse('https://token@github.com/x.git').success).toBe(false)
+    expect(remoteUrlSchema.safeParse('https://token@github.com/x.git').success).toBe(
+      false,
+    )
     expect(remoteUrlSchema.safeParse('git@github.com:you/x.git').success).toBe(true)
   })
 })

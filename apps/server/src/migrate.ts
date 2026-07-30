@@ -11,7 +11,7 @@ import {
 import path from 'node:path'
 import type { BroodmotherConfig } from '@broodmother/shared'
 import { PROFILES_DIR } from './profiles'
-import { PRIMARY } from './vault/worktrees'
+import { PRIMARY } from './vault'
 
 /**
  * The layout before a vault was the only unit: `~/.broodmother/<project>/<vault>`, where the

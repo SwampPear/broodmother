@@ -1,4 +1,4 @@
-import type { BroodmotherConfig } from '../config/config'
+import type { BroodmotherConfig } from '../config'
 import type { VaultEntry, VaultSummary } from '../vault'
 
 export interface GetVault {
@@ -16,7 +16,7 @@ export interface PostVaults {
     name: string
     git: 'none' | 'local' | 'remote'
     remoteUrl?: string | null // required for `remote`
-    branch?: string | null    // to clone or to start on; ignored for `none`
+    branch?: string | null // to clone or to start on; ignored for `none`
   }
   response: { vault: VaultSummary; config: BroodmotherConfig }
 }

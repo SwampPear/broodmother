@@ -3,8 +3,8 @@ import path from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
 import { defaultConfig } from './config'
 import { migrateProjects, migrateWorktrees } from './migrate'
-import { PRIMARY } from './vault/worktrees'
-import { cleanup, tempDir } from './test/fixtures'
+import { PRIMARY } from './vault'
+import { cleanup, tempDir } from './test'
 
 afterAll(cleanup)
 

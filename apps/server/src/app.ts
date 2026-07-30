@@ -7,9 +7,9 @@ import { imageTypeOf, type BroodmotherConfig } from '@broodmother/shared'
 import { configSchema, gitSettingsSchema, remoteUrlSchema } from './config'
 import { NoProfileError, NoVaultError, type AppContext } from './context'
 import { ProfileError, identitySchema } from './profiles'
-import { PathError, normalize } from './vault/paths'
-import { VaultError } from './vault/vaults'
-import { WorktreeError } from './vault/worktrees'
+import { PathError, normalize } from './fs'
+import { VaultError } from './vault'
+import { WorktreeError } from './vault'
 
 export const WEB_ORIGINS = ['http://localhost:6767', 'http://127.0.0.1:6767']
 

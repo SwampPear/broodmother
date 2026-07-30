@@ -1,4 +1,4 @@
-import type { Identity, Profile } from '../config/profile'
+import type { Identity, Profile } from '../config'
 import type { VaultSummary } from '../vault'
 
 export interface GetProfiles {
