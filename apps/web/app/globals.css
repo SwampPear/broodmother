@@ -607,8 +607,8 @@ body[data-resizing='panel'] {
   display: none;
 }
 
-/* The strip and the worktree control share one bar. The border lives on the bar so the two
-   read as one row rather than as a strip with something bolted to the end of it. */
+/* The strip, the vault and the worktree share one bar. The border lives on the bar so they
+   read as one row rather than as a strip with things bolted to the end of it. */
 .tab-bar {
   display: flex;
   align-items: stretch;
