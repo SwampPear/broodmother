@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { expect, it, vi } from 'vitest'
 import type { ApiRoute } from '@broodmother/shared'
 import { createMockClient, type MockClient } from '../api/mock'
-import { AppProvider } from '../state'
+import { AppProvider, useApp } from '../state'
 import { DocView } from './doc-view'
 
 /** The real editor is Monaco; what this file is about is which markdown reaches it. */
@@ -37,10 +37,23 @@ function reads(client: MockClient): string[] {
   return seen
 }
 
+/** Moving between checkouts is an app action, and the view under test is the one that has
+ *  to notice — so the test needs something beside it that can do the moving. */
+function Checkouts() {
+  const app = useApp()
+  return <button onClick={() => void app.openWorktree('fix')}>switch checkout</button>
+}
+
+const TWO_CHECKOUTS = [
+  { name: 'local', path: '/v/local', branch: 'main', primary: true },
+  { name: 'fix', path: '/v/fix', branch: 'fix', primary: false },
+]
+
 async function show(client: MockClient = createMockClient()) {
   render(
     <AppProvider client={client}>
       <DocView path={PATH} />
+      <Checkouts />
     </AppProvider>,
   )
   // A regex, not the string: the display-value matcher collapses the newlines out of it.
@@ -71,6 +84,20 @@ it('does not reload on a write to a document it is not showing', async () => {
 
   await waitFor(() => expect(screen.getByLabelText('document')).toHaveValue(SEEDED))
   expect(seen).toEqual([PATH])
+})
+
+/* A path does not say everything about a document: the same name on another branch is
+   another file. Switching between two checkouts that both had this one open leaves the
+   route alone, and the old branch's text stayed on screen. */
+it('reads the document again when the checkout changes under it', async () => {
+  const client = createMockClient({ worktrees: TWO_CHECKOUTS })
+  const seen = reads(client)
+  await show(client)
+  expect(seen).toEqual([PATH])
+
+  await userEvent.click(screen.getByRole('button', { name: 'switch checkout' }))
+
+  await waitFor(() => expect(seen).toEqual([PATH, PATH]))
 })
 
 /* Adopting the file mid-keystroke throws away what is being typed, so typing that has not

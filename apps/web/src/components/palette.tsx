@@ -8,7 +8,9 @@ import { Icon, displayName, fileTag, iconFor, type IconName } from './icons'
 export interface FlowCtx {
   paths: VaultPath[]
   open(path: VaultPath): void
-  create(path: VaultPath): void
+  /** Makes one and hands it to the tree to be named. Nothing to ask, so nothing is asked:
+   *  the question a dialog put first — what is it called — is the one you answer last. */
+  newNote(): void
   move(from: VaultPath, to: VaultPath): void
   remove(path: VaultPath): void
   syncNow(): void
@@ -43,19 +45,6 @@ interface Choice {
 
 /** Long lists are scrolled, not read: past this the rest is noise the query narrows down. */
 const LIMIT = 60
-
-export function createFlow(ctx: FlowCtx, parent = ''): Flow {
-  const dir = parent.includes('/') ? `${parent.slice(0, parent.lastIndexOf('/'))}/` : ''
-  return {
-    kind: 'input',
-    label: 'New document path',
-    initial: dir,
-    next: (path) => {
-      ctx.create(path)
-      return null
-    },
-  }
-}
 
 export function moveFlow(ctx: FlowCtx, from: VaultPath): Flow {
   return {
@@ -96,7 +85,7 @@ function commands(ctx: FlowCtx): Choice[] {
     run,
   })
   return [
-    command('Create document', 'plus', () => createFlow(ctx)),
+    command('New note', 'plus', () => done(() => ctx.newNote())),
     command('Move or rename document', 'file-text', () =>
       pick('Move', (path) => moveFlow(ctx, path)),
     ),

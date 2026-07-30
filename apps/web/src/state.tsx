@@ -44,6 +44,12 @@ export interface App {
   /** The checkouts in the open vault, and which one you are in. */
   worktrees: Worktree[]
   worktree: string
+  /** Which checkout is open, as one string: the vault, and the worktree inside it. Anything
+   *  kept per checkout is filed under this, and anything read out of one goes stale the
+   *  moment it changes — the same document name on another branch is another document.
+   *  Before the vault has answered, the vault half is empty rather than absent, so the key
+   *  is always a key and the placeholder is one a reader can recognise. */
+  checkout: string
   /** The last change the vault reported, so an open document can follow a write it did not
    *  make itself. */
   vaultEvent: VaultEvent | null
@@ -222,6 +228,7 @@ export function AppProvider({
     vaults,
     worktrees,
     worktree,
+    checkout: `${config?.vaultPath ?? ''}#${worktree}`,
     vaultEvent,
     notice,
     dismissNotice: () => setNotice(null),

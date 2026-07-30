@@ -25,6 +25,9 @@ vi.mock('./terminal', () => ({
 beforeEach(() => {
   pathname = '/'
   push.mockClear()
+  // The window remembers where each checkout was left, and one test's memory is not the
+  // next one's.
+  localStorage.clear()
 })
 
 const tree = (client: MockClient) => (
@@ -180,6 +183,60 @@ it('keeps a tab set per worktree', async () => {
   )
 })
 
+/* The dialog that used to stand here asked for a path, which is the one thing you cannot
+   give before there is a note to give it to. */
+it('makes a note called Untitled and opens its row to be named', async () => {
+  const client = createMockClient()
+  show(client)
+  await screen.findByText('the vault')
+
+  await userEvent.click(screen.getByRole('button', { name: 'New tab' }))
+  await userEvent.click(await screen.findByRole('menuitem', { name: /New note/ }))
+
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  await waitFor(() => expect(push).toHaveBeenCalledWith('/doc/Untitled.md'))
+  const field = await screen.findByRole('textbox', { name: 'Rename Untitled.md' })
+  expect(field).toHaveValue('Untitled')
+  expect(field).toHaveFocus()
+})
+
+/* Naming is a rename, and a rename leaves the route naming a file that is gone. */
+it('follows the note to the name it is given', async () => {
+  const client = createMockClient()
+  show(client)
+  await screen.findByText('the vault')
+
+  await userEvent.click(screen.getByRole('button', { name: 'New tab' }))
+  await userEvent.click(await screen.findByRole('menuitem', { name: /New note/ }))
+  await screen.findByRole('textbox', { name: 'Rename Untitled.md' })
+  pathname = '/doc/Untitled.md'
+
+  await userEvent.keyboard('Ideas{Enter}')
+
+  const { entries } = await client.request('GET /api/vault', null)
+  await waitFor(() =>
+    expect(entries.some((entry) => entry.path === 'Ideas.md')).toBe(true),
+  )
+  await waitFor(() => expect(push).toHaveBeenCalledWith('/doc/Ideas.md'))
+})
+
+/* A second note made before the first is named cannot be called the same thing. */
+it('numbers the next Untitled rather than colliding with it', async () => {
+  const client = createMockClient()
+  show(client)
+  await screen.findByText('the vault')
+
+  const note = async () => {
+    await userEvent.click(screen.getByRole('button', { name: 'New tab' }))
+    await userEvent.click(await screen.findByRole('menuitem', { name: /New note/ }))
+  }
+  await note()
+  await screen.findByRole('textbox', { name: 'Rename Untitled.md' })
+  await note()
+
+  await waitFor(() => expect(push).toHaveBeenCalledWith('/doc/Untitled 2.md'))
+})
+
 it('opens the new-worktree modal from the menu', async () => {
   show(createMockClient())
   await screen.findByText('the vault')
@@ -238,6 +295,39 @@ it('goes back to what was open when you return', async () => {
   // …and back.
   push.mockClear()
   await userEvent.click(screen.getByRole('button', { name: 'Worktree' }))
+  await userEvent.click(await screen.findByRole('menuitemradio', { name: /local/ }))
+
+  await waitFor(() => expect(push).toHaveBeenCalledWith('/doc/Handbook/Overview.md'))
+})
+
+/* Held in the window, the page each checkout was left on lasted exactly as long as the
+   window did, and a relaunch sent every branch back to the home screen. */
+it('remembers the page a checkout was left on across a relaunch', async () => {
+  const client = createMockClient({
+    worktrees: [
+      { name: 'local', path: '/v/local', branch: 'main', primary: true },
+      { name: 'fix', path: '/v/fix', branch: 'fix', primary: false },
+    ],
+  })
+  const { rerender, unmount } = show(client)
+  await screen.findByText('the vault')
+
+  pathname = '/doc/Handbook/Overview.md'
+  rerender(tree(client))
+  await screen.findByRole('tab', { name: /Overview/ })
+
+  // Left on `fix`, which is where the window closes.
+  await userEvent.click(screen.getByRole('button', { name: 'Worktree' }))
+  await userEvent.click(await screen.findByRole('menuitemradio', { name: /fix/ }))
+  await waitFor(() => expect(push).toHaveBeenCalledWith('/'))
+  pathname = '/'
+  unmount()
+
+  // A new window on the same machine, opening where the app opens.
+  push.mockClear()
+  show(client)
+  await screen.findByText('the vault')
+  await userEvent.click(await screen.findByRole('button', { name: 'Worktree' }))
   await userEvent.click(await screen.findByRole('menuitemradio', { name: /local/ }))
 
   await waitFor(() => expect(push).toHaveBeenCalledWith('/doc/Handbook/Overview.md'))

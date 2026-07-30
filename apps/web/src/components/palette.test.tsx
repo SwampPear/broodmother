@@ -8,7 +8,7 @@ function ctx(): FlowCtx {
   return {
     paths: ['README.md', 'Handbook/Overview.md', 'Business/Roadmap.md'],
     open: vi.fn(),
-    create: vi.fn(),
+    newNote: vi.fn(),
     move: vi.fn(),
     remove: vi.fn(),
     syncNow: vi.fn(),
@@ -32,7 +32,7 @@ const listed = () =>
 it('offers every command and every document, commands first', async () => {
   open(ctx())
   expect(listed()).toEqual([
-    'Create document',
+    'New note',
     'Move or rename document',
     'Delete document',
     'Toggle terminal',
@@ -99,13 +99,14 @@ it('moves the cursor with the arrow keys', async () => {
   expect(flowCtx.open).toHaveBeenCalledWith(options[1])
 })
 
-it('prompts for a path when creating', async () => {
+/* It used to ask for a path, which is the one thing you cannot give before there is a note
+   to give it to. The note is made, and named afterwards in the tree. */
+it('makes a note without asking anything', async () => {
   const flowCtx = ctx()
   open(flowCtx)
-  await userEvent.keyboard('create document{Enter}')
-  expect(screen.getByRole('dialog')).toHaveAccessibleName('New document path')
-  await userEvent.keyboard('Notes/Today.md{Enter}')
-  expect(flowCtx.create).toHaveBeenCalledWith('Notes/Today.md')
+  await userEvent.keyboard('new note{Enter}')
+  expect(flowCtx.newNote).toHaveBeenCalled()
+  expect(screen.getByText('closed')).toBeInTheDocument()
 })
 
 it('prefills the current path when moving', async () => {

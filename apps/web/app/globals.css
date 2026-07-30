@@ -554,6 +554,55 @@ body[data-resizing='panel'] {
   color: var(--tint);
 }
 
+/* The row, typed into. It wears the row rather than opening a box inside it: the padding
+   and border every other field gets would move the name off the line it was reading on,
+   and what has changed is that the name can be typed, not that a form has appeared. */
+.tree > ul .rename,
+.tree > ul .rename:hover {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  background: transparent;
+  color: var(--white);
+}
+
+/* The ring is the tint the row already carries, so the field belongs to its folder the way
+   the row above it does. */
+.tree > ul .rename:focus-visible,
+.tree > ul .rename:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--tint) 60%, transparent);
+}
+
+.tree > ul .rename::selection {
+  background: color-mix(in srgb, var(--tint) 40%, transparent);
+}
+
+/* The row being carried stays in place and steps back, so the list keeps the shape it had
+   while the drag reads against it. */
+.tree > ul li[data-dragging] {
+  opacity: 0.4;
+}
+
+/* The folder a drop would land in. A file hands the drop to the folder it sits in, so this
+   is on the destination rather than always under the pointer — outranks hover for that
+   reason: the row beneath the cursor is not always the one taking it. */
+.tree > ul li[data-drop],
+.tree > ul li[data-drop]:hover {
+  background: color-mix(in srgb, var(--tint) 20%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tint) 55%, transparent);
+  color: var(--white);
+}
+
+/* Whatever the rows leave over is the top of the vault, and it takes a drop the same way —
+   marked on the list itself, there being no row to carry it. */
+.tree > ul[data-drop] {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--white) 20%, transparent);
+  border-radius: var(--row-radius);
+}
+
 .icon {
   flex: none;
   width: 1rem;

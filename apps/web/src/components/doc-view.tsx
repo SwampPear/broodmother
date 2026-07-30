@@ -30,6 +30,32 @@ export function DocView({ path }: { path: string }) {
       .catch((cause: Error) => setError(cause.message))
   }, [app.client, path, picture])
 
+  // Which checkout this was read out of. A path does not say everything about a document:
+  // the same name on another branch is another file, and switching between two checkouts
+  // that both had this one open leaves the route alone — so nothing else here would go and
+  // look again, and the old branch's contents would stay on screen.
+  const readFrom = useRef(app.checkout)
+  useEffect(() => {
+    const was = readFrom.current
+    readFrom.current = app.checkout
+    // Which vault is open lands a request after the first paint, so a document opened in
+    // the meantime was read under a key that names no vault. Learning the name is not a
+    // switch — the read already in flight was always this checkout's.
+    if (was === app.checkout || was.startsWith('#')) return
+    // A picture is refetched by the browser, and it caches by src — which is the path, and
+    // the path has not changed. The revision is what makes it ask again.
+    if (picture) return setRevision((was) => was + 1)
+    app.client
+      .request('GET /api/doc', { path })
+      .then((result) => {
+        setMarkdown(result.markdown)
+        // Missing on the branch you left, here on the one you arrived at: the failure
+        // belonged to the other checkout and does not survive the crossing.
+        setError(null)
+      })
+      .catch((cause: Error) => setError(cause.message))
+  }, [app.client, app.checkout, path, picture])
+
   // A write broodmother did not make — Obsidian, a shell, a sync pull — is the truth about the
   // file, so the open copy follows it. Typing that has not reached disk yet wins, because
   // adopting mid-keystroke throws away what is being typed; that edit lands on top a moment

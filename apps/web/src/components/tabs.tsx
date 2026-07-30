@@ -24,7 +24,7 @@ const icon = (tab: Tab) =>
   tab.kind === 'terminal' ? TERMINALS[tab.shell].icon : iconFor(tab.path)
 
 const NEW: (Omit<MenuAction, 'onSelect' | 'id'> & { id: NewTab })[] = [
-  { id: 'note', label: 'New note…', icon: 'plus' },
+  { id: 'note', label: 'New note', icon: 'plus' },
   { id: 'shell', label: 'Terminal', icon: 'terminal' },
   { id: 'claude', label: 'Claude Code', icon: 'claude' },
 ]

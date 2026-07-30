@@ -11,15 +11,8 @@ import {
 } from 'react'
 import type { VaultPath } from '@broodmother/shared'
 import { useApp } from '../state'
-import { FileTree, filePaths, type TreeCommand } from './file-tree'
-import {
-  createFlow,
-  deleteFlow,
-  moveFlow,
-  Palette,
-  type Flow,
-  type FlowCtx,
-} from './palette'
+import { FileTree, filePaths, folderOf, untitledIn, type TreeCommand } from './file-tree'
+import { deleteFlow, moveFlow, Palette, type Flow, type FlowCtx } from './palette'
 import { VaultMenu } from './vault-menu'
 import { AddWorktree } from './add-worktree'
 import { WorktreeMenu } from './worktree-menu'
@@ -33,6 +26,7 @@ import { VaultPicker } from './vault-picker'
 
 const SIDEBAR_KEY = 'broodmother.sidebar'
 const TERMINAL_KEY = 'broodmother.terminal'
+const ROUTES_KEY = 'broodmother.routes'
 
 /** One array, so a worktree with nothing open does not get a new one every render. */
 const EMPTY: Tab[] = []
@@ -56,12 +50,15 @@ export function Shell({ children }: { children: ReactNode }) {
   const [terminal, setTerminal] = useState<TerminalState>('closed')
   const [terminalHeight, setTerminalHeight] = useState(initialSize('panel'))
   const [picker, setPicker] = useState(false)
+  // The row the tree is holding open for a name. Set the moment a note is made, cleared
+  // whether the name arrives or not.
+  const [renaming, setRenaming] = useState<VaultPath | null>(null)
   const [profiling, setProfiling] = useState(false)
   const [branching, setBranching] = useState(false)
   // Tabs belong to the checkout they were opened in: a file open in two worktrees is two
   // files, on two branches, and switching between them should not carry one into the other.
   const [byWorktree, setByWorktree] = useState<Record<string, Tab[]>>({})
-  const where = `${app.config?.vaultPath ?? ''}#${app.worktree}`
+  const where = app.checkout
   const tabs = byWorktree[where] ?? EMPTY
   const setTabs = useCallback(
     (next: Tab[] | ((open: Tab[]) => Tab[])) =>
@@ -126,6 +123,36 @@ export function Shell({ children }: { children: ReactNode }) {
     setTerminalTab(null)
   }, [path])
 
+  /** Where a path ends up when `from` becomes `to` — itself if it is the thing that moved,
+   *  and carried along if it was inside it, which is what a dragged folder does to
+   *  everything open underneath it. */
+  const after = (path: VaultPath, from: VaultPath, to: VaultPath): VaultPath | null =>
+    path === from
+      ? to
+      : path.startsWith(`${from}/`)
+        ? `${to}${path.slice(from.length)}`
+        : null
+
+  // A renamed document is the same document. Without this the route goes on naming a file
+  // that is no longer there — the tab wears a name nothing has, and the pane says there is
+  // no such document, which of a note you just named is a lie.
+  const event = app.vaultEvent
+  useEffect(() => {
+    if (event?.type !== 'moved') return
+    setTabs((open) =>
+      open.map((tab) => {
+        const to = tab.kind === 'doc' ? after(tab.path, event.from, event.to) : null
+        return to ? docTab(to) : tab
+      }),
+    )
+    const here = currentPath(pathname)
+    const to = here && after(here, event.from, event.to)
+    if (to) router.push(`/doc/${to}`)
+    // `pathname` is read, not depended on: this follows the move, and a later navigation
+    // is not one.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [event])
+
   const pick = (tab: Tab) => {
     if (tab.kind === 'terminal') return setTerminalTab(tab.id)
     setTerminalTab(null)
@@ -172,7 +199,27 @@ export function Shell({ children }: { children: ReactNode }) {
     if (stored) setSidebar(clampSize('sidebar', stored))
     const panel = Number(localStorage.getItem(TERMINAL_KEY))
     if (panel) setTerminalHeight(clampSize('panel', panel))
+    // Where each checkout was left, from the last time the window was open. Only the ones
+    // you are not in matter: the one you are in is tracked live, and a relaunch lands on
+    // the home screen, which is then honestly where you are.
+    try {
+      Object.assign(
+        lastRoute.current,
+        JSON.parse(localStorage.getItem(ROUTES_KEY) ?? '{}'),
+      )
+    } catch {
+      // A map that cannot be read is a map that has nothing in it.
+    }
   }, [])
+
+  // Written on every move rather than on the switch, because the window can close, reload
+  // or crash between the two, and the page you were on is the thing being remembered.
+  // Checkouts filed before the vault answered are dropped: `#local` names no vault, and
+  // the real key for the same place is written a moment later anyway.
+  useEffect(() => {
+    const keep = Object.entries(lastRoute.current).filter(([key]) => !key.startsWith('#'))
+    localStorage.setItem(ROUTES_KEY, JSON.stringify(Object.fromEntries(keep)))
+  }, [where, pathname])
 
   const resize = (width: number) => {
     setSidebar(width)
@@ -204,10 +251,38 @@ export function Shell({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [toggleTerminal])
 
+  /**
+   * A note is made by making it. `Untitled` in the folder you asked from, open in the pane,
+   * and its row in the tree waiting to be typed into — because the dialog that used to
+   * stand here asked for a path, and a path is the one thing you cannot give before there
+   * is a note to give it to. Naming is the last step, and it is a rename like any other.
+   */
+  const newNote = (seed: VaultPath) => {
+    const folder = folderOf(app.entries, seed)
+    const at = untitledIn(app.entries, folder)
+    void app.create(at).then((failed) => {
+      if (failed) return
+      router.push(`/doc/${at}`)
+      setRenaming(at)
+    })
+  }
+
+  /** What the tree hands back when a name is typed, or abandoned. Nothing is a rename that
+   *  goes nowhere: an empty field, or the name it already had. */
+  const renamed = (from: VaultPath, name: string | null) => {
+    setRenaming(null)
+    if (!name) return
+    const folder = folderOf(app.entries, from)
+    const to = folder ? `${folder}/${name}` : name
+    if (to !== from) void app.move(from, to)
+  }
+
   const ctx: FlowCtx = {
     paths: filePaths(app.entries),
     open: (path) => router.push(`/doc/${path}`),
-    create: (path) => void app.create(path).then(() => router.push(`/doc/${path}`)),
+    // Seeded from whatever document is open, so a note made from the palette lands beside
+    // the one you were reading.
+    newNote: () => newNote(path ?? ''),
     move: (from, to) => void app.move(from, to),
     remove: (path) => void app.remove(path),
     syncNow: () => void app.syncNow(),
@@ -216,14 +291,11 @@ export function Shell({ children }: { children: ReactNode }) {
     toggleTerminal,
   }
 
-  // What the plus offers. A note is the same flow the tree's right click runs, seeded from
-  // whatever document is open, so a new note lands beside the one you were reading.
-  const newTab = (what: NewTab) =>
-    what === 'note' ? setFlow(createFlow(ctx, path ?? '')) : newTerminal(what)
+  const newTab = (what: NewTab) => (what === 'note' ? ctx.newNote() : newTerminal(what))
 
   const fromTree = (command: TreeCommand, path: VaultPath) => {
-    const flows: Record<TreeCommand, Flow> = {
-      create: createFlow(ctx, path),
+    if (command === 'create') return newNote(path)
+    const flows: Record<'move' | 'delete', Flow> = {
       move: moveFlow(ctx, path),
       delete: deleteFlow(ctx, path),
     }
@@ -258,6 +330,9 @@ export function Shell({ children }: { children: ReactNode }) {
         }
         onOpen={ctx.open}
         onCommand={fromTree}
+        onMove={ctx.move}
+        renaming={renaming}
+        onRename={renamed}
       />
       <Resizer axis="sidebar" size={sidebar} onSize={resize} />
       <main className="main">

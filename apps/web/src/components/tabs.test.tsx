@@ -54,7 +54,7 @@ it('closes without picking', async () => {
 /* The plus is a menu, not a button that does one thing: a new tab is a note, a shell, or
    claude, and which one has to be said before anything opens. */
 it.each([
-  ['New note…', 'note'],
+  ['New note', 'note'],
   ['Terminal', 'shell'],
   ['Claude Code', 'claude'],
 ])('opens %s from the plus', async (label, what) => {
