@@ -17,10 +17,12 @@ backend and terminals in one window.
 Click that, take the `.dmg` off the release, and open it. Then:
 
 1. **Drag broodmother onto Applications**, and eject the disk image.
-2. **Right-click the app in Applications and choose Open** — not a double-click. The build
-   is not signed by Apple yet, so a double-click gets you a warning and nothing else, while
-   the right-click gets you the same warning with an Open button on it. Once only; every
-   launch after that is a normal one.
+2. **Approve it the first time.** The build is not signed by Apple yet, so the first
+   double-click is refused outright. Open System Settings → Privacy & Security, find the
+   note saying broodmother was blocked, and click **Open Anyway**. Once only; every launch
+   after that is a normal one. On macOS 14 and earlier, right-clicking the app and choosing
+   Open does the same job — macOS 15 removed that shortcut, so it is no longer the answer
+   to give first.
 
 Apple silicon only for now.
 
