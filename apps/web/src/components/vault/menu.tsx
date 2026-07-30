@@ -9,9 +9,10 @@ const logo = <img className="logo" src="/logo.png" alt="" width={20} height={20}
 const initial = (name: string) => name.trim().charAt(0).toUpperCase() || '?'
 
 /**
- * The head of the tree, and the only place a vault or a profile is chosen. Both live here
- * because they are one question asked twice: where you are working, and who you are while
- * you do it.
+ * Where the vault and the profile are chosen — one question asked twice: where you are
+ * working, and who you are while you do it. It sits in the tab bar rather than above the
+ * tree, because the top of the sidebar is the window's own row and belongs to nothing else.
+ * The button wears both answers: the profile as its coloured initial, the vault by name.
  */
 export function VaultMenu({
   vaults,
@@ -44,6 +45,7 @@ export function VaultMenu({
   const [confirming, setConfirming] = useState<VaultSummary | null>(null)
 
   const active = vaults.find((vault) => vault.path === activePath) ?? vaults[0]
+  const profile = profiles.find((one) => one.name === activeProfile)
 
   const close = () => {
     setOpen(false)
@@ -115,19 +117,31 @@ export function VaultMenu({
       ]
 
   return (
-    <div className="tree-head project">
+    <div className="vault-menu">
       {active ? (
         <Menu
           label={options ? options.name : 'Vaults'}
+          // The button wears a vault and a profile, neither of which says what it opens.
+          anchorLabel="Vault and profile"
           sections={sections}
-          anchorClass="project-anchor"
+          anchorClass="vault-anchor"
           open={open}
           onOpenChange={(next) => {
             setOpen(next)
             if (!next) setOptions(null)
           }}
         >
-          {logo}
+          {profile ? (
+            <span
+              className="menu-badge"
+              style={{ background: profile.color }}
+              aria-hidden
+            >
+              {initial(profile.name)}
+            </span>
+          ) : (
+            logo
+          )}
           <span className="name">{active.name}</span>
           <Icon name="chevrons-up-down" />
         </Menu>

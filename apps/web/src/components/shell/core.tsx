@@ -161,20 +161,6 @@ export function Shell({ children }: { children: ReactNode }) {
       <FileTree
         entries={app.entries}
         current={currentPath(pathname)}
-        head={
-          <VaultMenu
-            vaults={app.vaults}
-            activePath={app.config?.vaultPath ?? ''}
-            profiles={app.profiles}
-            activeProfile={app.profile?.name ?? null}
-            onSelect={(path) => void app.openVault(path)}
-            onAdd={() => setPicker(true)}
-            onDelete={(name) => void app.deleteVault(name)}
-            onSelectProfile={(name) => void app.selectProfile(name)}
-            onAddProfile={() => setProfiling(true)}
-            onSettings={ctx.settings}
-          />
-        }
         onOpen={ctx.open}
         onCommand={fromTree}
         onMove={ctx.move}
@@ -183,8 +169,9 @@ export function Shell({ children }: { children: ReactNode }) {
       />
       <Resizer axis="sidebar" size={sidebar} onSize={resize} />
       <main className="main">
-        {/* The strip and the checkout it belongs to share one bar: switching worktree is
-            what changes the tabs, so the control that does it sits with them. */}
+        {/* The strip and the two things it belongs to share one bar: which vault and
+            profile you are in, and which checkout of it. Both change what the tabs are, and
+            a control that changes the row it is in should be in that row. */}
         <div className="tab-bar">
           <TabStrip
             tabs={tabs}
@@ -197,6 +184,18 @@ export function Shell({ children }: { children: ReactNode }) {
             // shut around it on the way.
             onRename={(tab) => tab.kind === 'doc' && startRename(tab.path)}
             onCloseMany={closeMany}
+          />
+          <VaultMenu
+            vaults={app.vaults}
+            activePath={app.config?.vaultPath ?? ''}
+            profiles={app.profiles}
+            activeProfile={app.profile?.name ?? null}
+            onSelect={(path) => void app.openVault(path)}
+            onAdd={() => setPicker(true)}
+            onDelete={(name) => void app.deleteVault(name)}
+            onSelectProfile={(name) => void app.selectProfile(name)}
+            onAddProfile={() => setProfiling(true)}
+            onSettings={ctx.settings}
           />
           {app.worktrees.length > 0 && (
             <WorktreeMenu

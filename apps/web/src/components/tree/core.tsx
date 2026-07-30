@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { useEffect, useState, type KeyboardEvent } from 'react'
 import type { VaultEntry, VaultPath } from '@broodmother/shared'
 import { ancestorsOf, flatten, type Row } from './paths'
 import { type TreeCommand, TreeRow } from './row'
@@ -11,7 +11,6 @@ export type { TreeCommand }
 export function FileTree({
   entries,
   current,
-  head,
   onOpen,
   onCommand,
   onMove,
@@ -20,7 +19,6 @@ export function FileTree({
 }: {
   entries: VaultEntry[]
   current: VaultPath | null
-  head?: ReactNode
   onOpen: (path: VaultPath) => void
   onCommand: (command: TreeCommand, path: VaultPath) => void
   onMove: (from: VaultPath, to: VaultPath) => void
@@ -84,7 +82,10 @@ export function FileTree({
 
   return (
     <nav className="tree" aria-label="vault">
-      {head}
+      {/* Nothing sits above the rows. In the desktop app the window's own close, minimise
+          and zoom buttons land on this row, which leaves it as the place to pick the window
+          up by; in a browser tab it is the strip the tab bar beside it lines up with. */}
+      <div className="tree-head" />
       <ul
         role="tree"
         tabIndex={0}
