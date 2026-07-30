@@ -18,12 +18,33 @@ async function seed(): Promise<Vault> {
 }
 
 describe('Vault', () => {
-  it('lists a tree with directories first, skipping dotted paths', async () => {
+  it('lists a tree with directories first, skipping the app’s own folder', async () => {
     const vault = await seed()
     const entries = await vault.list()
     expect(entries.map((e) => e.path)).toEqual(['Handbook', 'index.md'])
     const dir = entries[0]!
     expect(dir.kind === 'dir' && dir.children[0]!.path).toBe('Handbook/Overview')
+  })
+
+  it('lists dotted files and folders, and reads what is in them', async () => {
+    const vault = await seed()
+    await mkdir(path.join(vault.root, '.github/workflows'), { recursive: true })
+    await writeFile(path.join(vault.root, '.github/workflows/ci.yml'), 'on: push')
+    await writeFile(path.join(vault.root, '.gitignore'), 'build/\n')
+    await writeFile(path.join(vault.root, '.hidden.md'), '# hidden')
+
+    const entries = await vault.list()
+    expect(entries.map((e) => e.path)).toEqual([
+      '.github',
+      'Handbook',
+      '.gitignore',
+      '.hidden.md',
+      'index.md',
+    ])
+    const dotDir = entries[0]!
+    expect(dotDir.kind === 'dir' && dotDir.children[0]!.path).toBe('.github/workflows')
+    expect(await vault.read('.gitignore')).toBe('build/\n')
+    expect(await vault.documents()).toContain('.hidden.md')
   })
 
   it('skips .git and gitignored files', async () => {

@@ -51,7 +51,20 @@ describe('VaultWatcher', { retry: 2 }, () => {
     }
   })
 
-  it('ignores dotted paths and coalesces a burst into one event', async () => {
+  it('reports a dotted file the way it reports any other', async () => {
+    const w = await watching()
+    try {
+      await writeFile(path.join(w.root, '.gitignore'), 'build/\n')
+      await until(() => w.events.length > 0)
+      expect(w.events.map((e) => (e.type === 'moved' ? e.to : e.path))).toEqual([
+        '.gitignore',
+      ])
+    } finally {
+      await w.watcher.close()
+    }
+  })
+
+  it('ignores the app’s own folder and coalesces a burst into one event', async () => {
     const w = await watching()
     try {
       await mkdir(path.join(w.root, '.broodmother'), { recursive: true })
