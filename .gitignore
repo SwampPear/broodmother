@@ -14,10 +14,5 @@ next-env.d.ts
 example-vault/
 .env
 
-# agent config
-.agents/
-.claude/
-/CLAUDE.md
-
 # os
 .DS_Store
