@@ -381,28 +381,18 @@ body[data-resizing='panel'] {
   border-right: 1px solid var(--line);
 }
 
+/* An empty strip the height of the tab bar beside it, and nothing in it: in the desktop app
+   the window's close/minimise/zoom buttons land here, so the whole row is somewhere to pick
+   the window up by rather than a row with a control the buttons have to be inset around. */
 .tree-head {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
   height: var(--head);
   flex: none;
-  padding: 0 0.85rem;
   border-bottom: 1px solid var(--line);
-  font-family: var(--display);
-  font-weight: 600;
-  letter-spacing: -0.018em;
+  -webkit-app-region: drag;
 }
 
-.tree-head .dot {
-  width: 0.5rem;
-  height: 0.5rem;
-  border-radius: 50%;
-  background: var(--opal-violet);
-}
-
-/* Every rule below is scoped through `> ul` — the file list. The project dropdown is also
-   inside .tree, and a bare `.tree ul` outranked `.project ul` on source order alone. */
+/* Every rule below is scoped through `> ul` — the file list, as against the lists a menu
+   opened over the tree puts inside it. */
 .tree > ul {
   list-style: none;
   margin: 0;
