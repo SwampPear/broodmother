@@ -22,7 +22,7 @@ Click that, take the `.dmg` off the release, and open it. Then:
    the right-click gets you the same warning with an Open button on it. Once only; every
    launch after that is a normal one.
 
-Apple silicon only for now. On anything else, run it from a checkout.
+Apple silicon only for now.
 
 ## First run
 
@@ -104,26 +104,7 @@ into the home, carries each one's profile into `config.json`, and moves each vau
 checkout down into `local/` — once, on the first launch. Everything moves; nothing is
 rewritten and nothing is deleted.
 
-## Running from a checkout
-
-The app above is the same thing packaged. Running it yourself needs **Node.js 22 or newer**
-and **git** on your `PATH`.
-
-```bash
-git clone git@github.com:SwampPear/broodmother.git
-cd broodmother
-npm run setup            # install dependencies and put `broodmother` on your PATH
-```
-
-Then, from anywhere:
-
-```bash
-broodmother                   # start the backend and the site; ctrl-c stops both
-broodmother ~/path/to/vault   # ... or point it straight at one vault
-```
-
-A browser opens at <http://127.0.0.1:6767> once the site is ready. Inside the checkout,
-`npm run dev` does the same without installing anything onto your `PATH`.
+## Environment
 
 | Variable            | Default          | What it does                            |
 | ------------------- | ---------------- | --------------------------------------- |
