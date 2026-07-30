@@ -4,7 +4,16 @@ import type { VaultPath } from '@broodmother/shared'
 
 export class PathError extends Error {}
 
+/**
+ * The two folders inside a vault that are not its contents: git's own store and the app's.
+ * Every other dotted name — `.gitignore`, `.github`, `.agents` — is a file somebody wrote and
+ * is listed like any other.
+ */
 const RESERVED = new Set(['.git', '.broodmother'])
+
+export function isReserved(name: string): boolean {
+  return RESERVED.has(name)
+}
 
 export function normalize(input: string): VaultPath {
   if (typeof input !== 'string' || input.length === 0) throw new PathError('empty path')

@@ -1,7 +1,6 @@
 import { watch, type FSWatcher } from 'chokidar'
-import path from 'node:path'
 import type { VaultEvent } from '@broodmother/shared'
-import { toVaultPath } from '../fs'
+import { isReserved, toVaultPath } from '../fs'
 
 const DEBOUNCE_MS = 100
 /**
@@ -31,7 +30,11 @@ export class VaultWatcher {
     this.watcher = watch(root, {
       ignoreInitial: true,
       followSymlinks: false,
-      ignored: (target) => target !== root && path.basename(target).startsWith('.'),
+      // What the tree lists is what is watched: dotted files included, git's store and the
+      // app's own folder left alone — `.git` churns on every command and none of it is
+      // content.
+      ignored: (target) =>
+        target !== root && toVaultPath(root, target).split('/').some(isReserved),
     })
     this.ready = new Promise((resolve) => this.watcher.once('ready', () => resolve()))
     this.watcher.on('add', (p) =>

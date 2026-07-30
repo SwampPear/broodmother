@@ -3,7 +3,7 @@ import path from 'node:path'
 import type { VaultEntry, VaultPath } from '@broodmother/shared'
 import { atomicWrite } from '../fs'
 import { Git } from '../git'
-import { PathError, normalize, resolveInVault } from '../fs'
+import { PathError, isReserved, normalize, resolveInVault } from '../fs'
 
 export class Vault {
   private readonly git: Git
@@ -27,7 +27,9 @@ export class Vault {
     const entries: VaultEntry[] = []
 
     for (const dirent of dirents) {
-      if (dirent.name.startsWith('.')) continue
+      // A dotted name is still a file in the vault — `.gitignore` is as editable as any
+      // other. Only git's store and the app's own folder are held back.
+      if (isReserved(dirent.name)) continue
       const vaultPath = prefix ? `${prefix}/${dirent.name}` : dirent.name
       if (ignored.has(vaultPath)) continue
 
