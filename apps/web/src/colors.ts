@@ -1,12 +1,12 @@
-/** The opalescent palette presence colors are drawn from. */
+/** The opalescent palette profile colours are drawn from. */
 export const opal = [
   { name: 'violet', hex: '#c084fc' },
   { name: 'indigo', hex: '#818cf8' },
   { name: 'cyan', hex: '#22d3ee' },
   { name: 'mint', hex: '#34d399' },
   { name: 'rose', hex: '#f472b6' },
-  { name: 'gold', hex: '#fbbf24' },
-  { name: 'navy', hex: '#1d4ed8' },
+  { name: 'gold', hex: '#b39051' },
+  { name: 'navy', hex: '#051e39' },
 ] as const
 
 export type OpalColor = (typeof opal)[number]

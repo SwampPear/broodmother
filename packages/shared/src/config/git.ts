@@ -13,9 +13,23 @@ export interface GitAuthor {
 
 /** Read off the checkout, never stored — the repository is the truth about where it syncs. */
 export interface GitState {
-  repo: boolean // false when vault is a plain folder
+  repo: boolean // false when the checkout is a plain folder
   remoteUrl: string | null // git remote URL, null when the repo has none
-  branch: string | null // null on checkout not on branch, or on vault with no repo
+  branch: string | null // null on checkout not on branch, or on a checkout with no repo
+}
+
+/**
+ * Why a checkout can or cannot reach its remote. Asked on purpose, rather than found out
+ * by a sync failing — and named, because `auth` on its own is not something anyone can act
+ * on.
+ */
+export type AccessState = 'no-repo' | 'no-remote' | 'ok' | 'offline' | 'auth' | 'other'
+
+export interface AccessCheck {
+  state: AccessState
+  remoteUrl: string | null
+  /** What it means, and what to do about it where there is something to do. */
+  message: string
 }
 
 export const defaultGitSettings = (): GitSettings => ({

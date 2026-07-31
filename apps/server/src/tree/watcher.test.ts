@@ -1,25 +1,25 @@
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
-import type { VaultEvent } from '@broodmother/shared'
+import type { TreeEvent } from '@broodmother/shared'
 import { cleanup, delay, tempDir, until } from '../test'
-import { Vault } from './core'
-import { VaultWatcher } from './watcher'
+import { Tree } from './core'
+import { TreeWatcher } from './watcher'
 
 afterAll(cleanup)
 
 async function watching() {
   const root = await tempDir()
-  const events: VaultEvent[] = []
-  const watcher = new VaultWatcher(root, (event) => events.push(event))
+  const events: TreeEvent[] = []
+  const watcher = new TreeWatcher(root, (event) => events.push(event))
   await watcher.ready
-  return { root, events, watcher, vault: new Vault(root) }
+  return { root, events, watcher, project: new Tree(root) }
 }
 
 /* These wait on the operating system to deliver a filesystem event, which it does on
    its own schedule — late, when the machine is running the whole suite at once. Retried
    because the jitter is the kernel's, not the code's. */
-describe('VaultWatcher', { retry: 2 }, () => {
+describe('TreeWatcher', { retry: 2 }, () => {
   it('reports external creates, changes and removals', async () => {
     const w = await watching()
     try {
@@ -39,7 +39,7 @@ describe('VaultWatcher', { retry: 2 }, () => {
     const w = await watching()
     try {
       w.watcher.suppress('own.md')
-      await w.vault.write('own.md', 'written by the app')
+      await w.project.write('own.md', 'written by the app')
       await writeFile(path.join(w.root, 'other.md'), 'written by hand')
       await until(() => w.events.length > 0)
       await delay(200)
@@ -51,7 +51,23 @@ describe('VaultWatcher', { retry: 2 }, () => {
     }
   })
 
-  it('ignores dotted paths and coalesces a burst into one event', async () => {
+  /* Listed by the tree, so watched like anything else — a dot folder that never reported a
+     change would show a note you could open and never see move. */
+  it('reports a change inside a dotted folder', async () => {
+    const w = await watching()
+    try {
+      await mkdir(path.join(w.root, '.claude'), { recursive: true })
+      await writeFile(path.join(w.root, '.claude/Notes.md'), '# notes')
+      await until(() => w.events.length > 0)
+      expect(w.events.map((e) => (e.type === 'moved' ? e.to : e.path))).toContain(
+        '.claude/Notes.md',
+      )
+    } finally {
+      await w.watcher.close()
+    }
+  })
+
+  it('ignores the reserved names and coalesces a burst into one event', async () => {
     const w = await watching()
     try {
       await mkdir(path.join(w.root, '.broodmother'), { recursive: true })
@@ -67,13 +83,13 @@ describe('VaultWatcher', { retry: 2 }, () => {
   })
 })
 
-/* A coding agent writing into the vault is the case this has to get right: what it does
+/* A coding agent writing into the project is the case this has to get right: what it does
    shows up without anyone asking, and the app's own writes are the only thing swallowed. */
 describe('changes made by something else', { retry: 2 }, () => {
   it('reports a folder appearing and going away', async () => {
     const root = await tempDir()
-    const seen: VaultEvent[] = []
-    const watcher = new VaultWatcher(root, (event) => seen.push(event), 10)
+    const seen: TreeEvent[] = []
+    const watcher = new TreeWatcher(root, (event) => seen.push(event), 10)
     await watcher.ready
 
     // Generous: chokidar's directory events go through the OS, and a machine running the
@@ -101,8 +117,8 @@ describe('changes made by something else', { retry: 2 }, () => {
      the thing that has to be true. */
   it('reports something when a folder and a file arrive together', async () => {
     const root = await tempDir()
-    const seen: VaultEvent[] = []
-    const watcher = new VaultWatcher(root, (event) => seen.push(event), 10)
+    const seen: TreeEvent[] = []
+    const watcher = new TreeWatcher(root, (event) => seen.push(event), 10)
     await watcher.ready
 
     await mkdir(path.join(root, 'Deep', 'Nested'), { recursive: true })
@@ -122,8 +138,8 @@ describe('changes made by something else', { retry: 2 }, () => {
     const root = await tempDir()
     const file = path.join(root, 'shared.md')
     await writeFile(file, 'first\n')
-    const seen: VaultEvent[] = []
-    const watcher = new VaultWatcher(root, (event) => seen.push(event), 10)
+    const seen: TreeEvent[] = []
+    const watcher = new TreeWatcher(root, (event) => seen.push(event), 10)
     await watcher.ready
 
     // The app writes, and says so.

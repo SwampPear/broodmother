@@ -3,7 +3,7 @@ import path from 'node:path'
 import WebSocket from 'ws'
 import { afterAll, describe, expect, it } from 'vitest'
 import type { TerminalClientMessage, TerminalServerMessage } from '@broodmother/shared'
-import { writeFile } from 'node:fs/promises'
+import { mkdir, writeFile } from 'node:fs/promises'
 import { defaultConfig } from '../config'
 import { createProfile } from '../profiles'
 import { cleanup, delay, tempDir, until } from '../test'
@@ -20,6 +20,7 @@ const IDENTITY = {
   gitAuthor: { name: 'Test', email: 'test@localhost' },
   sshKeyPath: null,
   claudeCfgDir: null,
+  soul: null,
 }
 
 async function server() {
@@ -89,6 +90,18 @@ describe('terminals', () => {
     const shell = await open(handle)
     shell.send({ type: 'input', data: 'pwd\r' })
     await until(() => shell.output().includes(other))
+  })
+
+  /* And a project open inside it wins: agents run in the repository the work is in. */
+  it('opens in the project when one is open', async () => {
+    const handle = await server()
+    const repo = path.join(await tempDir(), 'api')
+    await mkdir(repo, { recursive: true })
+    await handle.context.addProject({ name: 'api', repo })
+
+    const shell = await open(handle)
+    shell.send({ type: 'input', data: 'pwd\r' })
+    await until(() => shell.output().includes(repo))
   })
 
   /* A profile carries the Claude login its shells run as, or Claude picks its own. */

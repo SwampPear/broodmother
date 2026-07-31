@@ -1,17 +1,19 @@
 import { realpath } from 'node:fs/promises'
 import path from 'node:path'
-import type { VaultPath } from '@broodmother/shared'
+import type { DocPath } from '@broodmother/shared'
 
 export class PathError extends Error {}
 
-const RESERVED = new Set(['.git', '.broodmother'])
+/** The names broodmother keeps for itself. Everything else starting with a dot is a
+ *  document like any other — hidden from Finder, not from the app that edits it. */
+export const RESERVED = new Set(['.git', '.broodmother', '.projects'])
 
-export function normalize(input: string): VaultPath {
+export function normalize(input: string): DocPath {
   if (typeof input !== 'string' || input.length === 0) throw new PathError('empty path')
   if (input.includes('\0')) throw new PathError('path contains a null byte')
   if (input.includes('\\')) throw new PathError('path contains a backslash')
   if (path.isAbsolute(input) || /^[a-zA-Z]:/.test(input))
-    throw new PathError('path must be relative to the vault root')
+    throw new PathError('path must be relative to the tree root')
 
   const segments = input.split('/')
   for (const segment of segments) {
@@ -24,9 +26,9 @@ export function normalize(input: string): VaultPath {
 }
 
 /**
- * A project is a folder, a vault is a folder, a profile is a file — every name typed into
- * broodmother becomes one of the two. Returns the complaint to put after the noun, or null if
- * the name is fine.
+ * A vault is a folder, a project is a name for one, a profile is a file — every name typed
+ * into broodmother becomes one of those. Returns the complaint to put after the noun, or
+ * null if the name is fine.
  */
 export function nameProblem(name: string): string | null {
   if (name !== name.trim() || name.length === 0)
@@ -58,20 +60,20 @@ async function resolveThroughSymlinks(target: string): Promise<string> {
 }
 
 /**
- * The only place the vault boundary exists: paths arrive from a browser, so escapes are
+ * The only place a tree's boundary exists: paths arrive from a browser, so escapes are
  * rejected after symlink resolution rather than by inspecting the string alone.
  */
-export async function resolveInVault(root: string, input: string): Promise<string> {
+export async function resolveInRoot(root: string, input: string): Promise<string> {
   const rel = normalize(input)
   const realRoot = await realpath(root)
   const target = path.resolve(realRoot, rel)
-  if (!contains(realRoot, target)) throw new PathError('path escapes the vault')
+  if (!contains(realRoot, target)) throw new PathError('path escapes the root')
 
   const real = await resolveThroughSymlinks(target)
-  if (!contains(realRoot, real)) throw new PathError('path escapes the vault')
+  if (!contains(realRoot, real)) throw new PathError('path escapes the root')
   return target
 }
 
-export function toVaultPath(root: string, absolute: string): VaultPath {
+export function toDocPath(root: string, absolute: string): DocPath {
   return path.relative(root, absolute).split(path.sep).join('/')
 }

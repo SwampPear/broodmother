@@ -1,10 +1,20 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import type { GitSettings, GitState } from '@broodmother/shared'
+import type { AccessCheck, GitSettings, GitState } from '@broodmother/shared'
 import { useApp } from '../../state'
+import { Button } from '../ui'
+import { Section } from './layout'
 
-type TestResult = { ok: boolean; message: string } | null
+/** What each answer is, in one word, so the line reads before it is read. */
+const VERDICT: Record<AccessCheck['state'], string> = {
+  ok: 'reachable',
+  'no-repo': 'no repository',
+  'no-remote': 'no remote',
+  offline: 'unreachable',
+  auth: 'refused',
+  other: 'failed',
+}
 
 const SWITCHES: { key: 'autoCommit' | 'pull' | 'push'; label: string; hint: string }[] = [
   {
@@ -45,15 +55,16 @@ function describeSync(git: GitSettings, repo: boolean, remote: boolean): string 
 }
 
 function repositoryLabel(state: GitState): string {
-  if (!state.repo) return 'none — this vault is a plain folder'
-  return state.remoteUrl ?? 'local only — no remote'
+  if (!state.repo) return 'none, this vault is a plain folder'
+  return state.remoteUrl ?? 'local only, no remote'
 }
 
-export function GitSettingsFields() {
+export function GitSettingsSection() {
   const app = useApp()
   const { gitState } = app
   const [git, setGit] = useState<GitSettings>(app.gitSettings)
-  const [remoteResult, setRemoteResult] = useState<TestResult>(null)
+  const [access, setAccess] = useState<AccessCheck | null>(null)
+  const [checking, setChecking] = useState(false)
 
   useEffect(() => setGit(app.gitSettings), [app.gitSettings])
 
@@ -63,95 +74,98 @@ export function GitSettingsFields() {
     setGit({ ...git, [key]: value })
   }
 
-  async function testRemote() {
-    setRemoteResult(
-      await app.client.request('POST /api/config/test-remote', {
-        remoteUrl: gitState.remoteUrl ?? '',
-        branch: gitState.branch ?? 'main',
-      }),
-    )
+  /** Asked, rather than found out by a sync failing an hour from now. */
+  async function check() {
+    setChecking(true)
+    setAccess(await app.client.request('POST /api/git/check', { root: 'vault' }))
+    setChecking(false)
   }
 
   return (
-    <fieldset className="git-settings">
-      <legend>Git sync{app.vault ? ` · ${app.vault.name}` : ''}</legend>
+    <Section title="Git sync">
+      <fieldset className="field-group">
+        <legend>Remote</legend>
 
-      {/* Read off the checkout, so a repo started or repointed in a terminal shows up. */}
-      <label>
-        Repository
-        <input value={repositoryLabel(gitState)} readOnly />
-      </label>
-
-      {gitState.repo ? (
-        <p className="hint">
-          {gitState.branch
-            ? `On ${gitState.branch}. Syncing follows the checkout you are in, so a worktree syncs its own branch.`
-            : 'This checkout is not on a branch, so nothing can be pulled or pushed until it is.'}
-        </p>
-      ) : (
-        <p className="hint">
-          Git is optional. This vault keeps its markdown on disk and nothing else — turn
-          it into a repository from a terminal and these settings start applying.
-        </p>
-      )}
-
-      <label className="check">
-        <input
-          type="checkbox"
-          checked={git.enabled}
-          disabled={!gitState.repo}
-          onChange={(event) => set('enabled', event.target.checked)}
-        />
-        Sync this vault
-      </label>
-
-      <div className="sub" data-disabled={locked}>
-        {SWITCHES.map((row) => (
-          <label key={row.key} className="check" title={row.hint}>
-            <input
-              type="checkbox"
-              checked={git[row.key]}
-              disabled={locked}
-              onChange={(event) => set(row.key, event.target.checked)}
-            />
-            {row.label}
-          </label>
-        ))}
-
+        {/* Read off the checkout, so a repo started or repointed in a terminal shows up. */}
         <label>
-          Idle before sync (ms)
+          Repository
+          <input value={repositoryLabel(gitState)} readOnly />
+        </label>
+
+        {gitState.repo ? (
+          <p className="hint">
+            {gitState.branch
+              ? `On ${gitState.branch}. Syncing follows the checkout you are in, so each branch syncs its own.`
+              : 'This checkout is not on a branch, so nothing can be pulled or pushed until it is.'}
+          </p>
+        ) : (
+          <p className="hint">
+            Git is optional. This vault keeps its markdown on disk and nothing else. Turn
+            it into a repository from a terminal and these settings start applying.
+          </p>
+        )}
+      </fieldset>
+
+      <fieldset className="field-group">
+        <legend>Sync</legend>
+
+        <label className="check">
+          <input
+            type="checkbox"
+            checked={git.enabled}
+            disabled={!gitState.repo}
+            onChange={(event) => set('enabled', event.target.checked)}
+          />
+          Sync this vault
+        </label>
+
+        <div className="sub" data-disabled={locked}>
+          {SWITCHES.map((row) => (
+            <label key={row.key} className="check" title={row.hint}>
+              <input
+                type="checkbox"
+                checked={git[row.key]}
+                disabled={locked}
+                onChange={(event) => set(row.key, event.target.checked)}
+              />
+              {row.label}
+            </label>
+          ))}
+        </div>
+
+        {/* Seconds, because seconds is what the sentence under it counts in. */}
+        <label>
+          Idle before sync (seconds)
           <input
             type="number"
-            min={1000}
-            step={1000}
-            value={git.idleMs}
+            min={1}
+            step={1}
+            value={Math.round(git.idleMs / 1000)}
             disabled={locked}
-            onChange={(event) => set('idleMs', Number(event.target.value))}
+            onChange={(event) => set('idleMs', Number(event.target.value) * 1000)}
           />
         </label>
-      </div>
 
-      <p className="hint">
-        {describeSync(git, gitState.repo, Boolean(gitState.remoteUrl))}
-      </p>
+        <p className="hint">
+          {describeSync(git, gitState.repo, Boolean(gitState.remoteUrl))}
+        </p>
+      </fieldset>
 
       <div className="row">
-        <button
-          type="button"
-          onClick={() => void testRemote()}
-          disabled={!gitState.remoteUrl}
-        >
-          test remote
-        </button>
-        <button type="button" onClick={() => void app.saveGitSettings(git)}>
-          save sync settings
-        </button>
-        {remoteResult && (
-          <span className="result" data-ok={remoteResult.ok}>
-            {remoteResult.ok ? 'ok' : 'failed'} · {remoteResult.message}
+        <Button onClick={() => void check()} disabled={checking}>
+          {checking ? 'checking…' : 'check access'}
+        </Button>
+        <Button onClick={() => void app.saveGitSettings(git)}>save sync settings</Button>
+        {access && (
+          <span className="result" data-ok={access.state === 'ok'}>
+            {VERDICT[access.state]}
           </span>
         )}
       </div>
-    </fieldset>
+
+      {/* The reason on its own line, because the ones worth reading are a sentence and the
+          row has no room for a sentence. */}
+      {access && <p className="hint">{access.message}</p>}
+    </Section>
   )
 }

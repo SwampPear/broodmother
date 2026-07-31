@@ -1,16 +1,18 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import type { DocRef } from '@broodmother/shared'
 import { API_BASE } from '../../api/http'
 
-/** The URL the server serves a vault file's bytes from. */
-const fileUrl = (path: string) => `${API_BASE}/api/file?path=${encodeURIComponent(path)}`
+/** The URL the server serves a file's bytes from. */
+const fileUrl = ({ root, path }: DocRef) =>
+  `${API_BASE}/api/file?root=${root}&path=${encodeURIComponent(path)}`
 
 /**
  * An image is opened by looking at it. There is nothing to edit and nothing to save, so
  * what the pane holds is the picture, its size, and room around it.
  */
-export function ImageView({ path, revision }: { path: string; revision: number }) {
+export function ImageView({ root, path, revision }: DocRef & { revision: number }) {
   const [size, setSize] = useState<{ width: number; height: number } | null>(null)
   const [failed, setFailed] = useState(false)
 
@@ -25,9 +27,9 @@ export function ImageView({ path, revision }: { path: string; revision: number }
   return (
     <div className="image-view">
       <img
-        // The vault is on disk and can be written from anywhere; the revision changes when
+        // The file is on disk and can be written from anywhere; the revision changes when
         // the watcher says this file did, which is what makes the browser fetch it again.
-        src={`${fileUrl(path)}&v=${revision}`}
+        src={`${fileUrl({ root, path })}&v=${revision}`}
         alt={path.split('/').pop() ?? path}
         onLoad={(event) =>
           setSize({

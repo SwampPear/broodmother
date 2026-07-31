@@ -1,24 +1,27 @@
-import type { VaultPath } from '@broodmother/shared'
+import type { DocPath, DocRef, DocRoot } from '@broodmother/shared'
 
 /** Everything the palette can set in motion. It holds no state of its own: a flow returns
  *  the next one, or null when the work is done and the palette closes. */
 export interface FlowCtx {
-  paths: VaultPath[]
-  open(path: VaultPath): void
+  /** Every file in both trees, as the addresses that name them. */
+  refs: DocRef[]
+  open(ref: DocRef): void
   /** Makes one and hands it to the tree to be named. Nothing to ask, so nothing is asked:
    *  the question a dialog put first — what is it called — is the one you answer last. */
   newNote(): void
-  move(from: VaultPath, to: VaultPath): void
-  remove(path: VaultPath): void
+  move(root: DocRoot, from: DocPath, to: DocPath): void
+  remove(ref: DocRef): void
   syncNow(): void
   settings(): void
   toggleTerminal(): void
   vaults(): void
+  projects(): void
+  createProject(): void
 }
 
 export type Flow =
   | { kind: 'search' }
-  | { kind: 'pick'; label: string; next: (path: VaultPath) => Flow | null }
+  | { kind: 'pick'; label: string; next: (ref: DocRef) => Flow | null }
   | {
       kind: 'input'
       label: string
@@ -27,23 +30,27 @@ export type Flow =
     }
   | { kind: 'confirm'; label: string; detail: string; next: () => void }
 
-export function moveFlow(ctx: FlowCtx, from: VaultPath): Flow {
+export function moveFlow(ctx: FlowCtx, from: DocRef): Flow {
   return {
     kind: 'input',
-    label: `Move ${from} to`,
-    initial: from,
+    label: `Move ${from.path} to`,
+    initial: from.path,
     next: (to) => {
-      ctx.move(from, to)
+      ctx.move(from.root, from.path, to)
       return null
     },
   }
 }
 
-export function deleteFlow(ctx: FlowCtx, path: VaultPath): Flow {
+/** A folder goes with everything inside it, which is the one thing worth being told before
+ *  it happens rather than after. */
+export function deleteFlow(ctx: FlowCtx, ref: DocRef, folder = false): Flow {
   return {
     kind: 'confirm',
-    label: `Delete ${path}?`,
-    detail: 'The file is removed from disk. The app cannot undo it.',
-    next: () => ctx.remove(path),
+    label: `Delete ${ref.path}?`,
+    detail: folder
+      ? 'The folder and everything in it are removed from disk. The app cannot undo it.'
+      : 'The file is removed from disk. The app cannot undo it.',
+    next: () => ctx.remove(ref),
   }
 }

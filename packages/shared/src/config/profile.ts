@@ -3,10 +3,16 @@ import type { GitAuthor } from './git'
 export interface Profile {
   name: string // the profile's file name
   path: string // the profile's file, in `~/.broodmother/profiles/`
-  color: string // presence color
+  color: string // the profile's colour, as #rrggbb
   gitAuthor: GitAuthor
   sshKeyPath: string | null // git SSH key in this profile's vaults, null reverts to default
   claudeCfgDir: string | null // `CLAUDE_CONFIG_DIR` for shells opened here, null reverts to default
+  soul: string | null // markdown appended to the system prompt of claude shells opened here
+  /** The GitHub login this profile is connected as. Never the token: that is the server's,
+   *  and a secret that reaches the browser is a secret in a screenshot. */
+  github: string | null
 }
 
-export type Identity = Omit<Profile, 'name' | 'path'> // identity half of profile
+// The half a person edits. The GitHub connection is not in it — it is made and broken by
+// signing in, not by typing.
+export type Identity = Omit<Profile, 'name' | 'path' | 'github'>

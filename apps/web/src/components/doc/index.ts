@@ -1,2 +1,2 @@
 export { DocView } from './core'
-export { VaultView } from './vault-view'
+export { HomeView } from './home'

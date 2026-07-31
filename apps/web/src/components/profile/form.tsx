@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, type FormEvent } from 'react'
-import type { Identity, Profile } from '@broodmother/shared'
+import type { GitAuthor, Identity, Profile } from '@broodmother/shared'
 import { opal, opalFrom } from '../../colors'
 
 export interface ProfileDraft extends Identity {
@@ -23,11 +23,15 @@ export interface ProfileFormState {
 export function ProfileForm({
   id,
   existing,
+  suggested,
   onSubmit,
   onState,
 }: {
   id: string
   existing: Profile[]
+  /** Who git on this machine already says you are. The fields open on it rather than on
+   *  nothing: it is almost always the answer, and it is one nobody should have to retype. */
+  suggested?: GitAuthor | null
   onSubmit: (draft: ProfileDraft) => void
   /** The submit button lives in the caller's chrome, so the state it dresses on has to
    *  reach it. */
@@ -47,9 +51,19 @@ export function ProfileForm({
   const [palette] = useState(() => opalFrom(color))
   const [error, setError] = useState('')
 
+  /**
+   * Who the profile commits as once the empty fields are read as what they say. Every field
+   * here works the way the credentials below them do: what is written in grey is what you
+   * get by leaving it alone, so the answer git already has is taken by typing nothing.
+   */
+  const author = {
+    name: authorName.trim() || suggested?.name?.trim() || name.trim(),
+    email: email.trim() || suggested?.email?.trim() || '',
+  }
+
   useEffect(
-    () => onState?.({ ready: Boolean(name.trim() && email.trim()), color }),
-    [name, email, color, onState],
+    () => onState?.({ ready: Boolean(name.trim() && author.email), color }),
+    [name, author.email, color, onState],
   )
 
   const submit = (event: FormEvent) => {
@@ -61,19 +75,22 @@ export function ProfileForm({
       return setError(
         'The name becomes a file, so it cannot be a path or start with a dot.',
       )
-    if (!email.includes('@')) return setError('The git author email needs an @ in it.')
+    if (!author.email.includes('@'))
+      return setError('The git author email needs an @ in it.')
     onSubmit({
       name: trimmed,
       color,
-      gitAuthor: { name: authorName.trim() || trimmed, email: email.trim() },
+      gitAuthor: { name: author.name || trimmed, email: author.email },
       sshKeyPath: sshKeyPath.trim() || null,
       claudeCfgDir: claudeCfgDir.trim() || null,
+      // Who claude is while it works as this profile. Written on the profile's own page
+      // rather than here: a new profile is a name and an author, not an essay.
+      soul: null,
     })
   }
 
   return (
     <form id={id} className="fields" onSubmit={submit}>
-      <h2>New profile</h2>
       <label>
         Profile name
         <input
@@ -88,59 +105,13 @@ export function ProfileForm({
         />
       </label>
 
-      <label>
-        Git author name
-        <input
-          value={authorName}
-          onChange={(event) => setAuthorName(event.target.value)}
-          placeholder={name.trim() || 'John Doe'}
-        />
-      </label>
-
-      <label>
-        Git author email
-        <input
-          value={email}
-          onChange={(event) => {
-            setEmail(event.target.value)
-            setError('')
-          }}
-          placeholder="john@example.com"
-          required
-        />
-      </label>
-
-      <label>
-        SSH key
-        <input
-          value={sshKeyPath}
-          onChange={(event) => setSshKeyPath(event.target.value)}
-          placeholder="~/.ssh/id_ed25519"
-        />
-      </label>
-
-      <label>
-        Claude config directory
-        <input
-          value={claudeCfgDir}
-          onChange={(event) => setclaudeCfgDir(event.target.value)}
-          placeholder="~/.claude"
-        />
-      </label>
-
-      <p className="hint">
-        Both are paths to credentials you already have: the key git offers in this
-        profile's vaults, and the Claude login its terminals run as. Left empty, git and
-        Claude use their own defaults.
-      </p>
-
       <fieldset className="swatches">
-        <legend>Presence colour</legend>
+        <legend>Color</legend>
         {palette.map((option) => (
           <label key={option.hex} title={`opal ${option.name}`}>
             <input
               type="radio"
-              name="presence"
+              name="color"
               value={option.hex}
               checked={color === option.hex}
               onChange={() => setColor(option.hex)}
@@ -151,14 +122,52 @@ export function ProfileForm({
         ))}
       </fieldset>
 
-      {/* The button that makes the profile lives in the caller's chrome, and is dead until
-          both of these are filled. A dead button with no reason on it reads as broken, so
-          it says what it is waiting for. */}
-      {!error && !(name.trim() && email.trim()) && (
-        <p className="hint">
-          A profile needs a name and a git author email; the rest can stay empty.
-        </p>
-      )}
+      {/* Who you are to git, and to Claude. Two programs, two boxes: what goes in each is
+          read off what it is for rather than off a list of five fields in a row. */}
+      <fieldset className="field-group">
+        <legend>Git</legend>
+        <label>
+          Author name
+          <input
+            value={authorName}
+            onChange={(event) => setAuthorName(event.target.value)}
+            placeholder={suggested?.name || name.trim() || 'John Doe'}
+          />
+        </label>
+
+        <label>
+          Author email
+          <input
+            value={email}
+            onChange={(event) => {
+              setEmail(event.target.value)
+              setError('')
+            }}
+            placeholder={suggested?.email || 'john@example.com'}
+          />
+        </label>
+
+        <label>
+          SSH key
+          <input
+            value={sshKeyPath}
+            onChange={(event) => setSshKeyPath(event.target.value)}
+            placeholder="~/.ssh/id_ed25519"
+          />
+        </label>
+      </fieldset>
+
+      <fieldset className="field-group">
+        <legend>Claude</legend>
+        <label>
+          Config directory
+          <input
+            value={claudeCfgDir}
+            onChange={(event) => setclaudeCfgDir(event.target.value)}
+            placeholder="~/.claude"
+          />
+        </label>
+      </fieldset>
 
       {error && (
         <p className="field-error" role="alert">

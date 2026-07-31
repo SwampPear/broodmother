@@ -2,7 +2,7 @@
 
 import fuzzysort from 'fuzzysort'
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
-import { Icon } from '../ui'
+import { Button, Icon } from '../ui'
 import { choices } from './choices'
 import { type Flow, type FlowCtx } from './flows'
 
@@ -32,7 +32,7 @@ export function Palette({
 
   const items = choices(flow, ctx)
 
-  // With nothing typed the input order stands — commands first, then the vault in tree
+  // With nothing typed the input order stands — commands first, then the project in tree
   // order. A query replaces it with how well each row matches, documents and commands
   // ranked against each other rather than kept in separate piles.
   const matches =
@@ -95,12 +95,10 @@ export function Palette({
             <p className="palette-label">{flow.label}</p>
             <p className="palette-detail">{flow.detail}</p>
             <div className="palette-actions">
-              <button type="button" onClick={() => setFlow(null)}>
-                cancel
-              </button>
-              <button type="button" className="danger" onClick={submit}>
+              <Button onClick={() => setFlow(null)}>cancel</Button>
+              <Button danger onClick={submit}>
                 delete
-              </button>
+              </Button>
             </div>
           </>
         ) : (

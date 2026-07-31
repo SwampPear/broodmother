@@ -18,10 +18,11 @@ const base = API_BASE
 /** Sends made before the socket opens are held, not dropped — the first is a resize. */
 function open<Send, Receive>(
   route: WsRoute,
+  query: string,
   onMessage: (message: Receive) => void,
   onClose?: () => void,
 ): Connection<Send> {
-  const socket = new WebSocket(new URL(route, base.replace(/^http/, 'ws')))
+  const socket = new WebSocket(new URL(`${route}${query}`, base.replace(/^http/, 'ws')))
   socket.addEventListener('message', (event) => onMessage(JSON.parse(String(event.data))))
   // A backend that is down closes rather than answering; without this the panel just sits
   // there swallowing keystrokes, which reads as "the terminal is broken".
@@ -61,9 +62,14 @@ export function httpClient(): ApiClient {
       return payload as ApiResponse<R>
     },
 
-    connect: (onMessage) => open<never, ServerMessage>('/ws', onMessage),
+    connect: (onMessage) => open<never, ServerMessage>('/ws', '', onMessage),
 
-    terminal: (onMessage, onClose) =>
-      open<TerminalClientMessage, TerminalServerMessage>('/terminal', onMessage, onClose),
+    terminal: (root, onMessage, onClose) =>
+      open<TerminalClientMessage, TerminalServerMessage>(
+        '/terminal',
+        `?root=${encodeURIComponent(root)}`,
+        onMessage,
+        onClose,
+      ),
   }
 }

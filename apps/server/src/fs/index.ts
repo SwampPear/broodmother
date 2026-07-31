@@ -1,2 +1,9 @@
 export { atomicWrite } from './atomic'
-export { PathError, nameProblem, normalize, resolveInVault, toVaultPath } from './paths'
+export {
+  PathError,
+  RESERVED,
+  nameProblem,
+  normalize,
+  resolveInRoot,
+  toDocPath,
+} from './paths'

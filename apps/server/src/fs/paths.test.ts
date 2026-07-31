@@ -2,7 +2,7 @@ import { mkdir, symlink, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
 import { cleanup, tempDir } from '../test'
-import { PathError, normalize, resolveInVault } from './paths'
+import { PathError, normalize, resolveInRoot } from './paths'
 
 afterAll(cleanup)
 
@@ -33,35 +33,35 @@ describe('normalize', () => {
   })
 })
 
-describe('resolveInVault', () => {
-  it('resolves inside the vault', async () => {
+describe('resolveInRoot', () => {
+  it('resolves inside the project', async () => {
     const root = await tempDir()
     await mkdir(path.join(root, 'notes'))
     await writeFile(path.join(root, 'notes/a.md'), 'a')
-    expect(await resolveInVault(root, 'notes/a.md')).toBe(path.join(root, 'notes/a.md'))
+    expect(await resolveInRoot(root, 'notes/a.md')).toBe(path.join(root, 'notes/a.md'))
   })
 
   it('rejects traversal and absolute paths', async () => {
     const root = await tempDir()
-    await expect(resolveInVault(root, '../outside.md')).rejects.toThrow(PathError)
-    await expect(resolveInVault(root, '/etc/passwd')).rejects.toThrow(PathError)
+    await expect(resolveInRoot(root, '../outside.md')).rejects.toThrow(PathError)
+    await expect(resolveInRoot(root, '/etc/passwd')).rejects.toThrow(PathError)
   })
 
-  it('rejects a symlinked file that points outside the vault', async () => {
+  it('rejects a symlinked file that points outside the project', async () => {
     const root = await tempDir()
     const outside = await tempDir()
     await writeFile(path.join(outside, 'secret.md'), 'secret')
     await symlink(path.join(outside, 'secret.md'), path.join(root, 'escape.md'))
-    await expect(resolveInVault(root, 'escape.md')).rejects.toThrow(/escapes the vault/)
+    await expect(resolveInRoot(root, 'escape.md')).rejects.toThrow(/escapes the root/)
   })
 
-  it('rejects a path that traverses a symlinked directory out of the vault', async () => {
+  it('rejects a path traversing a symlinked directory out of the project', async () => {
     const root = await tempDir()
     const outside = await tempDir()
     await writeFile(path.join(outside, 'secret.md'), 'secret')
     await symlink(outside, path.join(root, 'link'))
-    await expect(resolveInVault(root, 'link/secret.md')).rejects.toThrow(
-      /escapes the vault/,
+    await expect(resolveInRoot(root, 'link/secret.md')).rejects.toThrow(
+      /escapes the root/,
     )
   })
 
@@ -69,14 +69,14 @@ describe('resolveInVault', () => {
     const root = await tempDir()
     const outside = await tempDir()
     await symlink(outside, path.join(root, 'link'))
-    await expect(resolveInVault(root, 'link/new.md')).rejects.toThrow(/escapes the vault/)
+    await expect(resolveInRoot(root, 'link/new.md')).rejects.toThrow(/escapes the root/)
   })
 
-  it('allows a symlink that stays inside the vault', async () => {
+  it('allows a symlink that stays inside the project', async () => {
     const root = await tempDir()
     await mkdir(path.join(root, 'real'))
     await writeFile(path.join(root, 'real/a.md'), 'a')
     await symlink(path.join(root, 'real'), path.join(root, 'alias'))
-    await expect(resolveInVault(root, 'alias/a.md')).resolves.toContain('alias')
+    await expect(resolveInRoot(root, 'alias/a.md')).resolves.toContain('alias')
   })
 })

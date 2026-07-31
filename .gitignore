@@ -11,7 +11,7 @@ next-env.d.ts
 
 # local data
 .broodmother/
-example-vault/
+example-project/
 .env
 
 # os

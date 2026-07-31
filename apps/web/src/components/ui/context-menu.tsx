@@ -30,7 +30,6 @@ export function ContextMenu({
         >
           {sections.map((section, index) => (
             <div className="menu-section" key={section.heading ?? index}>
-              {index > 0 && <Context.Separator className="menu-divider" />}
               {section.heading && (
                 <Context.Label className="menu-heading">{section.heading}</Context.Label>
               )}

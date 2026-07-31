@@ -1,11 +1,22 @@
 'use client'
 
 import '@xterm/xterm/css/xterm.css'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react'
+import type { DocRoot } from '@broodmother/shared'
 import { opal } from '../../colors'
 import { useApp } from '../../state'
 import { Icon, Resizer } from '../ui'
-import { KINDS, type TerminalKind, TERMINALS } from './kinds'
+import { command, KINDS, type TerminalKind, TERMINALS } from './kinds'
+import {
+  close,
+  frame,
+  leaf,
+  resize,
+  seams,
+  split,
+  type Layout,
+  type Seam,
+} from './layout'
 
 const hex = Object.fromEntries(opal.map((color) => [color.name, color.hex]))
 
@@ -35,12 +46,17 @@ const THEME = {
 }
 
 export function TerminalPanel({
+  root,
   height,
   onHeight,
   visible,
   onHide,
   onExit,
 }: {
+  /** Where its shells open. Read when one is spawned and never again: a pty someone is
+   *  typing in is not somewhere to send a `cd`, so moving the scope moves the next shell
+   *  rather than the ones already running. */
+  root: DocRoot
   height: number
   onHeight: (height: number) => void
   visible: boolean
@@ -102,8 +118,10 @@ export function TerminalPanel({
       {KINDS.filter((kind) => live.includes(kind)).map((kind) => (
         <Session
           key={kind}
-          run={TERMINALS[kind].run}
+          kind={kind}
+          root={root}
           active={visible && tab === kind}
+          focused={visible && tab === kind}
           onEnd={() => ended(kind)}
         />
       ))}
@@ -111,37 +129,152 @@ export function TerminalPanel({
   )
 }
 
+/** The panel's ground and a shell's are the same black, so a seam has to be drawn. */
+const SEAM = '1px solid var(--line)'
+
 /**
- * The same shell as the panel's, given the whole pane instead of a strip at the bottom.
- * It stays mounted while other tabs are on top — a pty that unmounts is a pty that dies.
+ * The same shell as the panel's, given the whole pane instead of a strip at the bottom, and
+ * splittable in two directions: ⌘D puts a pane beside this one, ⌘⇧D below it, ⌘[ and ⌘] walk
+ * between them. It stays mounted while other tabs are on top — a pty that unmounts is a pty
+ * that dies.
  */
 export function TerminalTab({
   kind,
+  root,
   active,
   onExit,
 }: {
   kind: TerminalKind
+  /** Where its shells open — the scope the tab was made in, kept for the panes a split
+   *  adds later, so one tab's shells all stand in the same folder. */
+  root: DocRoot
   active: boolean
   onExit: () => void
 }) {
+  const [layout, setLayout] = useState<Layout>(() => leaf(kind))
+  // Null until a shell takes the cursor, which the first one does as it opens.
+  const [focus, setFocus] = useState<string | null>(null)
+  // A seam is dragged in pixels, so the tab has to say how many it is wide and tall.
+  const [box, setBox] = useState({ w: 0, h: 0 })
+  const host = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const node = host.current
+    if (!node) return
+    const observer = new ResizeObserver(() =>
+      setBox({ w: node.clientWidth, h: node.clientHeight }),
+    )
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [])
+
+  const panes = frame(layout)
+  const here = focus ?? panes[0]?.leaf.id
+
+  const span = (seam: Seam) =>
+    seam.axis === 'row' ? seam.rect.w * box.w : seam.rect.h * box.h
+
+  const ended = (id: string) => {
+    const rest = close(layout, id)
+    if (!rest) return onExit()
+    setLayout(rest)
+    if (here === id) setFocus(frame(rest)[0]?.leaf.id ?? null)
+  }
+
+  // On the pane rather than the window: the event comes from the shell you are typing in,
+  // which is the one a split is measured from, so nothing has to be remembered to place it.
+  const keys = (event: KeyboardEvent<HTMLDivElement>, id: string) => {
+    if (!event.metaKey && !event.ctrlKey) return
+    if (event.key.toLowerCase() === 'd') {
+      event.preventDefault()
+      setLayout(split(layout, id, event.shiftKey ? 'column' : 'row'))
+    } else if (event.key === '[' || event.key === ']') {
+      event.preventDefault()
+      const order = panes.map((pane) => pane.leaf.id)
+      const at = order.indexOf(id) + (event.key === ']' ? 1 : -1)
+      setFocus(order[(at + order.length) % order.length] ?? id)
+    }
+  }
+
   return (
-    <div className="terminal terminal-tab-pane" hidden={!active}>
-      <Session run={TERMINALS[kind].run} active={active} onEnd={onExit} />
+    <div className="terminal terminal-tab-pane" hidden={!active} ref={host}>
+      {panes.map(({ leaf: pane, rect }) => (
+        <div
+          key={pane.id}
+          className="terminal-pane"
+          style={{
+            left: `${rect.x * 100}%`,
+            top: `${rect.y * 100}%`,
+            width: `${rect.w * 100}%`,
+            height: `${rect.h * 100}%`,
+            borderLeft: rect.x > 0 ? SEAM : undefined,
+            borderTop: rect.y > 0 ? SEAM : undefined,
+          }}
+          onFocusCapture={() => setFocus(pane.id)}
+          onKeyDown={(event) => keys(event, pane.id)}
+        >
+          <Session
+            kind={pane.shell}
+            root={root}
+            active
+            focused={active && here === pane.id}
+            onEnd={() => ended(pane.id)}
+          />
+        </div>
+      ))}
+      {/* Held back until the tab has been measured: a seam with no run to travel has no
+          limits to clamp against. */}
+      {box.w > 0 &&
+        seams(layout).map((seam) => (
+          <Resizer
+            key={seam.id}
+            axis={seam.axis}
+            span={span(seam)}
+            size={span(seam) * seam.ratio}
+            onSize={(at) => setLayout(resize(layout, seam.id, at / span(seam)))}
+            style={
+              seam.axis === 'row'
+                ? {
+                    left: `${(seam.rect.x + seam.rect.w * seam.ratio) * 100}%`,
+                    top: `${seam.rect.y * 100}%`,
+                    height: `${seam.rect.h * 100}%`,
+                  }
+                : {
+                    top: `${(seam.rect.y + seam.rect.h * seam.ratio) * 100}%`,
+                    left: `${seam.rect.x * 100}%`,
+                    width: `${seam.rect.w * 100}%`,
+                  }
+            }
+          />
+        ))}
     </div>
   )
 }
 
 /** One pty, kept alive behind whichever tab is on top. */
 function Session({
-  run,
+  kind,
+  root,
   active,
+  focused,
   onEnd,
 }: {
-  run: string | null
+  kind: TerminalKind
+  /** The root this pty stands in, taken once when it is spawned. */
+  root: DocRoot
+  /** Shown, which every pane of a tab on top is. */
   active: boolean
+  /** Holding the cursor, which one of them is. */
+  focused: boolean
   onEnd: () => void
 }) {
   const app = useApp()
+  // What this shell woke up to, taken once: a soul rewritten later belongs to the next
+  // shell, not to this one restarted under whoever is typing in it.
+  const run = useRef(command(kind, app.profile?.soul ?? null))
+  // Taken once for the same reason the soul is: this shell stands where it was opened, and
+  // the scope moving afterwards is not a reason to move a folder out from under it.
+  const opened = useRef(root)
   const host = useRef<HTMLDivElement>(null)
   const shell = useRef<{ fit: () => void; focus: () => void } | null>(null)
   const [lost, setLost] = useState(false)
@@ -175,6 +308,7 @@ function Session({
 
       let started = false
       const connection = app.client.terminal(
+        opened.current,
         (message) => {
           if (message.type !== 'output') return end.current()
           terminal.write(message.data)
@@ -182,9 +316,9 @@ function Session({
           // it lands in a tty that is still echoing raw, and then the line editor starts,
           // finds a line already waiting and redraws it — the same command on screen twice,
           // which reads as having run twice.
-          if (run && !started) {
+          if (run.current && !started) {
             started = true
-            connection.send({ type: 'input', data: run })
+            connection.send({ type: 'input', data: run.current })
           }
         },
         () => setLost(true),
@@ -218,11 +352,11 @@ function Session({
       gone = true
       stop?.()
     }
-  }, [app.client, run])
+  }, [app.client])
 
   useEffect(() => {
-    if (active) shell.current?.focus()
-  }, [active])
+    if (focused) shell.current?.focus()
+  }, [focused])
 
   return (
     <>

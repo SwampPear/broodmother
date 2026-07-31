@@ -1,6 +1,6 @@
 {
   "name": "@broodmother/desktop",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "private": true,
   "description": "broodmother as a Mac app — the backend and the site, packaged and launched together",
   "author": "broodmother",

@@ -4,8 +4,7 @@ import { afterAll, describe, expect, it } from 'vitest'
 import type { Profile } from '@broodmother/shared'
 import { bareRemote, cleanup, git, tempDir } from '../test'
 import { Git } from '../git'
-import { VaultError, assertVaultName, createVault, listVaults } from './vaults'
-import { PRIMARY } from './worktrees'
+import { PRIMARY, VaultError, assertVaultName, createVault, listVaults } from './vaults'
 
 afterAll(cleanup)
 
@@ -16,10 +15,12 @@ const profile: Profile = {
   gitAuthor: { name: 'Test', email: 'test@localhost' },
   sshKeyPath: null,
   claudeCfgDir: null,
+  soul: null,
+  github: null,
 }
 
 describe('listVaults', () => {
-  it('picks up every plain directory dropped into the project', async () => {
+  it('picks up every plain directory dropped into the vault', async () => {
     const home = await tempDir()
     await mkdir(path.join(home, 'notes'))
     await mkdir(path.join(home, 'handbook'))
@@ -30,10 +31,10 @@ describe('listVaults', () => {
     ])
   })
 
-  it('ignores files and dotted directories, so project.json is not a vault', async () => {
+  it('ignores files and dotted directories, so config.json is no vault', async () => {
     const home = await tempDir()
     await mkdir(path.join(home, '.trash'))
-    await writeFile(path.join(home, 'project.json'), '{}')
+    await writeFile(path.join(home, 'config.json'), '{}')
     await mkdir(path.join(home, 'real'))
 
     expect((await listVaults(home)).map((vault) => vault.name)).toEqual(['real'])

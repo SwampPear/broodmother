@@ -1,10 +1,10 @@
 # Contract requests against `packages/shared/src/doc.ts`
 
-Gaps found while building the codec against a real Obsidian vault of ~90 pages. Each one is
+Gaps found while building the codec against a real Obsidian project of ~90 pages. Each one is
 a case where `parse` cannot record something the source file carries, so `serialize` cannot
 put it back. None is fixable inside `packages/markdown`.
 
-The vault the counts below were measured against was private and does not ship with this
+The project the counts below were measured against was private and does not ship with this
 repo; the file names are kept as illustrations of the shape of the problem.
 
 Ordered by how much damage it does to a real file on save. Items 2–5 are still open.
@@ -13,7 +13,7 @@ Ordered by how much damage it does to a real file on save. Items 2–5 are still
 
 Settled as two attr-less nodes rather than the one attr-carrying node requested below:
 `mathBlock` for `$$…$$` and inline `math` for `$…$`, matching the editor's inline/block
-split. The codec captures both verbatim. The vault's 276 math spans (12 `mathBlock`,
+split. The codec captures both verbatim. The project's 276 math spans (12 `mathBlock`,
 264 inline `math`) survive a round trip unchanged; 104 of those bodies contain sequences
 the markdown parser used to rewrite. Original report kept below for the record.
 
@@ -55,8 +55,8 @@ the parse (`\*`, `\[`, `\_`) survive, because the serializer re-escapes anything
 otherwise reparse differently — these are only the ones that are inert in CommonMark and so
 look droppable.
 
-They are not droppable in Obsidian: `\$` exists precisely to stop `$…$` becoming math.
-14 vault files use them, `Business/Business Plan.md` and `Funding/Funding.md` most heavily
+They are not droppable in Obsidian: `\$` exists precisely to stop `$…$` becoming math. 14
+project files use them, `Business/Business Plan.md` and `Funding/Funding.md` most heavily
 (`\~\$21 billion`, `\$40M`).
 
 Request: a verbatim spelling on text nodes —
@@ -77,23 +77,23 @@ and it reparses to `text`.
 
 A list written loose (blank line between items, one paragraph each) is indistinguishable
 from a tight one in `DocNode`, so it serializes tight and Obsidian stops wrapping the items
-in `<p>`. `Handbook/Overview/References.md` is the vault case.
+in `<p>`. `Handbook/Overview/References.md` is the project case.
 
 Request: `tight: boolean` on bullet/ordered/task list attrs.
 
 ## 4. Hard breaks
 
-`line  ⏎` and `line\⏎` become an ordinary newline — there is no `hardBreak` node. Low
-urgency: the vault uses literal `<br>` (57 occurrences), which survives as text. Two files
-have trailing double-spaces that get trimmed.
+`line ⏎` and `line\⏎` become an ordinary newline — there is no `hardBreak` node. Low
+urgency: the project uses literal `<br>` (57 occurrences), which survives as text. Two
+files have trailing double-spaces that get trimmed.
 
 Request: `'hardBreak'` in `SCHEMA_SPEC.nodes`.
 
 ## 5. Table column alignment
 
-`TableCellAttrs` carries `colspan`/`rowspan` but not alignment, so `| :--- | ---: |` cannot
-round-trip. No vault file uses it today, so nothing is at risk yet — but any table a user
-aligns in the editor loses it on save.
+`TableCellAttrs` carries `colspan`/`rowspan` but not alignment, so `| :--- | ---: |`
+cannot round-trip. No project file uses it today, so nothing is at risk yet — but any
+table a user aligns in the editor loses it on save.
 
 Request: `align: 'left' | 'center' | 'right' | null` on `TableCellAttrs`.
 

@@ -14,7 +14,9 @@ function show(sections: MenuSection[]) {
 
 const run = vi.fn()
 
-it('groups rows under their heading and divides the sections', async () => {
+/* Sections are told apart by their heading and by the room between them — no rule is drawn
+   across the surface. */
+it('groups rows under their heading', async () => {
   await show([
     { heading: 'People', actions: [{ id: 'a', label: 'Ada', onSelect: run }] },
     { actions: [{ id: 'new', label: 'Add one', onSelect: run }] },
@@ -22,7 +24,8 @@ it('groups rows under their heading and divides the sections', async () => {
 
   expect(screen.getByRole('menu')).toHaveAccessibleName('Things')
   expect(screen.getByText('People')).toBeInTheDocument()
-  expect(screen.getByRole('separator')).toBeInTheDocument()
+  expect(screen.queryByRole('separator')).not.toBeInTheDocument()
+  expect(screen.getByRole('menuitem', { name: 'Add one' })).toBeInTheDocument()
 })
 
 it('carries a description and a leading badge on the row', async () => {

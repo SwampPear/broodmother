@@ -1,36 +1,38 @@
 'use client'
 
-import { useState, type CSSProperties, type FormEvent } from 'react'
+import { useState, type FormEvent } from 'react'
+import { tilde } from '@broodmother/shared'
 import { useApp } from '../../state'
-import { Modal } from '../ui'
+import { RemoteField } from '../github'
+import { Button, Choices, Modal, type Choice } from '../ui'
 
 type VaultGit = 'none' | 'local' | 'remote'
 
 /** What each choice actually gets you, in the order of how much git it is. */
-const GIT_CHOICES: { value: VaultGit; label: string; hint: string }[] = [
+const GIT_CHOICES: Choice<VaultGit>[] = [
   {
     value: 'none',
     label: 'No git',
-    hint: 'A plain folder of markdown. No history, no sync — you can make it a repository later from a terminal.',
+    hint: 'A plain folder of markdown. No history and no sync. You can make it a repository later from a terminal.',
   },
   {
     value: 'local',
     label: 'Git, no remote',
-    hint: 'A repository on this machine: history and worktrees, nothing pushed anywhere.',
   },
   {
     value: 'remote',
-    label: 'Git with a remote',
-    hint: 'The remote is checked before anything is written. An existing branch is cloned; an empty one is initialised and pushed on the first sync.',
+    label: 'Git, remote',
+    hint: 'The remote is checked before anything is written. An existing branch is cloned, and an empty one is started here and pushed on the first sync.',
   },
 ]
 
 /**
- * Every folder in the broodmother home is a vault, so this both lists them and makes one. It
- * is the whole app until a vault is open — a modal with no way out — and the same surface
- * reached from ⌘K afterwards, where it can be dismissed.
+ * Every folder in the broodmother home is a vault, so this both lists them and makes one.
+ * It is always dismissable, including on a machine with no vaults at all: an empty app is
+ * a state you are allowed to stand in, and making the first vault is the same gesture as
+ * making the tenth — the selector at the head of the tree, or ⌘K.
  */
-export function VaultPicker({ onClose }: { onClose?: () => void }) {
+export function VaultPicker({ onClose }: { onClose: () => void }) {
   const app = useApp()
   const [name, setName] = useState('')
   const [git, setGit] = useState<VaultGit>('remote')
@@ -40,10 +42,9 @@ export function VaultPicker({ onClose }: { onClose?: () => void }) {
   const [failed, setFailed] = useState<string | null>(null)
 
   const current = app.config?.vaultPath ?? null
-  // First run is having none, not being unable to dismiss: a home with vaults in it that
-  // simply has none open is the picker, not an introduction.
+  // First run is having none, not being unable to dismiss: a home with vaults in it
+  // that simply has none open is the picker, not an introduction.
   const first = app.vaults.length === 0
-  const chosen = GIT_CHOICES.find((choice) => choice.value === git)!
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
@@ -74,33 +75,28 @@ export function VaultPicker({ onClose }: { onClose?: () => void }) {
 
   return (
     <Modal
-      title={first ? 'Your first vault' : 'Vaults'}
+      title={first ? 'New vault' : 'Vaults'}
       description={
         first
-          ? `A vault is where you work: a folder of markdown in ${app.home || '~/.broodmother'}, with git behind it if you want one.`
-          : `Every folder in ${app.home || '~/.broodmother'} is a vault.`
+          ? `A vault is where you work. It is a folder of markdown in ${tilde(app.home || '~/.broodmother')}, with git behind it if you want one.`
+          : `Every folder in ${tilde(app.home || '~/.broodmother')} is a vault.`
       }
       onClose={onClose}
       footer={
         <>
-          {onClose && (
-            <button type="button" onClick={onClose}>
-              cancel
-            </button>
-          )}
-          <button
-            type="submit"
+          <Button onClick={onClose}>cancel</Button>
+          <Button
+            accent={accent}
             form="new-vault"
-            style={accent ? ({ '--accent': accent } as CSSProperties) : undefined}
             disabled={busy || !name.trim() || (git === 'remote' && !remoteUrl.trim())}
           >
             {busy ? 'creating…' : 'create vault'}
-          </button>
+          </Button>
         </>
       }
     >
       <div className="vault-picker">
-        {app.vaults.length > 0 ? (
+        {app.vaults.length > 0 && (
           <ul className="vault-list">
             {app.vaults.map((vault) => (
               <li key={vault.path}>
@@ -115,19 +111,12 @@ export function VaultPicker({ onClose }: { onClose?: () => void }) {
               </li>
             ))}
           </ul>
-        ) : (
-          <p className="empty-note">No vaults yet — create the first one below.</p>
         )}
 
         <form id="new-vault" className="fields" onSubmit={submit}>
-          <h2>New vault</h2>
-          {app.profile && (
-            <p className="hint">
-              It commits and shows up as <strong>{app.profile.name}</strong>, and its
-              terminals run with that profile&rsquo;s credentials. You can change it later
-              from the vault menu.
-            </p>
-          )}
+          {/* Named here only where there is a list above to tell it apart from. On first
+              run the modal's own title says it. */}
+          {!first && <h2>New vault</h2>}
           <label>
             Name
             <input
@@ -137,32 +126,21 @@ export function VaultPicker({ onClose }: { onClose?: () => void }) {
               required
             />
           </label>
-          <fieldset className="git-choice">
-            <legend>Git</legend>
-            {GIT_CHOICES.map((choice) => (
-              <label key={choice.value} className="check">
-                <input
-                  type="radio"
-                  name="vault-git"
-                  value={choice.value}
-                  checked={git === choice.value}
-                  onChange={() => setGit(choice.value)}
-                />
-                {choice.label}
-              </label>
-            ))}
-          </fieldset>
+          <Choices
+            legend="Git"
+            name="vault-git"
+            value={git}
+            options={GIT_CHOICES}
+            onChange={setGit}
+          />
 
           {git === 'remote' && (
-            <label>
-              Git remote
-              <input
-                value={remoteUrl}
-                onChange={(event) => setRemoteUrl(event.target.value)}
-                placeholder="git@github.com:you/vault.git"
-                required
-              />
-            </label>
+            <RemoteField
+              value={remoteUrl}
+              onChange={setRemoteUrl}
+              placeholder="git@github.com:you/vault.git"
+              suggested={name.trim() || 'vault'}
+            />
           )}
           {git !== 'none' && (
             <label>
@@ -174,7 +152,6 @@ export function VaultPicker({ onClose }: { onClose?: () => void }) {
               />
             </label>
           )}
-          <p className="hint">{chosen.hint}</p>
 
           {failed && (
             <p className="field-error" role="alert">

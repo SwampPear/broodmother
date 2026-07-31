@@ -7,7 +7,7 @@ interface Connection {
   socket: WebSocket
 }
 
-/** Every open `/ws` client, and one way to reach them all: the vault and the sync loop
+/** Every open `/ws` client, and one way to reach them all: the project and the sync loop
  *  report, and nothing is sent the other way. */
 export class Relay {
   private readonly connections = new Set<Connection>()

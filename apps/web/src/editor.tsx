@@ -16,7 +16,7 @@ export function Editor({
 }: {
   markdown: string
   onChange: (markdown: string) => void
-  /** The vault path, which is what decides the language and whether preview applies. */
+  /** The project path, which is what decides the language and whether preview applies. */
   path: string
 }) {
   const [mode, setMode] = useState<Mode>('live')
@@ -50,6 +50,24 @@ export function Editor({
   return (
     <div className="broodmother-editor">
       <MarkdownEditor markdown={markdown} onChange={onChange} mode={mode} path={path} />
+    </div>
+  )
+}
+
+/** The same editor, in a field's clothes: markdown that is part of a form rather than a
+ *  document of its own, so it is a box a few lines tall with no mode to switch. */
+export function InlineEditor({
+  markdown,
+  onChange,
+  label,
+}: {
+  markdown: string
+  onChange: (markdown: string) => void
+  label: string
+}) {
+  return (
+    <div className="broodmother-editor inline-editor" role="group" aria-label={label}>
+      <MarkdownEditor markdown={markdown} onChange={onChange} compact path="inline.md" />
     </div>
   )
 }

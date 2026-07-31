@@ -95,7 +95,7 @@ async function createWindow(): Promise<void> {
   window.webContents.on('did-finish-load', () => {
     void window.webContents.insertCSS(':root { --titlebar-inset: 5rem }')
   })
-  // A vault link to somewhere on the web is the browser's job; this window is the app.
+  // A link to somewhere on the web is the browser's job; this window is the app.
   window.webContents.setWindowOpenHandler(({ url }) => {
     void shell.openExternal(url)
     return { action: 'deny' }
@@ -117,6 +117,7 @@ void app.whenReady().then(async () => {
   })
 })
 
-// One window is the whole app: closing it is quitting, not hiding a running vault server.
+// One window is the whole app: closing it is quitting, not hiding a running vault
+// server.
 app.on('window-all-closed', () => app.quit())
 app.on('before-quit', stopBackends)

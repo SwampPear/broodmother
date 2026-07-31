@@ -41,17 +41,18 @@ async function connect(handle: ServerHandle): Promise<Client> {
 /* The write goes through the filesystem and comes back through a socket, so the timing
    is the operating system's. Retried for the same reason the watcher's tests are. */
 describe('relay', { retry: 2 }, () => {
-  it('pushes vault events and sync status to every client', async () => {
+  it('pushes tree events and sync status to every client', async () => {
     const handle = await server()
     const a = await connect(handle)
     await fetch(`${handle.url}/api/doc`, {
       method: 'PUT',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ path: 'watched.md', markdown: '# watched' }),
+      body: JSON.stringify({ root: 'vault', path: 'watched.md', markdown: '# watched' }),
     })
-    await until(() => a.messages.some((m) => m.type === 'vault'))
-    expect(a.messages.find((m) => m.type === 'vault')).toEqual({
-      type: 'vault',
+    await until(() => a.messages.some((m) => m.type === 'tree'))
+    expect(a.messages.find((m) => m.type === 'tree')).toEqual({
+      type: 'tree',
+      root: 'vault',
       event: { type: 'created', path: 'watched.md' },
     })
 
@@ -59,9 +60,9 @@ describe('relay', { retry: 2 }, () => {
     await until(() => a.messages.some((m) => m.type === 'sync'))
   })
 
-  /* The route above broadcasts its own write. This is the other half: a write broodmother did not
-     make — a shell, another editor, a sync pull — reaching the app through the watcher, which
-     is what lets an open document follow the file. */
+  /* The route above broadcasts its own write. This is the other half: a write
+     broodmother did not make — a shell, another editor, a sync pull — reaching the app
+     through the watcher, which is what lets an open document follow the file. */
   it('pushes a write made behind its back, straight to disk', async () => {
     const handle = await server()
     await handle.context.opened!.watcher.ready
@@ -72,9 +73,10 @@ describe('relay', { retry: 2 }, () => {
       '# written by something else\n',
     )
 
-    await until(() => a.messages.some((m) => m.type === 'vault'))
-    expect(a.messages.find((m) => m.type === 'vault')).toEqual({
-      type: 'vault',
+    await until(() => a.messages.some((m) => m.type === 'tree'))
+    expect(a.messages.find((m) => m.type === 'tree')).toEqual({
+      type: 'tree',
+      root: 'vault',
       event: { type: 'created', path: 'elsewhere.md' },
     })
   })

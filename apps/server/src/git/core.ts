@@ -1,14 +1,14 @@
 import { realpath } from 'node:fs/promises'
 import { execa } from 'execa'
-import type { GitAuthor, VaultPath } from '@broodmother/shared'
+import type { AccessCheck, GitAuthor, DocPath } from '@broodmother/shared'
 import { expandHome } from '../profiles'
 
 /** Compared through the link so `/tmp` and `/private/tmp` are not two different folders. */
 const real = (target: string) => realpath(target).catch(() => target)
 
 export interface GitStatus {
-  changed: VaultPath[]
-  conflicted: VaultPath[]
+  changed: DocPath[]
+  conflicted: DocPath[]
   ahead: number
   behind: number
 }
@@ -106,22 +106,44 @@ export function parseStatus(stdout: string): GitStatus {
   return status
 }
 
-/** `IdentitiesOnly` so the named key is the one offered, rather than one the agent happens
- *  to hold first — a profile that picks a key means that key. */
+/**
+ * The profile's key is *added* to whatever ssh would have offered, not substituted for it.
+ * This used to pass `IdentitiesOnly`, which turns off the agent and every other key — so a
+ * profile that named a key stopped being able to reach anything that key did not open, and
+ * naming one made authentication worse than leaving it blank. Most people already have a
+ * working agent, and the right thing to do with it is nothing.
+ *
+ * `BatchMode` stays either way: there is no terminal here to answer a passphrase prompt, so
+ * a key that needs one has to fail rather than hang.
+ */
 export function sshCommand(keyPath: string | null): string {
   const batch = 'ssh -oBatchMode=yes'
-  return keyPath ? `${batch} -oIdentitiesOnly=yes -i "${expandHome(keyPath)}"` : batch
+  return keyPath ? `${batch} -i "${expandHome(keyPath)}"` : batch
 }
+
+/**
+ * The credential an https remote is answered with, when the profile has connected to a host
+ * that hands out tokens. It is read out of the environment by the shell git runs it in, so
+ * the token is never an argument: `ps` is readable by anyone on the machine, and a command
+ * line is the one place a secret cannot be taken back from.
+ */
+const TOKEN_HELPER =
+  '!f() { test "$1" = get && printf "username=x-access-token\npassword=%s\n" "$BROODMOTHER_GIT_TOKEN"; }; f'
 
 export class Git {
   constructor(
     readonly root: string,
     private readonly sshKeyPath: string | null = null,
+    /** A host token to push with, for the person who has no key and wants none. */
+    private readonly token: string | null = null,
   ) {}
 
   async run(args: string[], timeout = 60_000) {
+    // Ahead of the arguments, because that is where `git -c` has to be, and ahead of any
+    // helper the machine already has, because ours is the one that knows this profile.
+    const withCredentials = this.token ? ['-c', `credential.helper=${TOKEN_HELPER}`] : []
     assertNonDestructive(args)
-    return execa('git', args, {
+    return execa('git', [...withCredentials, ...args], {
       cwd: this.root,
       timeout,
       reject: false,
@@ -129,6 +151,7 @@ export class Git {
         GIT_TERMINAL_PROMPT: '0',
         GIT_ASKPASS: 'true',
         GIT_SSH_COMMAND: sshCommand(this.sshKeyPath),
+        ...(this.token ? { BROODMOTHER_GIT_TOKEN: this.token } : {}),
       },
     })
   }
@@ -241,23 +264,60 @@ export class Git {
     }
   }
 
-  async testRemote(
-    remoteUrl: string,
-    branch: string,
-  ): Promise<{ ok: boolean; message: string }> {
-    const result = await this.run(['ls-remote', '--heads', remoteUrl, branch], 15_000)
-    if (result.exitCode !== 0) {
-      const message = `${result.stdout}\n${result.stderr}`
+  /**
+   * Whether this checkout can actually reach its remote, and if not, which of the four
+   * reasons it is. Everything here is already knowable — the point is that a bare `auth`
+   * in the status line is not an answer anybody can act on, and this is asked on purpose
+   * rather than found out by a sync failing.
+   */
+  async checkAccess(): Promise<AccessCheck> {
+    if (!(await this.isRepo()))
       return {
-        ok: false,
-        message: `${classifyRemoteError(message)}: ${String(result.stderr).trim()}`,
+        state: 'no-repo',
+        remoteUrl: null,
+        message: 'This is a folder, not a repository. `git init` makes it one.',
       }
-    }
-    return {
-      ok: true,
-      message: String(result.stdout).trim()
-        ? `${branch} found on remote`
-        : `remote reachable, branch ${branch} does not exist yet`,
-    }
+
+    const remoteUrl = await this.remoteUrl()
+    if (!remoteUrl)
+      return {
+        state: 'no-remote',
+        remoteUrl: null,
+        message: 'A repository with no remote. History is kept here and pushed nowhere.',
+      }
+
+    const result = await this.run(['ls-remote', '--heads', remoteUrl], 15_000)
+    if (result.exitCode === 0)
+      return { state: 'ok', remoteUrl, message: `Reached ${remoteUrl}.` }
+
+    const failure = classifyRemoteError(`${result.stdout}\n${result.stderr}`)
+    const reason = String(result.stderr).trim().split('\n')[0] ?? ''
+    if (failure === 'offline')
+      return {
+        state: 'offline',
+        remoteUrl,
+        message: `Could not reach ${remoteUrl}. That usually means the network, not the credentials.`,
+      }
+    if (failure === 'auth')
+      return { state: 'auth', remoteUrl, message: authAdvice(remoteUrl) }
+    return { state: 'other', remoteUrl, message: reason || 'git could not reach it.' }
   }
 }
+
+/**
+ * The one failure with something to do about it, so it says what — and the three kinds of
+ * remote are fixed three different ways, so one sentence would be wrong for two of them.
+ */
+export function authAdvice(remoteUrl: string): string {
+  if (isLocalPath(remoteUrl))
+    return `${remoteUrl} is a path on this machine, so there are no credentials involved. Check the folder is still there and is a repository.`
+  if (isSsh(remoteUrl))
+    return 'The remote refused your key. broodmother uses whatever ssh already has: your agent, the keys in ~/.ssh, and the profile’s key if it has one. Generate a key below and add it to your host.'
+  return 'The remote refused. broodmother uses whatever git credential helper this machine has, so pushing once from a terminal is what fills it.'
+}
+
+/** `git@host:path` or `ssh://…`, which is a key question rather than a password one. */
+const isSsh = (url: string) => url.startsWith('ssh://') || /^[\w.-]+@[\w.-]+:/.test(url)
+
+/** A folder or a `file://`, which nothing authenticates. */
+const isLocalPath = (url: string) => url.startsWith('/') || url.startsWith('file://')

@@ -1,9 +1,9 @@
 import type { SyncStatus } from '../sync'
-import type { VaultEvent } from '../vault'
+import type { DocRoot, TreeEvent } from '../tree'
 
 export type WsRoute = '/ws' | '/terminal'
 
 export type ServerMessage =
-  | { type: 'vault'; event: VaultEvent }
+  | { type: 'tree'; root: DocRoot; event: TreeEvent }
   | { type: 'sync'; status: SyncStatus }
   | { type: 'error'; message: string }

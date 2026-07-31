@@ -1,10 +1,5 @@
 import type { BroodmotherConfig } from '../config'
-import type { VaultEntry, VaultSummary } from '../vault'
-
-export interface GetVault {
-  request: null
-  response: { entries: VaultEntry[] } // the tree of the open checkout
-}
+import type { VaultSummary } from '../vault'
 
 export interface GetVaults {
   request: null
@@ -28,7 +23,8 @@ export interface PostVaultOpen {
 
 export interface PutVaults {
   request: { profile: string }
-  response: { vault: VaultSummary | null } // null on first run: nothing to bind it to yet
+  // null on first run: nothing to bind it to yet
+  response: { vault: VaultSummary | null }
 }
 
 export interface DeleteVaults {

@@ -1,5 +1,6 @@
-import type { BroodmotherConfig, GitSettings, GitState } from '../config'
+import type { AccessCheck, BroodmotherConfig, GitSettings, GitState } from '../config'
 import type { SyncStatus } from '../sync'
+import type { DocRoot } from '../tree'
 
 export interface GetConfig {
   request: null
@@ -11,9 +12,10 @@ export interface PutConfig {
   response: { config: BroodmotherConfig }
 }
 
-export interface PostTestRemote {
-  request: { remoteUrl: string; branch: string }
-  response: { ok: boolean; message: string }
+/** Asks a checkout whether it can reach its remote, and says which reason it cannot. */
+export interface PostGitCheck {
+  request: { root: DocRoot }
+  response: AccessCheck
 }
 
 export interface GetGit {

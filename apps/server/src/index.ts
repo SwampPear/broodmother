@@ -2,11 +2,11 @@ import { serve, type ServerType } from '@hono/node-server'
 import type { Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { WebSocketServer, type WebSocket } from 'ws'
-import type { WsRoute } from '@broodmother/shared'
+import type { DocRoot, WsRoute } from '@broodmother/shared'
 import { createApp } from './app'
 import { AppContext, type ContextOptions } from './context'
 
-/** Loopback only: there is no auth and full read/write access to the vault. */
+/** Loopback only: there is no auth and full read/write access to the project. */
 export const HOST = '127.0.0.1'
 export const PORT = 3001
 
@@ -32,15 +32,19 @@ export async function startServer(
 
   // One socket server, dispatched by path: `path` on two of them 400s the other's route.
   const sockets = new WebSocketServer({ noServer: true })
-  const routes: Record<WsRoute, (socket: WebSocket) => void> = {
+  const routes: Record<WsRoute, (socket: WebSocket, url: URL) => void> = {
     '/ws': (socket) => context.relay.accept(socket),
-    '/terminal': (socket) => context.terminals.accept(socket),
+    // A shell opens in the root it was asked for, so a terminal started in one project does
+    // not follow the scope somewhere else between the click and the spawn.
+    '/terminal': (socket, url) =>
+      context.terminals.accept(socket, url.searchParams.get('root') as DocRoot | null),
   }
   server.on('upgrade', (request, socket, head) => {
-    const path = new URL(request.url ?? '/', 'http://localhost').pathname as WsRoute
-    const route = routes[path] as ((socket: WebSocket) => void) | undefined
+    const url = new URL(request.url ?? '/', 'http://localhost')
+    const route = routes[url.pathname as WsRoute] as
+      ((socket: WebSocket, url: URL) => void) | undefined
     if (!route) return socket.destroy()
-    sockets.handleUpgrade(request, socket, head, route)
+    sockets.handleUpgrade(request, socket, head, (ws) => route(ws, url))
   })
   context.start()
 

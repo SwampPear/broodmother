@@ -1,11 +1,10 @@
 import { mkdir, readFile, readdir, rename, rm, stat } from 'node:fs/promises'
 import path from 'node:path'
-import type { VaultEntry, VaultPath } from '@broodmother/shared'
-import { atomicWrite } from '../fs'
+import type { TreeEntry, DocPath } from '@broodmother/shared'
+import { PathError, RESERVED, atomicWrite, normalize, resolveInRoot } from '../fs'
 import { Git } from '../git'
-import { PathError, normalize, resolveInVault } from '../fs'
 
-export class Vault {
+export class Tree {
   private readonly git: Git
 
   constructor(readonly root: string) {
@@ -13,36 +12,36 @@ export class Vault {
   }
 
   resolve(input: string): Promise<string> {
-    return resolveInVault(this.root, input)
+    return resolveInRoot(this.root, input)
   }
 
-  async list(): Promise<VaultEntry[]> {
+  async list(): Promise<TreeEntry[]> {
     const ignored = await this.git.ignored()
     return this.walk('', ignored)
   }
 
-  private async walk(prefix: VaultPath, ignored: Set<string>): Promise<VaultEntry[]> {
+  private async walk(prefix: DocPath, ignored: Set<string>): Promise<TreeEntry[]> {
     const dir = prefix ? path.join(this.root, prefix) : this.root
     const dirents = await readdir(dir, { withFileTypes: true })
-    const entries: VaultEntry[] = []
+    const entries: TreeEntry[] = []
 
     for (const dirent of dirents) {
-      if (dirent.name.startsWith('.')) continue
-      const vaultPath = prefix ? `${prefix}/${dirent.name}` : dirent.name
-      if (ignored.has(vaultPath)) continue
+      if (RESERVED.has(dirent.name)) continue
+      const docPath = prefix ? `${prefix}/${dirent.name}` : dirent.name
+      if (ignored.has(docPath)) continue
 
       if (dirent.isDirectory()) {
         entries.push({
           kind: 'dir',
-          path: vaultPath,
+          path: docPath,
           name: dirent.name,
-          children: await this.walk(vaultPath, ignored),
+          children: await this.walk(docPath, ignored),
         })
       } else if (dirent.isFile()) {
         const stats = await stat(path.join(dir, dirent.name))
         entries.push({
           kind: 'file',
-          path: vaultPath,
+          path: docPath,
           name: dirent.name,
           size: stats.size,
           modifiedAt: stats.mtimeMs,
@@ -56,10 +55,10 @@ export class Vault {
     return entries
   }
 
-  /** Every `.md` file in the vault, for the link index. */
-  async documents(): Promise<VaultPath[]> {
-    const found: VaultPath[] = []
-    const collect = (entries: VaultEntry[]) => {
+  /** Every `.md` file in the tree, for the link index. */
+  async documents(): Promise<DocPath[]> {
+    const found: DocPath[] = []
+    const collect = (entries: TreeEntry[]) => {
       for (const entry of entries) {
         if (entry.kind === 'dir') collect(entry.children)
         else if (entry.path.endsWith('.md')) found.push(entry.path)
@@ -77,16 +76,16 @@ export class Vault {
     return readFile(await this.resolve(input), 'utf8')
   }
 
-  async write(input: string, contents: string): Promise<VaultPath> {
-    const vaultPath = normalize(input)
-    await atomicWrite(await this.resolve(vaultPath), contents)
-    return vaultPath
+  async write(input: string, contents: string): Promise<DocPath> {
+    const docPath = normalize(input)
+    await atomicWrite(await this.resolve(docPath), contents)
+    return docPath
   }
 
   async move(
     fromInput: string,
     toInput: string,
-  ): Promise<{ from: VaultPath; to: VaultPath }> {
+  ): Promise<{ from: DocPath; to: DocPath }> {
     const from = normalize(fromInput)
     const to = normalize(toInput)
     const fromAbsolute = await this.resolve(from)
@@ -97,10 +96,10 @@ export class Vault {
     return { from, to }
   }
 
-  async remove(input: string): Promise<VaultPath> {
-    const vaultPath = normalize(input)
-    await rm(await this.resolve(vaultPath), { recursive: true, force: false })
-    return vaultPath
+  async remove(input: string): Promise<DocPath> {
+    const docPath = normalize(input)
+    await rm(await this.resolve(docPath), { recursive: true, force: false })
+    return docPath
   }
 }
 

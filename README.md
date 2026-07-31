@@ -28,45 +28,61 @@ Apple silicon only for now.
 
 ## First run
 
-broodmother asks two questions before it shows you anything, and they are the two ideas the
-whole app is built out of.
+broodmother asks one question before it shows you anything.
 
 **Who you are — a profile.** A name, the git author name and email your commits carry, a
-colour you are shown in, and optionally an SSH key for git to offer and a
-`CLAUDE_CONFIG_DIR` for the terminals to run with. One profile is enough; make more when you
-want work and personal commits signed differently.
+colour you are shown in, and optionally a `CLAUDE_CONFIG_DIR` for the terminals to run with.
+One profile is enough; make more when you want work and personal commits signed differently.
+It is asked because it is the one thing the app cannot invent: a vault is created working as
+a profile, so there has to be one to name.
+
+**Nothing is asked about credentials.** broodmother pushes with whatever git and ssh already
+have on this machine — your agent, the keys in `~/.ssh`, and the credential helper git is
+configured with, which on a Mac is the login keychain. If you have ever pushed from a
+terminal, you are already set up. See [Git access](#git-access) for the two buttons that
+exist for when you are not.
+
+Then it gets out of the way. An app with nothing in it is a state you are allowed to stand
+in, and there is no second gate.
 
 **Where you work — a vault.** A folder of markdown, with as much git behind it as you want.
-Creating one asks for a name and how much: none at all, a repository with no remote, or one
-that syncs. Given a remote, it is checked before anything is written, because a vault that
-was asked to sync and cannot is worse than one that was never asked — an existing branch is
-cloned, an empty one is initialised and pushed on the first sync.
+Making one is `New vault…` in the selector at the head of the tree — the same row the tenth
+one comes from, and it opens whether or not you have any. It asks for a name and how much
+git: none at all, a repository with no remote, or one that syncs. Given a remote, it is
+checked before anything is written, because a vault that was asked to sync and cannot is
+worse than one that was never asked — an existing branch is cloned, an empty one is
+initialised and pushed on the first sync.
 
 After that the window is a file tree, tabs, and the document. **⌘K opens everything**: it
 searches your documents and the app's commands in one list, so a file name and "Toggle
 terminal" are the same keystroke away. **⌘J** shows the terminal panel, and a tab can be a
-shell or Claude Code running inside the vault.
+shell or Claude Code running inside the vault — **⌘D** splits that tab beside itself and
+**⌘⇧D** below, with **⌘[** and **⌘]** between the panes.
 
 Sync is off until you turn it on, in Settings, and it is set per vault — one can push on
 every quiet moment while the next keeps its history to itself. Under the switch are the
 steps it is made of: whether to commit for you, whether to pull, whether to push, and how
 long the vault has to be quiet first. A vault with no repository has nothing to set.
 
-## Vaults, worktrees and profiles
+## Vaults, projects, branches and profiles
 
 `~/.broodmother/` is the home: it holds your vaults and the profiles they commit as.
 
 ```
 ~/.broodmother/
 ├── config.json           # this machine: which vault is open, which checkout in it, which
-│                         # profile each commits as, and how each one syncs
+│                         # project inside it, which profile each commits as, how each syncs
 ├── profiles/
 │   ├── personal.json     # who you commit as, and the credentials you do it with
 │   └── work.json
 ├── handbook/             # a vault
 │   ├── local/            # the clone, on the default branch
-│   ├── fix-login/        # a worktree, on its own branch
-│   └── spike-auth/       # another
+│   ├── fix-docs/         # a branch you have opened, checked out here
+│   ├── spike-auth/       # another
+│   └── .projects/
+│       ├── projects.json # the repositories these documents are about
+│       └── api/
+│           └── fix-login/  # a branch of ~/dev/api, checked out here
 └── notes/                # a vault
     └── local/
 ```
@@ -74,60 +90,146 @@ long the vault has to be quiet first. A vault with no repository has nothing to 
 ### A vault is where you work
 
 Every folder in the home is a vault — drop one in by hand and it shows up, no registration
-step. The folder name _is_ the name, so renaming a vault is renaming the folder. `profiles/`
-is the one name a vault cannot have, because that is where the profiles live. Vaults outside
-the home still open fine: pass a path or set `BROODMOTHER_VAULT`.
+step. The folder name _is_ the name, so renaming a vault is renaming the folder.
+`profiles/` is the one name a vault cannot have, because that is where the profiles live.
+Vaults outside the home still open fine: pass a path or set `BROODMOTHER_VAULT`.
 
-Switching between them, and making a new one, is the vault menu at the top of the tree —
-or `Switch or create vault` from ⌘K.
+Switching between them, and making a new one, is the vault menu at the top of the tree — or
+`Switch or create vault` from ⌘K.
 
 Git is optional, and it is optional one vault at a time. A vault can be a plain folder of
 markdown, a repository with no remote, or a clone that syncs — and nothing else in the app
-changes between them: the same tree, the same tabs, the same `local/` you work in. Whether a
-vault has a repository is never read out of the config; it is asked of the folder, so a vault
-you `git init` in a terminal is git-backed from the next time it is opened, and one whose
-remote you repoint is pointed there.
+changes between them: the same tree, the same tabs, the same `local/` you work in. Whether
+a vault has a repository is never read out of the config; it is asked of the folder, so a
+vault you `git init` in a terminal is git-backed from the next time it is opened, and one
+whose remote you repoint is pointed there.
 
-### A worktree is the same vault on another branch
+### A project is what the documents are about
+
+Notes about a codebase are not the codebase. A **project** is a repository somewhere on disk
+— `~/dev/api` — linked to the vault whose documents cover it. A docs repo usually covers
+several, so a vault has as many projects as it needs; a project belongs to the one vault.
+
+`New project…` asks for a folder, a name, the vault it belongs to, and how much git it
+gets — the same three amounts a vault is offered. A folder that is not there yet is made the
+way a vault's is; one that already exists is linked exactly where it is and nothing is
+written into it, because the repository was yours before broodmother heard of it. Unlinking
+leaves it where it is too. Git is optional here as well: a folder of code with no repository
+still opens, and the branch menu simply has nothing to offer.
+
+One project is open at a time. It is picked where the vault and the profile are picked —
+the selector at the head of the tree, which is one list because it is one question: where
+you are working, and who you are while you do it. `Switch project` from ⌘K opens the same
+list. The open project's name sits beside the vault's, so neither has to be opened to be
+read.
+
+Its files appear in the sidebar under the vault's documents, and they open and edit like
+any other file. Switching project swaps everything that belongs to where you are standing:
+the tabs you had open there, the branch selector at the end of the tab bar, and the
+directory a new terminal opens in — so an agent you start runs in the repository the work
+is in.
+
+### A branch is the same repository, checked out somewhere else
 
 A vault holds checkouts rather than files. `local/` is the clone itself, on the default
 branch, and it is the one every vault has. Beside it sit git worktrees: second checkouts of
-the same repository, each on its own branch, each with its own files on disk. Switching to
-one shows that branch's files and that branch's tabs; switching back to `local` shows what
-is checked out on the default branch. Nothing is stashed and nothing is swapped — the
-branches are simply in different folders, which is what a worktree is.
+the same repository, each on its own branch, each with its own files on disk. Switching
+branch shows that branch's files and that branch's tabs. Nothing is stashed and nothing is
+swapped — the branches are simply in different folders.
 
-Making one asks for a branch, new or existing, and the folder to put it in. Removing one
-removes the folder and git's record of it; the branch stays in the repository, and git
-refuses rather than throw away work that was never committed. `local/` cannot be removed,
-because it is the repository the others point into.
+Projects work the same way, with one difference: the repository is yours, so it is never
+checked out from under you. `~/dev/api` stays on the branch you left it on and is the
+project's primary checkout; every other branch you open gets a worktree inside the vault,
+under `.projects/<project>/`. Your dev folder is left alone, and unlinking the project takes
+those worktrees with it and nothing else.
+
+Each has its own branch menu, over the thing it changes: the vault's under the vault name at
+the top of the tree, the project's at the end of the tab bar. Both list every branch the
+repository knows, the ones that exist only on the remote included. Picking one is the whole
+gesture: a branch you have opened before is the folder you left, and one you have not is
+fetched and given a folder on the way in. You never name that folder — it follows the
+branch, with the separators flattened, so `feat/sync` lives in `feat-sync/`.
+
+`New branch…` cuts one from wherever the repository's own checkout is now. Removing a branch
+removes its folder and git's record of it; the branch itself stays in the repository and
+opening it again gives it a folder again, and git refuses rather than throw away work that
+was never committed. The repository's own checkout cannot be removed — for a vault because
+it is the clone the others point into, and for a project because it is your folder.
 
 ### A profile is who you are
 
 Profiles are shared by every vault rather than owned by one, so the identity you set up
-once — git author, presence colour, the SSH key git offers and the `CLAUDE_CONFIG_DIR` its
-terminals run with — serves every vault that picks it. Which profile a vault commits as is
-recorded in `config.json` rather than in the vault, because a vault is a git working tree
-and anything written inside one is something the sync loop would offer to commit.
+once — git author, colour, and the `CLAUDE_CONFIG_DIR` its terminals run with —
+serves every vault that picks it. Which profile a vault commits as is recorded in
+`config.json` rather than in the vault, because a vault is a git working tree and anything
+written inside one is something the sync loop would offer to commit.
 
-Earlier versions put a project folder between the home and its vaults, and made the vault
-folder the checkout itself. Opening this version on one of those homes moves the vaults up
-into the home, carries each one's profile into `config.json`, and moves each vault's
-checkout down into `local/` — once, on the first launch. Everything moves; nothing is
-rewritten and nothing is deleted.
+The profile belongs to the vault, not to the project: the projects are the vault's, and
+switching between them does not change who you are while you work.
+
+Sync is the vault's alone. Committing markdown you are typing is what it is for; committing
+a code repository nobody asked it to would be a different program, so a project's history is
+yours to make.
+
+### Git access
+
+broodmother runs git the way your terminal does, so it authenticates with whatever is
+already there: your ssh agent, the keys in `~/.ssh`, and the credential helper git is
+configured with — `osxkeychain`, on a Mac with the command line tools. A key named on a
+profile is offered _as well as_ those, not instead of them. If you have ever pushed from a
+terminal, none of the rest of this section applies to you.
+
+**Connect GitHub** in Settings → Profile is for when it does. It is GitHub's device flow:
+the app shows an eight-character code, you type it into the page it opens, and that is the
+whole of it — no password reaches broodmother, and there is nothing to paste back. What it
+buys is the two walls in front of someone who has never used git from a terminal. A vault or
+a project that syncs stops asking for a URL and offers your own repositories instead, with
+"a new private repository" among them — made through GitHub's API, so the web is no longer a
+step before this one. And pushing uses the connection, so there is no key to make and none
+to add anywhere.
+
+The token belongs to the profile, lives in its file at `0600` beside the key, and never
+reaches the app in the browser — what the UI is told is the login it belongs to. Only `repo`
+is asked for, which is what pushing to a private repository and making one need. Disconnect
+from the same place; what was pushed stays pushed.
+
+Connecting needs the build to carry a GitHub client id in `BROODMOTHER_GITHUB_CLIENT_ID`
+(register an OAuth app with device flow enabled; the id is public, and the flow uses no
+secret). A build without one shows no connect button at all.
+
+Two buttons in Settings exist for the hosts this does not cover:
+
+**Check access** asks the open vault whether it can actually reach its remote, and names
+which of the answers it got: no repository, no remote, reachable, unreachable, or refused.
+A refusal says what to do about it, and says something different for an SSH remote (add a
+key to your host) than for an HTTPS one (`git push` once from a terminal fills the helper) —
+because they fail identically and are fixed differently.
+
+**Generate a key** is for the person who has none. It runs `ssh-keygen -t ed25519` into the
+profile, points the profile at it, and shows you the **public** half with a copy button and
+a link to GitHub's and GitLab's add-a-key pages. No passphrase: git runs here with no
+terminal to answer a prompt on, so a passphrase would make a key that cannot be used rather
+than one that is safer. It refuses to make a second key over the first, because replacing a
+key silently takes away access to everything the old one opened.
+
+Earlier versions made the vault folder the checkout itself, with no `local/` between them.
+Opening this version on one of those homes moves each vault's checkout down into `local/` —
+once, on the first launch. Everything moves, `.git` included; nothing is rewritten and
+nothing is deleted.
 
 ## Environment
 
-| Variable            | Default          | What it does                            |
-| ------------------- | ---------------- | --------------------------------------- |
-| `BROODMOTHER_HOME`  | `~/.broodmother` | Where vaults, profiles and config live  |
-| `BROODMOTHER_VAULT` | _unset_          | Open this vault instead of the last one |
+| Variable                       | Default          | What it does                            |
+| ------------------------------ | ---------------- | --------------------------------------- |
+| `BROODMOTHER_HOME`             | `~/.broodmother` | Where vaults, profiles and config live  |
+| `BROODMOTHER_VAULT`            | _unset_          | Open this vault instead of the last one |
+| `BROODMOTHER_GITHUB_CLIENT_ID` | _unset_          | OAuth app id the GitHub connection uses |
 
 ## Status
 
-Local editing works end to end: vault tree, open, edit, save to disk, git sync, settings,
-search, terminals. A write from anywhere else, a shell, another editor, a sync pull, shows
-up in the open document, not just in the tree.
+Local editing works end to end: the vault tree, linked projects, open, edit, save to disk,
+git sync, settings, search, terminals. A write from anywhere else, a shell, another editor,
+a sync pull, shows up in the open document, not just in the tree.
 
 Live collaboration is intended in a future release.
 

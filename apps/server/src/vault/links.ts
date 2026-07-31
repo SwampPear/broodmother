@@ -1,5 +1,5 @@
-import { basename, type Backlink, type VaultPath } from '@broodmother/shared'
-import type { Vault } from './core'
+import { basename, type Backlink, type DocPath } from '@broodmother/shared'
+import type { Tree } from '../tree'
 
 export interface DocLink {
   kind: 'wiki' | 'md'
@@ -16,6 +16,16 @@ function stripExtension(p: string): string {
   return p.replace(/\.md$/i, '')
 }
 
+// `decodeURIComponent` throws on a half-written escape, and a `%` is an ordinary thing to
+// type in a link. Escapes are a convenience here, so one that does not decode is a literal.
+function decodeTarget(href: string): string {
+  try {
+    return decodeURIComponent(href)
+  } catch {
+    return href
+  }
+}
+
 export function extractLinks(markdown: string): DocLink[] {
   const links: DocLink[] = []
   for (const line of markdown.split('\n')) {
@@ -27,7 +37,7 @@ export function extractLinks(markdown: string): DocLink[] {
     for (const match of line.matchAll(MD)) {
       const href = match[1]!
       if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(href) || href.startsWith('#')) continue
-      const target = decodeURIComponent(href.split('#')[0]!)
+      const target = decodeTarget(href.split('#')[0]!)
       if (target) links.push({ kind: 'md', target, raw: match[0], context })
     }
   }
@@ -37,8 +47,8 @@ export function extractLinks(markdown: string): DocLink[] {
 /** Obsidian resolution: exact path, then filename, then filename without extension. */
 export function resolveTarget(
   target: string,
-  documents: readonly VaultPath[],
-): VaultPath | null {
+  documents: readonly DocPath[],
+): DocPath | null {
   const candidates = [...documents].sort(
     (a, b) => a.length - b.length || a.localeCompare(b),
   )
@@ -51,21 +61,21 @@ export function resolveTarget(
 }
 
 export class LinkIndex {
-  private documents: VaultPath[] = []
-  private outboundByDoc = new Map<VaultPath, Backlink[]>()
+  private documents: DocPath[] = []
+  private outboundByDoc = new Map<DocPath, Backlink[]>()
 
-  constructor(private readonly vault: Vault) {}
+  constructor(private readonly tree: Tree) {}
 
   async rebuild(): Promise<void> {
-    this.documents = await this.vault.documents()
+    this.documents = await this.tree.documents()
     this.outboundByDoc.clear()
     for (const document of this.documents) {
-      const markdown = await this.vault.read(document).catch(() => null)
+      const markdown = await this.tree.read(document).catch(() => null)
       if (markdown !== null) this.index(document, markdown)
     }
   }
 
-  private index(document: VaultPath, markdown: string): void {
+  private index(document: DocPath, markdown: string): void {
     const resolved: Backlink[] = []
     for (const link of extractLinks(markdown)) {
       const to = resolveTarget(link.target, this.documents)
@@ -75,23 +85,23 @@ export class LinkIndex {
     this.outboundByDoc.set(document, resolved)
   }
 
-  async update(document: VaultPath): Promise<void> {
+  async update(document: DocPath): Promise<void> {
     if (!this.documents.includes(document)) this.documents.push(document)
-    const markdown = await this.vault.read(document).catch(() => null)
+    const markdown = await this.tree.read(document).catch(() => null)
     if (markdown === null) this.forget(document)
     else this.index(document, markdown)
   }
 
-  forget(document: VaultPath): void {
+  forget(document: DocPath): void {
     this.documents = this.documents.filter((p) => p !== document)
     this.outboundByDoc.delete(document)
   }
 
-  outbound(document: VaultPath): Backlink[] {
+  outbound(document: DocPath): Backlink[] {
     return this.outboundByDoc.get(document) ?? []
   }
 
-  backlinks(document: VaultPath): Backlink[] {
+  backlinks(document: DocPath): Backlink[] {
     const found: Backlink[] = []
     for (const links of this.outboundByDoc.values())
       for (const link of links) if (link.to === document) found.push(link)
@@ -99,17 +109,17 @@ export class LinkIndex {
   }
 
   /** Rewrites every link that pointed at `from`; returns how many documents changed. */
-  async rewriteForMove(from: VaultPath, to: VaultPath): Promise<number> {
+  async rewriteForMove(from: DocPath, to: DocPath): Promise<number> {
     const before = [...this.documents]
     const sources = new Set(this.backlinks(from).map((link) => link.from))
 
     let rewritten = 0
     for (const source of sources) {
-      const markdown = await this.vault.read(source).catch(() => null)
+      const markdown = await this.tree.read(source).catch(() => null)
       if (markdown === null) continue
       const next = rewriteLinks(markdown, from, to, before)
       if (next === markdown) continue
-      await this.vault.write(source, next)
+      await this.tree.write(source, next)
       rewritten++
     }
     await this.rebuild()
@@ -119,9 +129,9 @@ export class LinkIndex {
 
 export function rewriteLinks(
   markdown: string,
-  from: VaultPath,
-  to: VaultPath,
-  documents: readonly VaultPath[],
+  from: DocPath,
+  to: DocPath,
+  documents: readonly DocPath[],
 ): string {
   let result = markdown
   for (const link of extractLinks(markdown)) {
@@ -136,6 +146,6 @@ export function rewriteLinks(
 }
 
 /** Keep the shape the author wrote: a bare filename stays a bare filename. */
-function wikiTarget(oldTarget: string, to: VaultPath): string {
+function wikiTarget(oldTarget: string, to: DocPath): string {
   return oldTarget.includes('/') ? stripExtension(to) : stripExtension(basename(to))
 }

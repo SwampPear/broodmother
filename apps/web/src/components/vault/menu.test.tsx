@@ -1,12 +1,18 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
-import type { Profile, VaultSummary } from '@broodmother/shared'
+import type { Profile, ProjectSummary, VaultSummary } from '@broodmother/shared'
 import { VaultMenu } from './menu'
 
 const vaults: VaultSummary[] = [
   { name: 'Work', path: '/Users/you/.broodmother/Work', profile: 'ada' },
   { name: 'Personal', path: '/Users/you/.broodmother/Personal', profile: undefined },
+]
+
+const projects: ProjectSummary[] = [
+  { name: 'api', repo: '/Users/you/dev/api', missing: false },
+  { name: 'web', repo: '/Users/you/dev/web', missing: false },
 ]
 
 const profiles: Profile[] = [
@@ -17,6 +23,8 @@ const profiles: Profile[] = [
     gitAuthor: { name: 'Ada Lovelace', email: 'ada@example.com' },
     sshKeyPath: '~/.ssh/id_work',
     claudeCfgDir: null,
+    soul: null,
+    github: null,
   },
   {
     name: 'grace',
@@ -25,34 +33,57 @@ const profiles: Profile[] = [
     gitAuthor: { name: 'Grace Hopper', email: 'grace@example.com' },
     sshKeyPath: null,
     claudeCfgDir: null,
+    soul: null,
+    github: null,
   },
 ]
 
-function show(activePath = '/Users/you/.broodmother/Work') {
+function show(
+  activePath = '/Users/you/.broodmother/Work',
+  activeProject: string | null = null,
+) {
   const onSelect = vi.fn()
   const onAdd = vi.fn()
   const onDelete = vi.fn()
+  const onSelectProject = vi.fn()
+  const onCreateProject = vi.fn()
+  const onUnlinkProject = vi.fn()
   const onSelectProfile = vi.fn()
   const onAddProfile = vi.fn()
   const onSettings = vi.fn()
-  render(
-    <VaultMenu
-      vaults={vaults}
-      activePath={activePath}
-      profiles={profiles}
-      activeProfile="ada"
-      onSelect={onSelect}
-      onAdd={onAdd}
-      onDelete={onDelete}
-      onSelectProfile={onSelectProfile}
-      onAddProfile={onAddProfile}
-      onSettings={onSettings}
-    />,
-  )
+  // Open is the shell's to hold, because ⌘K opens this menu too.
+  function Harness() {
+    const [open, setOpen] = useState(false)
+    return (
+      <VaultMenu
+        vaults={vaults}
+        activePath={activePath}
+        projects={projects}
+        activeProject={activeProject}
+        profiles={profiles}
+        activeProfile="ada"
+        open={open}
+        onOpenChange={setOpen}
+        onSelect={onSelect}
+        onAdd={onAdd}
+        onDelete={onDelete}
+        onSelectProject={onSelectProject}
+        onCreateProject={onCreateProject}
+        onUnlinkProject={onUnlinkProject}
+        onSelectProfile={onSelectProfile}
+        onAddProfile={onAddProfile}
+        onSettings={onSettings}
+      />
+    )
+  }
+  render(<Harness />)
   return {
     onSelect,
     onAdd,
     onDelete,
+    onSelectProject,
+    onCreateProject,
+    onUnlinkProject,
     onSelectProfile,
     onAddProfile,
     onSettings,
@@ -60,6 +91,12 @@ function show(activePath = '/Users/you/.broodmother/Work') {
 }
 
 const open = () => userEvent.click(screen.getByRole('button', { name: /Work|Personal/ }))
+
+const rightClick = (name: RegExp) =>
+  userEvent.pointer({
+    target: screen.getByRole('menuitemradio', { name }),
+    keys: '[MouseRight]',
+  })
 
 it('names the vault you are in', () => {
   show()
@@ -111,6 +148,68 @@ it('does not re-apply the profile already in use', async () => {
   expect(onSelectProfile).not.toHaveBeenCalled()
 })
 
+/* Where you are working is one question, so the project is picked in the same list as the
+   vault it belongs to and the profile you do it as — not from a control of its own. */
+it('picks the project in the same surface as the vault and the profile', async () => {
+  const { onSelectProject } = show()
+  await open()
+
+  const headings = screen.getAllByRole('group').length
+  expect(headings).toBeGreaterThanOrEqual(3)
+  await userEvent.click(screen.getByRole('menuitemradio', { name: /api/ }))
+
+  await waitFor(() => expect(onSelectProject).toHaveBeenCalledWith('api'))
+})
+
+it('names the open project beside the vault, so neither has to be opened to read', () => {
+  show('/Users/you/.broodmother/Work', 'api')
+  const anchor = screen.getByRole('button')
+  expect(anchor).toHaveTextContent('Work')
+  expect(anchor).toHaveTextContent('api')
+})
+
+/* Closing the project is a row like any other: it is one of the things it can be. */
+it('closes the project from the row that says no project', async () => {
+  const { onSelectProject } = show('/Users/you/.broodmother/Work', 'api')
+  await open()
+
+  await userEvent.click(screen.getByRole('menuitemradio', { name: /No project/ }))
+
+  await waitFor(() => expect(onSelectProject).toHaveBeenCalledWith(null))
+})
+
+it('does not re-open the project already open', async () => {
+  const { onSelectProject } = show('/Users/you/.broodmother/Work', 'api')
+  await open()
+  await userEvent.click(screen.getByRole('menuitemradio', { name: /api/ }))
+  expect(onSelectProject).not.toHaveBeenCalled()
+})
+
+/* The same second gesture the vault rows have, and it unlinks rather than deletes: the
+   repository is yours. */
+it('drills into a project and unlinks it after saying what stays', async () => {
+  const { onUnlinkProject, onSelectProject } = show()
+  await open()
+
+  await rightClick(/api/)
+  await userEvent.click(await screen.findByRole('menuitem', { name: /Unlink project/ }))
+
+  const dialog = await screen.findByRole('dialog', { name: 'Unlink api?' })
+  expect(dialog).toHaveTextContent('/Users/you/dev/api')
+  expect(dialog).toHaveTextContent(/stays exactly where it is/)
+  await userEvent.click(screen.getByRole('button', { name: 'unlink project' }))
+
+  expect(onUnlinkProject).toHaveBeenCalledWith('api')
+  await waitFor(() => expect(onSelectProject).not.toHaveBeenCalled())
+})
+
+it('opens the link-a-project flow from its own row', async () => {
+  const { onCreateProject } = show()
+  await open()
+  await userEvent.click(screen.getByRole('menuitem', { name: /New project/ }))
+  expect(onCreateProject).toHaveBeenCalled()
+})
+
 it('opens the new-profile flow from its own row', async () => {
   const { onAddProfile } = show()
   await open()
@@ -132,8 +231,8 @@ it('reaches settings without leaving the menu to find it', async () => {
   expect(onSettings).toHaveBeenCalled()
 })
 
-/* A second click is the only gesture a row in a dropdown has left, and switching vault is
-   not what you meant by it. */
+/* A second click is the only gesture a row in a dropdown has left, and switching vault
+   is not what you meant by it. */
 it('drills into a vault on a double click instead of opening it', async () => {
   const { onSelect } = show()
   await open()
@@ -142,6 +241,30 @@ it('drills into a vault on a double click instead of opening it', async () => {
 
   expect(await screen.findByRole('menuitem', { name: /Delete vault/ })).toBeVisible()
   await waitFor(() => expect(onSelect).not.toHaveBeenCalled())
+})
+
+/* The gesture people reach for on a row they want to do something to. The double click
+   stays for whoever has no right button under their thumb. */
+it('drills into a vault on a right click, without opening it', async () => {
+  const { onSelect } = show()
+  await open()
+
+  await rightClick(/Personal/)
+
+  expect(await screen.findByRole('menuitem', { name: /Delete vault/ })).toBeVisible()
+  await waitFor(() => expect(onSelect).not.toHaveBeenCalled())
+})
+
+it('deletes the vault named by the right click, not the one in use', async () => {
+  const { onDelete } = show()
+  await open()
+  await rightClick(/Personal/)
+  await userEvent.click(screen.getByRole('menuitem', { name: /Delete vault/ }))
+
+  expect(await screen.findByRole('dialog', { name: 'Delete Personal?' })).toBeVisible()
+  await userEvent.click(screen.getByRole('button', { name: 'delete vault' }))
+
+  expect(onDelete).toHaveBeenCalledWith('Personal')
 })
 
 it('deletes only after the folder it is about to remove has been named', async () => {

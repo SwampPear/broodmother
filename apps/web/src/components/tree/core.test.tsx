@@ -1,11 +1,11 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, expect, it, vi } from 'vitest'
-import type { VaultEntry } from '@broodmother/shared'
+import type { TreeEntry } from '@broodmother/shared'
 import { FileTree } from './core'
-import { filePaths } from './paths'
+import { fileRefs, type TreeRoot } from './paths'
 
-const entries: VaultEntry[] = [
+const entries: TreeEntry[] = [
   {
     kind: 'dir',
     path: 'Handbook',
@@ -38,19 +38,32 @@ const entries: VaultEntry[] = [
   { kind: 'file', path: 'chip.png', name: 'chip.png', size: 0, modifiedAt: 0 },
 ]
 
-function show(renaming: string | null = null) {
+const vault = (path: string) => ({ root: 'vault' as const, path })
+
+const projectEntries: TreeEntry[] = [
+  { kind: 'file', path: 'main.rs', name: 'main.rs', size: 0, modifiedAt: 0 },
+]
+
+const roots: TreeRoot[] = [{ root: 'vault', entries }]
+
+const withProject: TreeRoot[] = [
+  ...roots,
+  { root: 'project', entries: projectEntries, label: 'api' },
+]
+
+function show(renaming: string | null = null, trees: TreeRoot[] = roots) {
   const onOpen = vi.fn()
   const onCommand = vi.fn()
   const onMove = vi.fn()
   const onRename = vi.fn()
   render(
     <FileTree
-      entries={entries}
-      current="README.md"
+      roots={trees}
+      current={vault('README.md')}
       onOpen={onOpen}
       onCommand={onCommand}
       onMove={onMove}
-      renaming={renaming}
+      renaming={renaming === null ? null : vault(renaming)}
       onRename={onRename}
     />,
   )
@@ -91,13 +104,39 @@ function dragTo(from: HTMLElement, to: HTMLElement) {
 
 afterEach(() => vi.useRealTimers())
 
-it('collects every file path', () => {
-  expect(filePaths(entries)).toEqual([
-    'Handbook/Overview.md',
-    'Handbook/Archive/Old.md',
-    'README.md',
-    'chip.png',
+it('collects every file in every tree, as the address that names it', () => {
+  expect(fileRefs(withProject)).toEqual([
+    vault('Handbook/Overview.md'),
+    vault('Handbook/Archive/Old.md'),
+    vault('README.md'),
+    vault('chip.png'),
+    { root: 'project', path: 'main.rs' },
   ])
+})
+
+/* The project is a row of its own under the vault's documents, and its files hang off it. */
+it('heads the project’s files with its name and opens them from there', async () => {
+  const { onOpen } = show(null, withProject)
+
+  const head = screen.getByRole('treeitem', { name: 'api' })
+  expect(head).toBeInTheDocument()
+  expect(screen.queryByRole('treeitem', { name: 'main.rs' })).not.toBeInTheDocument()
+
+  await userEvent.click(head)
+  await userEvent.click(screen.getByRole('treeitem', { name: 'main.rs' }))
+  expect(onOpen).toHaveBeenCalledWith({ root: 'project', path: 'main.rs' })
+})
+
+/* Carrying a file between a vault and a repository is a copy, and dragging a row is not
+   how anyone would ask for one. */
+it('refuses a drag from one tree into the other', async () => {
+  const { onMove } = show(null, withProject)
+  await userEvent.click(screen.getByRole('treeitem', { name: 'api' }))
+
+  dragTo(item('README.md'), item('main.rs'))
+  dragTo(item('main.rs'), item('Handbook'))
+
+  expect(onMove).not.toHaveBeenCalled()
 })
 
 it('marks the open document', () => {
@@ -124,7 +163,7 @@ it('expands a folder and opens a note with the keyboard alone', async () => {
   await userEvent.keyboard('{ArrowRight}')
   expect(screen.getByRole('treeitem', { name: 'Overview.md' })).toBeInTheDocument()
   await userEvent.keyboard('{ArrowDown}{Enter}')
-  expect(onOpen).toHaveBeenCalledWith('Handbook/Overview.md')
+  expect(onOpen).toHaveBeenCalledWith(vault('Handbook/Overview.md'))
 })
 
 it('collapses a folder with the left arrow', async () => {
@@ -136,17 +175,17 @@ it('collapses a folder with the left arrow', async () => {
 it('raises create, rename and delete for the focused entry', async () => {
   const { onCommand } = show()
   await userEvent.keyboard('{ArrowDown}n')
-  expect(onCommand).toHaveBeenCalledWith('create', 'README.md')
+  expect(onCommand).toHaveBeenCalledWith('create', vault('README.md'))
   await userEvent.keyboard('r')
-  expect(onCommand).toHaveBeenCalledWith('rename', 'README.md')
+  expect(onCommand).toHaveBeenCalledWith('rename', vault('README.md'))
   await userEvent.keyboard('d')
-  expect(onCommand).toHaveBeenCalledWith('delete', 'README.md')
+  expect(onCommand).toHaveBeenCalledWith('delete', vault('README.md'))
 })
 
 it('moves a file into the folder it is dropped on', () => {
   const { onMove } = show()
   dragTo(item('README.md'), item('Handbook'))
-  expect(onMove).toHaveBeenCalledWith('README.md', 'Handbook/README.md')
+  expect(onMove).toHaveBeenCalledWith('vault', 'README.md', 'Handbook/README.md')
 })
 
 /* Aiming at a folder and landing a row low is the common miss. */
@@ -154,7 +193,7 @@ it('hands a drop on a file to the folder that file sits in', async () => {
   const { onMove } = show()
   await userEvent.keyboard('{ArrowRight}')
   dragTo(item('README.md'), item('Overview.md'))
-  expect(onMove).toHaveBeenCalledWith('README.md', 'Handbook/README.md')
+  expect(onMove).toHaveBeenCalledWith('vault', 'README.md', 'Handbook/README.md')
 })
 
 /* A folder is dragged the same way, and the list below the rows is the way back out. */
@@ -164,7 +203,7 @@ it('moves a folder out to the root', async () => {
   const dataTransfer = transfer()
   fireEvent.dragStart(item('Archive'), { dataTransfer })
   fireEvent.drop(screen.getByRole('tree'), { dataTransfer })
-  expect(onMove).toHaveBeenCalledWith('Handbook/Archive', 'Archive')
+  expect(onMove).toHaveBeenCalledWith('vault', 'Handbook/Archive', 'Archive')
 })
 
 it('refuses a move that would do nothing or eat itself', async () => {
@@ -201,7 +240,7 @@ it('opens a shut folder held under the drag, so a subfolder can take the drop', 
   const archive = item('Archive')
   fireEvent.dragOver(archive, { dataTransfer })
   fireEvent.drop(archive, { dataTransfer })
-  expect(onMove).toHaveBeenCalledWith('README.md', 'Handbook/Archive/README.md')
+  expect(onMove).toHaveBeenCalledWith('vault', 'README.md', 'Handbook/Archive/README.md')
 })
 
 it('leaves a folder shut when the drag moves off it before it springs', () => {
@@ -236,26 +275,26 @@ it('opens the folders on the way to the row it is naming', () => {
 it('hands back the typed name with the extension put back on it', async () => {
   const { onRename } = show('README.md')
   await userEvent.keyboard('Ideas{Enter}')
-  expect(onRename).toHaveBeenCalledWith('README.md', 'Ideas.md')
+  expect(onRename).toHaveBeenCalledWith(vault('README.md'), 'Ideas.md')
 })
 
 it('keeps the extension a file already had', async () => {
   const { onRename } = show('chip.png')
   await userEvent.keyboard('logo{Enter}')
-  expect(onRename).toHaveBeenCalledWith('chip.png', 'logo.png')
+  expect(onRename).toHaveBeenCalledWith(vault('chip.png'), 'logo.png')
 })
 
 it('says nothing came of it when the name is abandoned', async () => {
   const { onRename } = show('README.md')
   await userEvent.keyboard('Ideas{Escape}')
-  expect(onRename).toHaveBeenCalledWith('README.md', null)
+  expect(onRename).toHaveBeenCalledWith(vault('README.md'), null)
 })
 
 it('takes the name when the field loses focus, the way a rename in place is finished', async () => {
   const { onRename } = show('README.md')
   await userEvent.keyboard('Ideas')
   await userEvent.click(screen.getByRole('tree'))
-  expect(onRename).toHaveBeenCalledWith('README.md', 'Ideas.md')
+  expect(onRename).toHaveBeenCalledWith(vault('README.md'), 'Ideas.md')
 })
 
 /* Enter blurs the field it has just committed, and committing twice moves a file that has
@@ -291,8 +330,9 @@ it('offers the row commands on a right click, deleting through the same path as 
     within(menu)
       .getAllByRole('menuitem')
       .map((item) => item.textContent),
-  ).toEqual(['New note here', 'Rename', 'Delete…'])
+    // A file is not somewhere to put a note, and the two rows left say what they act on.
+  ).toEqual(['Rename note', 'Delete note…'])
 
-  await userEvent.click(within(menu).getByRole('menuitem', { name: 'Delete…' }))
-  expect(onCommand).toHaveBeenCalledWith('delete', 'README.md')
+  await userEvent.click(within(menu).getByRole('menuitem', { name: 'Delete note…' }))
+  expect(onCommand).toHaveBeenCalledWith('delete', vault('README.md'))
 })

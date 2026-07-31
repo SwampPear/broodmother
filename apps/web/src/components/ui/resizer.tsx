@@ -1,10 +1,21 @@
 'use client'
 
-import { useEffect, useRef, useState, type PointerEvent, type KeyboardEvent } from 'react'
+import {
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type PointerEvent,
+  type KeyboardEvent,
+} from 'react'
 
 const STEP = 16
 
-/** The sidebar grows with the pointer; the terminal panel grows against it, hence `-y`. */
+/**
+ * The sidebar grows with the pointer; the terminal panel grows against it, hence `-y`. A
+ * pane seam is a divider inside a run rather than an edge of the window, so its far end and
+ * its middle are the run's, not a constant: `max` and `initial` here are what a `span` says.
+ */
 const AXES = {
   sidebar: {
     min: 180,
@@ -24,14 +35,32 @@ const AXES = {
     along: (event: { clientX: number; clientY: number }) => -event.clientY,
     keys: { ArrowUp: 1, ArrowDown: -1 } as Record<string, number>,
   },
+  row: {
+    min: 96,
+    max: Infinity,
+    initial: 0,
+    orientation: 'vertical',
+    label: 'resize panes',
+    along: (event: { clientX: number; clientY: number }) => event.clientX,
+    keys: { ArrowLeft: -1, ArrowRight: 1 } as Record<string, number>,
+  },
+  column: {
+    min: 96,
+    max: Infinity,
+    initial: 0,
+    orientation: 'horizontal',
+    label: 'resize panes',
+    along: (event: { clientX: number; clientY: number }) => event.clientY,
+    keys: { ArrowUp: -1, ArrowDown: 1 } as Record<string, number>,
+  },
 } as const
 
 export type Axis = keyof typeof AXES
 
 export const initialSize = (axis: Axis): number => AXES[axis].initial
 
-const clampSize = (axis: Axis, size: number) =>
-  Math.min(AXES[axis].max, Math.max(AXES[axis].min, size))
+const clampSize = (axis: Axis, size: number, max: number = AXES[axis].max) =>
+  Math.min(max, Math.max(AXES[axis].min, size))
 
 /** A pane size that outlives the window. Clamped on the way in too: the stored number may
  *  come from a version of the app that allowed a width this one does not. */
@@ -56,12 +85,20 @@ export function Resizer({
   axis,
   size,
   onSize,
+  span,
+  style,
 }: {
   axis: Axis
   size: number
   onSize: (size: number) => void
+  /** How long the run a seam divides is. Its far end and its middle come from this. */
+  span?: number
+  /** Where a seam sits, which only the layout that placed it knows. */
+  style?: CSSProperties
 }) {
   const spec = AXES[axis]
+  const max = span === undefined ? spec.max : span - spec.min
+  const middle = span === undefined ? spec.initial : span / 2
   const [dragging, setDragging] = useState(false)
   const start = useRef({ at: 0, size })
 
@@ -81,7 +118,9 @@ export function Resizer({
 
   const move = (event: PointerEvent<HTMLDivElement>) => {
     if (dragging)
-      onSize(clampSize(axis, start.current.size + spec.along(event) - start.current.at))
+      onSize(
+        clampSize(axis, start.current.size + spec.along(event) - start.current.at, max),
+      )
   }
 
   const up = (event: PointerEvent<HTMLDivElement>) => {
@@ -94,26 +133,27 @@ export function Resizer({
     const direction = spec.keys[event.key]
     if (direction === undefined) return
     event.preventDefault()
-    onSize(clampSize(axis, size + direction * STEP))
+    onSize(clampSize(axis, size + direction * STEP, max))
   }
 
   return (
     <div
       className="resizer"
       data-axis={axis}
+      style={style}
       role="separator"
       aria-orientation={spec.orientation}
       aria-label={spec.label}
       aria-valuenow={size}
       aria-valuemin={spec.min}
-      aria-valuemax={spec.max}
+      aria-valuemax={max}
       tabIndex={0}
       data-dragging={dragging || undefined}
       onPointerDown={down}
       onPointerMove={move}
       onPointerUp={up}
       onPointerCancel={up}
-      onDoubleClick={() => onSize(spec.initial)}
+      onDoubleClick={() => onSize(middle)}
       onKeyDown={onKeyDown}
     />
   )

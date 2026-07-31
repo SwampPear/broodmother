@@ -71,6 +71,20 @@ describe('code', () => {
     expect(hidden(text)).toBe(text)
   })
 
+  /* A fence's info string names a language, and a language has no backticks in it. A line
+     of ```const x()``` is a code span that happens to be alone on its line, which is what
+     it looks like and what every other reader makes of it. */
+  it('reads a line of triple backticks with backticks in it as a code span', () => {
+    const text = '```const source()=```'
+    const found = scan(text)
+    expect(found.fences).toEqual([])
+    expect(found.markers.map((marker) => text.slice(marker.from, marker.to))).toEqual([
+      '```',
+      '```',
+    ])
+    expect(classes(text)).toEqual(['md-code'])
+  })
+
   it('leaves markdown inside inline code alone', () => {
     expect(hidden('`**not bold**`')).toBe('**not bold**')
   })

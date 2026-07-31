@@ -8,24 +8,28 @@ import {
   type CSSProperties,
   type ReactNode,
 } from 'react'
-import type { VaultPath } from '@broodmother/shared'
+import { projectOf, projectRoot, type DocRef, type DocRoot } from '@broodmother/shared'
 import { useApp } from '../../state'
 import {
-  filePaths,
+  fileRefs,
   FileTree,
   folderOf,
+  isFolder,
   parentOf,
   type TreeCommand,
+  type TreeRoot,
   untitledIn,
 } from '../tree'
 import { deleteFlow, type Flow, type FlowCtx, Palette } from '../palette'
-import { AddWorktree, VaultMenu, VaultPicker, WorktreeMenu } from '../vault'
+import { BranchMenu } from '../branch'
+import { CreateProject } from '../project'
+import { VaultMenu, VaultPicker } from '../vault'
 import { ProfilePicker } from '../profile'
-import { Resizer, useStoredSize } from '../ui'
+import { Confirm, Resizer, useStoredSize } from '../ui'
 import { StatusLine } from './status-line'
 import { type NewTab, TabStrip } from './tabs'
 import { TerminalPanel, TerminalTab } from '../terminal'
-import { currentPath, useCheckoutTabs } from './checkout-tabs'
+import { currentDoc, docRoute, useScopeTabs } from './scope-tabs'
 
 const SIDEBAR_KEY = 'broodmother.sidebar'
 const TERMINAL_KEY = 'broodmother.terminal'
@@ -42,22 +46,53 @@ export function Shell({ children }: { children: ReactNode }) {
   const [terminalHeight, resizeTerminal] = useStoredSize('panel', TERMINAL_KEY)
   const [terminal, setTerminal] = useState<TerminalState>('closed')
   const [picker, setPicker] = useState(false)
+  const [creating, setCreating] = useState(false)
+  // The one menu that says where you are working: vault, project and profile together.
+  const [whereMenu, setWhereMenu] = useState(false)
   // The row the tree is holding open for a name. Set the moment a note is made, cleared
   // whether the name arrives or not.
-  const [renaming, setRenaming] = useState<VaultPath | null>(null)
+  const [renaming, setRenaming] = useState<DocRef | null>(null)
   const [profiling, setProfiling] = useState(false)
-  const [branching, setBranching] = useState(false)
+  // The project whose row asked to be unlinked, held until the confirmation answers.
+  const [unlinking, setUnlinking] = useState<string | null>(null)
 
   const navigate = useCallback((route: string) => router.push(route), [router])
-  const { tabs, activeId, terminalTab, pick, close, closeMany, newTerminal } =
-    useCheckoutTabs({
-      checkout: app.checkout,
+  const { tabs, activeId, terminalTab, show, pick, close, closeMany, newTerminal } =
+    useScopeTabs({
+      scopeKey: app.scopeKey,
       pathname,
-      event: app.vaultEvent,
+      event: app.treeEvent,
       navigate,
     })
 
-  const path = currentPath(pathname)
+  const doc = currentDoc(pathname)
+
+  /* Settings is a page about the app rather than a place in it: nothing here is opened in a
+     tab or run in a shell, so the plus and the terminal have nothing to offer while it is
+     up. The terminal is hidden rather than closed — a pty that unmounts dies, and reading
+     the settings is not asking for the shell to end. */
+  const settings = pathname === '/settings'
+
+  /** The vault's documents, and under them the files of every project it links — each its
+   *  own root, headed by its name, because each is somewhere you can go and work. */
+  const roots: TreeRoot[] = [
+    { root: 'vault', entries: app.entries.vault },
+    ...app.projects
+      .filter((project) => !project.missing)
+      .map((project) => ({
+        root: projectRoot(project.name),
+        entries: app.entries.projects[project.name] ?? [],
+        label: project.name,
+      })),
+  ]
+
+  const entriesOf = (root: DocRoot) => {
+    const name = projectOf(root)
+    return name ? (app.entries.projects[name] ?? []) : app.entries.vault
+  }
+
+  /** What the branch menu is about: the name of the repository the scope is standing in. */
+  const scopeLabel = app.project?.name ?? app.vault?.name ?? ''
 
   const toggleTerminal = useCallback(
     () => setTerminal((state) => (state === 'open' ? 'hidden' : 'open')),
@@ -85,12 +120,15 @@ export function Shell({ children }: { children: ReactNode }) {
    * stand here asked for a path, and a path is the one thing you cannot give before there
    * is a note to give it to. Naming is the last step, and it is a rename like any other.
    */
-  const newNote = (seed: VaultPath) => {
-    const folder = folderOf(app.entries, seed)
-    const at = untitledIn(app.entries, folder)
+  const newNote = (seed: DocRef) => {
+    const entries = entriesOf(seed.root)
+    const at: DocRef = {
+      root: seed.root,
+      path: untitledIn(entries, folderOf(entries, seed.path)),
+    }
     void app.create(at).then((failed) => {
       if (failed) return
-      router.push(`/doc/${at}`)
+      show(docRoute(at))
       setRenaming(at)
     })
   }
@@ -105,8 +143,8 @@ export function Shell({ children }: { children: ReactNode }) {
    * A new note does not need this only because creating it is a round trip, which is
    * already longer than the menu takes to go.
    */
-  const startRename = (path: VaultPath) => {
-    requestAnimationFrame(() => setRenaming(path))
+  const startRename = (ref: DocRef) => {
+    requestAnimationFrame(() => setRenaming(ref))
   }
 
   /**
@@ -117,94 +155,110 @@ export function Shell({ children }: { children: ReactNode }) {
    * with itself — right for "where does a new note go", wrong here, where it would rename
    * a folder into a child of itself.
    */
-  const renamed = (from: VaultPath, name: string | null) => {
+  const renamed = (from: DocRef, name: string | null) => {
     setRenaming(null)
     if (!name) return
-    const folder = parentOf(from)
+    const folder = parentOf(from.path)
     const to = folder ? `${folder}/${name}` : name
-    if (to !== from) void app.move(from, to)
+    if (to !== from.path) void app.move(from.root, from.path, to)
   }
 
   const ctx: FlowCtx = {
-    paths: filePaths(app.entries),
-    open: (path) => router.push(`/doc/${path}`),
+    refs: fileRefs(roots),
+    open: (ref) => show(docRoute(ref)),
     // Seeded from whatever document is open, so a note made from the palette lands beside
-    // the one you were reading.
-    newNote: () => newNote(path ?? ''),
-    move: (from, to) => void app.move(from, to),
-    remove: (path) => void app.remove(path),
+    // the one you were reading — in the tree it was read out of.
+    newNote: () => newNote(doc ?? { root: 'vault', path: '' }),
+    move: (root, from, to) => void app.move(root, from, to),
+    remove: (ref) => void app.remove(ref),
     syncNow: () => void app.syncNow(),
     settings: () => router.push('/settings'),
     vaults: () => setPicker(true),
+    projects: () => setWhereMenu(true),
+    createProject: () => setCreating(true),
     toggleTerminal,
   }
 
-  const newTab = (what: NewTab) => (what === 'note' ? ctx.newNote() : newTerminal(what))
+  const newTab = (what: NewTab) =>
+    what === 'note' ? ctx.newNote() : newTerminal(what, app.scope)
 
-  const fromTree = (command: TreeCommand, path: VaultPath) => {
-    if (command === 'create') return newNote(path)
+  const fromTree = (command: TreeCommand, ref: DocRef) => {
+    if (command === 'create') return newNote(ref)
     // Renaming is the row turning into a field, not a dialog over the top of it — the same
     // thing a new note does the moment it exists, so there is one way to name anything.
-    if (command === 'rename') return startRename(path)
-    setFlow(deleteFlow(ctx, path))
+    if (command === 'rename') return startRename(ref)
+    if (command === 'unlink') return setUnlinking(projectOf(ref.root))
+    setFlow(deleteFlow(ctx, ref, isFolder(entriesOf(ref.root), ref.path)))
   }
 
-  // First run is the app with nothing in it, not a different app: the home renders empty
-  // behind a modal that has to be answered. No gate opens before the answers are in, or
-  // something that exists gets asked for anyway on the way past. Who you are comes first —
-  // a vault is created working as a profile, so there has to be one to name.
+  // Who you are is the one thing the app cannot invent: a vault is created working as a
+  // profile, so there has to be one to name. Nothing gates on having a vault — an empty
+  // app is a state you are allowed to stand in, and the first vault is made the way the
+  // tenth is, from the selector at the head of the tree. The gate does not open before the
+  // answer is in, or a profile that exists gets asked for anyway on the way past.
   const needsProfile = app.ready && !app.profile
-  const needsVault = app.ready && !!app.profile && !app.config?.vaultPath
 
   return (
     <div className="shell" style={{ '--sidebar': `${sidebar}px` } as CSSProperties}>
       <FileTree
-        entries={app.entries}
-        current={currentPath(pathname)}
+        roots={roots}
+        current={doc}
+        scope={app.scope}
         head={
           <VaultMenu
             vaults={app.vaults}
             activePath={app.config?.vaultPath ?? ''}
+            activeProject={app.project?.name ?? null}
             profiles={app.profiles}
             activeProfile={app.profile?.name ?? null}
+            open={whereMenu}
+            onOpenChange={setWhereMenu}
             onSelect={(path) => void app.openVault(path)}
             onAdd={() => setPicker(true)}
             onDelete={(name) => void app.deleteVault(name)}
+            onCreateProject={() => setCreating(true)}
             onSelectProfile={(name) => void app.selectProfile(name)}
             onAddProfile={() => setProfiling(true)}
             onSettings={ctx.settings}
           />
         }
         onOpen={ctx.open}
+        // A folder is not a document, so the pane has nothing to show for one. The home
+        // screen is what standing in a folder looks like.
+        onOpenFolder={() => show('/')}
+        onScope={(root) => void app.setScope(root)}
         onCommand={fromTree}
+        onCreateProject={() => setCreating(true)}
         onMove={ctx.move}
         renaming={renaming}
         onRename={renamed}
       />
       <Resizer axis="sidebar" size={sidebar} onSize={resize} />
       <main className="main">
-        {/* The strip and the checkout it belongs to share one bar: switching worktree is
-            what changes the tabs, so the control that does it sits with them. */}
+        {/* The strip and the branch it belongs to share one bar: switching branch is what
+            changes the tabs, so the control that does it sits with them. Which project you
+            are in is asked at the head of the tree, with the vault and the profile. */}
         <div className="tab-bar">
           <TabStrip
             tabs={tabs}
             activeId={activeId}
             onPick={pick}
             onClose={close}
-            onNew={newTab}
+            onNew={settings ? undefined : newTab}
             // A tab stands for a file, and the file's name is typed where the file is
             // shown: this hands the rename to that row, opening whatever folders were
             // shut around it on the way.
-            onRename={(tab) => tab.kind === 'doc' && startRename(tab.path)}
+            onRename={(tab) => tab.kind === 'doc' && startRename(tab.ref)}
             onCloseMany={closeMany}
           />
-          {app.worktrees.length > 0 && (
-            <WorktreeMenu
-              worktrees={app.worktrees}
-              active={app.worktree}
-              onSelect={(name) => void app.openWorktree(name)}
-              onAdd={() => setBranching(true)}
-              onDelete={(name) => void app.deleteWorktree(name)}
+          {app.branches.length > 0 && (
+            <BranchMenu
+              label={scopeLabel}
+              branches={app.branches}
+              active={app.branch}
+              onSelect={(name) => void app.openBranch(app.scope, name)}
+              onCreate={(name) => app.addBranch(app.scope, name)}
+              onDelete={(name) => void app.deleteBranch(app.scope, name)}
             />
           )}
         </div>
@@ -218,6 +272,7 @@ export function Shell({ children }: { children: ReactNode }) {
               <TerminalTab
                 key={tab.id}
                 kind={tab.shell}
+                root={tab.root}
                 active={tab.id === terminalTab}
                 onExit={() => close(tab)}
               />
@@ -226,9 +281,10 @@ export function Shell({ children }: { children: ReactNode }) {
       </main>
       {terminal !== 'closed' && (
         <TerminalPanel
+          root={app.scope}
           height={terminalHeight}
           onHeight={resizeTerminal}
-          visible={terminal === 'open'}
+          visible={terminal === 'open' && !settings}
           onHide={() => setTerminal('hidden')}
           onExit={() => setTerminal('closed')}
         />
@@ -243,6 +299,7 @@ export function Shell({ children }: { children: ReactNode }) {
         <ProfilePicker
           existing={app.profiles}
           home={app.home}
+          suggested={app.suggestedAuthor}
           current={app.profile?.name ?? null}
           onSelect={(name) => {
             setProfiling(false)
@@ -259,20 +316,23 @@ export function Shell({ children }: { children: ReactNode }) {
           onClose={needsProfile ? undefined : () => setProfiling(false)}
         />
       )}
-      {branching && (
-        <AddWorktree
-          existing={app.worktrees}
-          accent={app.profile?.color}
-          onCreate={async (input) => {
-            const reason = await app.addWorktree(input)
-            if (!reason) setBranching(false)
-            return reason
-          }}
-          onClose={() => setBranching(false)}
-        />
+      {unlinking && (
+        <Confirm
+          title={`Unlink ${unlinking}?`}
+          description={`${app.projects.find((one) => one.name === unlinking)?.repo ?? unlinking} stays exactly where it is.`}
+          action="unlink project"
+          onConfirm={() => void app.removeProject(unlinking)}
+          onClose={() => setUnlinking(null)}
+        >
+          The repository is yours and broodmother did not make it, so nothing in it is
+          deleted — not the files, not the branches, not the history. What goes is this
+          vault&rsquo;s note of it, and the checkouts broodmother made in the vault for
+          its branches. Linking it again brings it back.
+        </Confirm>
       )}
-      {(picker || needsVault) && (
-        <VaultPicker onClose={needsVault ? undefined : () => setPicker(false)} />
+      {picker && <VaultPicker onClose={() => setPicker(false)} />}
+      {creating && (
+        <CreateProject onCreate={app.addProject} onClose={() => setCreating(false)} />
       )}
       {flow && <Palette flow={flow} ctx={ctx} setFlow={setFlow} />}
     </div>

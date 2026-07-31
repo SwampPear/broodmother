@@ -12,6 +12,8 @@ const existing: Profile[] = [
     gitAuthor: { name: 'Ada Lovelace', email: 'ada@example.com' },
     sshKeyPath: null,
     claudeCfgDir: null,
+    soul: null,
+    github: null,
   },
 ]
 
@@ -33,7 +35,7 @@ function show(profiles = existing) {
 
 const fill = async (name: string, email: string) => {
   await userEvent.type(screen.getByLabelText('Profile name'), name)
-  await userEvent.type(screen.getByLabelText('Git author email'), email)
+  await userEvent.type(screen.getByLabelText('Author email'), email)
 }
 
 /* Profiles are shared by every project, so the one you already made is the likely answer
@@ -69,6 +71,7 @@ it('creates a profile from the name and identity you typed', async () => {
       gitAuthor: { name: 'Personal', email: 'you@example.com' },
       sshKeyPath: null,
       claudeCfgDir: null,
+      soul: null,
     }),
   )
 })
@@ -78,13 +81,66 @@ it('carries the credentials it was given, expanded by the server not here', asyn
   const { onCreate } = show()
   await fill('Personal', 'you@example.com')
   await userEvent.type(screen.getByLabelText('SSH key'), '~/.ssh/id_personal')
-  await userEvent.type(screen.getByLabelText('Claude config directory'), '~/.claude-work')
+  await userEvent.type(screen.getByLabelText('Config directory'), '~/.claude-work')
 
   await userEvent.click(screen.getByRole('button', { name: 'add profile' }))
 
   expect(onCreate.mock.calls[0][0]).toMatchObject({
     sshKeyPath: '~/.ssh/id_personal',
     claudeCfgDir: '~/.claude-work',
+    soul: null,
+  })
+})
+
+/* Anyone who has ever committed has already answered this, and git kept the answer — so
+   the form opens on it rather than on an empty pair of fields. */
+it('takes what git already says you are by leaving the fields alone', async () => {
+  const onCreate = vi.fn()
+  render(
+    <ProfilePicker
+      existing={[]}
+      suggested={{ name: 'Ada Lovelace', email: 'ada@example.com' }}
+      onCreate={onCreate}
+      onSelect={vi.fn()}
+    />,
+  )
+
+  // Offered rather than filled in, the way every other default here is.
+  expect(screen.getByLabelText('Author name')).toHaveAttribute(
+    'placeholder',
+    'Ada Lovelace',
+  )
+  expect(screen.getByLabelText('Author email')).toHaveValue('')
+
+  await userEvent.type(screen.getByLabelText('Profile name'), 'ada')
+  await userEvent.click(screen.getByRole('button', { name: 'create profile' }))
+
+  expect(onCreate.mock.calls[0][0].gitAuthor).toEqual({
+    name: 'Ada Lovelace',
+    email: 'ada@example.com',
+  })
+})
+
+/* And typed over where it is wrong, which is the whole point of it being a field. */
+it('takes what is typed over what git said', async () => {
+  const onCreate = vi.fn()
+  render(
+    <ProfilePicker
+      existing={[]}
+      suggested={{ name: 'Ada Lovelace', email: 'ada@example.com' }}
+      onCreate={onCreate}
+      onSelect={vi.fn()}
+    />,
+  )
+
+  await userEvent.type(screen.getByLabelText('Profile name'), 'work')
+  await userEvent.type(screen.getByLabelText('Author email'), 'ada@work.example')
+
+  await userEvent.click(screen.getByRole('button', { name: 'create profile' }))
+
+  expect(onCreate.mock.calls[0][0].gitAuthor).toEqual({
+    name: 'Ada Lovelace',
+    email: 'ada@work.example',
   })
 })
 
@@ -102,7 +158,7 @@ it('refuses a name that would not be a plain file', async () => {
 it('takes the git author name over the profile name when one is given', async () => {
   const { onCreate } = show()
   await fill('Personal', 'you@example.com')
-  await userEvent.type(screen.getByLabelText('Git author name'), 'Ada')
+  await userEvent.type(screen.getByLabelText('Author name'), 'Ada')
 
   await userEvent.click(screen.getByRole('button', { name: 'add profile' }))
 
@@ -175,7 +231,7 @@ it('cancels without creating anything', async () => {
 describe('while it is working', () => {
   const draft = async () => {
     await userEvent.type(screen.getByLabelText('Profile name'), 'ada')
-    await userEvent.type(screen.getByLabelText('Git author email'), 'ada@example.com')
+    await userEvent.type(screen.getByLabelText('Author email'), 'ada@example.com')
   }
 
   it('says so on the button, and will not be pressed twice', async () => {

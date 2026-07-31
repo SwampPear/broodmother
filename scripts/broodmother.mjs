@@ -4,15 +4,15 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-// Only an explicit path pins the vault. Without one the server opens the project's own
-// vault — where you happen to be standing in the shell has nothing to do with it.
+// Only an explicit path pins the vault. Without one the server opens the vault it opened
+// last — where you happen to be standing in the shell has nothing to do with it.
 const override = process.argv[2] ?? process.env.BROODMOTHER_VAULT
 const vault = override ? resolve(override) : null
 const site = 'http://127.0.0.1:6767'
 
-process.stdout.write(`broodmother → ${vault ?? 'vault from your project'}\n`)
+process.stdout.write(`broodmother → ${vault ?? 'the vault you had open'}\n`)
 
-const child = spawn('npm', ['run', 'dev'], {
+const child = spawn('npm', ['run', 'localhost'], {
   cwd: root,
   stdio: 'inherit',
   env: { ...process.env, ...(vault ? { BROODMOTHER_VAULT: vault } : {}) },

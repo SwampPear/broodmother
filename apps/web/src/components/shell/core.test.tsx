@@ -58,27 +58,50 @@ it('never asks where you are when a vault is already there', async () => {
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
 })
 
-it('asks for a vault once there is a profile but nothing to open', async () => {
-  show(createMockClient({ config: { vaultPath: null } as never }))
+/* Having no vault is a state you are allowed to stand in. The app used to hold a modal
+   over the whole window until you made one, which asked for a decision before you had seen
+   anything to base it on. */
+it('does not ask for a vault when there is none, and shows the app anyway', async () => {
+  show(
+    createMockClient({ vaults: [], active: null, config: { vaultPath: null } as never }),
+  )
 
-  await screen.findByRole('dialog', { name: 'Vaults' })
+  await screen.findByText('the vault')
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
 })
 
-/* Who you are, then where you work: a vault is created working as a profile, so there has
-   to be one to name. */
-it('walks a fresh machine from the first profile to the first vault', async () => {
+/* Who you are is the one thing it cannot invent: a vault is created working as a profile,
+   so there has to be one to name. */
+it('asks who you are on a fresh machine, and nothing else', async () => {
   const client = createMockClient({ profiles: [], vaults: [], active: null })
   show(client)
   await screen.findByRole('dialog', { name: 'Welcome to broodmother' })
 
   await userEvent.type(screen.getByLabelText('Profile name'), 'ada')
-  await userEvent.type(screen.getByLabelText('Git author email'), 'ada@example.com')
+  await userEvent.type(screen.getByLabelText('Author email'), 'ada@example.com')
   await userEvent.click(screen.getByRole('button', { name: 'create profile' }))
 
   const { profiles } = await client.request('GET /api/profiles', null)
   expect(profiles.map((profile) => profile.name)).toEqual(['ada'])
+  // And then it gets out of the way rather than asking the next question for you.
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+})
 
-  await screen.findByRole('dialog', { name: 'Your first vault' })
+/* The first vault is made the way the tenth is: from the selector at the head of the
+   tree, which opens whether or not there is a vault to name. */
+it('makes the first vault from the selector, with no vault to start from', async () => {
+  const client = createMockClient({
+    vaults: [],
+    active: null,
+    config: { vaultPath: null } as never,
+  })
+  show(client)
+  await screen.findByText('the vault')
+
+  await userEvent.click(await screen.findByRole('button', { name: /No vault/ }))
+  await userEvent.click(await screen.findByRole('menuitem', { name: /New vault/ }))
+
+  await screen.findByRole('dialog', { name: 'New vault' })
   await userEvent.type(screen.getByLabelText('Name'), 'handbook')
   await userEvent.type(
     screen.getByLabelText('Git remote'),
@@ -88,6 +111,21 @@ it('walks a fresh machine from the first profile to the first vault', async () =
 
   const { vaults } = await client.request('GET /api/vaults', null)
   expect(vaults.map((vault) => vault.name)).toEqual(['handbook'])
+})
+
+/* And it can be walked away from, which the gate could not. */
+it('lets the vault picker be dismissed even with nothing to open', async () => {
+  show(
+    createMockClient({ vaults: [], active: null, config: { vaultPath: null } as never }),
+  )
+  await screen.findByText('the vault')
+
+  await userEvent.click(await screen.findByRole('button', { name: /No vault/ }))
+  await userEvent.click(await screen.findByRole('menuitem', { name: /New vault/ }))
+  await screen.findByRole('dialog', { name: 'New vault' })
+
+  await userEvent.click(screen.getByRole('button', { name: 'cancel' }))
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
 })
 
 /* A folder dropped into the home by hand has nobody to commit as, and that is the same
@@ -119,7 +157,7 @@ it('opens a tab for the document the route is on', async () => {
   const { rerender } = show(client)
   await screen.findByText('the vault')
 
-  pathname = '/doc/Handbook/Overview.md'
+  pathname = '/doc/vault/Handbook/Overview.md'
   rerender(tree(client))
 
   const tab = await screen.findByRole('tab', { name: /Overview/ })
@@ -129,7 +167,7 @@ it('opens a tab for the document the route is on', async () => {
 it('closes a tab and goes back to the vault when it was the last one', async () => {
   const client = createMockClient()
   const { rerender } = show(client)
-  pathname = '/doc/Handbook/Overview.md'
+  pathname = '/doc/vault/Handbook/Overview.md'
   rerender(tree(client))
   await screen.findByRole('tab', { name: /Overview/ })
 
@@ -137,6 +175,16 @@ it('closes a tab and goes back to the vault when it was the last one', async () 
 
   expect(screen.queryByRole('tab')).not.toBeInTheDocument()
   expect(push).toHaveBeenCalledWith('/')
+})
+
+/* Settings is a page about the app rather than a place in it: there is nothing there to
+   open in a tab or run in a shell. */
+it('offers no new tab while the settings are up', async () => {
+  pathname = '/settings'
+  show(createMockClient())
+  await screen.findByText('the vault')
+
+  expect(screen.queryByRole('button', { name: 'New tab' })).not.toBeInTheDocument()
 })
 
 it('gives a terminal tab the whole pane, and hands it back on the way out', async () => {
@@ -157,30 +205,97 @@ it('gives a terminal tab the whole pane, and hands it back on the way out', asyn
   expect(screen.getByText('the vault')).toBeVisible()
 })
 
-/* A file open in two worktrees is two files, on two branches. Switching between them keeps
-   each set where it was rather than carrying one into the other. */
-it('keeps a tab set per worktree', async () => {
+/* A file open on two branches is two files. Switching between them keeps each set where it
+   was rather than carrying one into the other. */
+it('keeps a tab set per branch', async () => {
   const client = createMockClient({
-    worktrees: [
-      { name: 'local', path: '/v/local', branch: 'main', primary: true },
-      { name: 'fix', path: '/v/fix', branch: 'fix', primary: false },
+    branches: [
+      { name: 'main', path: '/v/local', checkedOut: true, primary: true },
+      { name: 'fix', path: '/v/fix', checkedOut: true, primary: false },
     ],
   })
   const { rerender } = show(client)
   await screen.findByText('the vault')
 
-  pathname = '/doc/Handbook/Overview.md'
+  pathname = '/doc/vault/Handbook/Overview.md'
   rerender(tree(client))
   await screen.findByRole('tab', { name: /Overview/ })
 
   // Switched from the control in the tab bar, the way it is switched in the app.
-  await userEvent.click(screen.getByRole('button', { name: 'Worktree' }))
+  await userEvent.click(screen.getByRole('button', { name: 'Branch' }))
   await userEvent.click(await screen.findByRole('menuitemradio', { name: /fix/ }))
 
   // The tab belonged to `local`, and that is where it stayed.
   await waitFor(() =>
     expect(screen.queryByRole('tab', { name: /Overview/ })).not.toBeInTheDocument(),
   )
+})
+
+/* Switching project is the same kind of move as switching branch: the tabs are the ones
+   you had open there, and the branch selector points at the other repository. It is picked
+   from the head of the tree, in the one list that says where you are working. */
+it('swaps the tabs when you switch project, from the same menu as the vault', async () => {
+  const client = createMockClient({
+    projects: [
+      { name: 'api', repo: '/dev/api', missing: false },
+      { name: 'web', repo: '/dev/web', missing: false },
+    ],
+    project: 'api',
+    projectDocs: { 'main.rs': 'fn main() {}\n' },
+    projectBranches: [
+      { name: 'main', path: '/dev/api', checkedOut: true, primary: true },
+    ],
+  })
+  const { rerender } = show(client)
+  await screen.findByText('the vault')
+
+  pathname = '/doc/vault/Handbook/Overview.md'
+  rerender(tree(client))
+  await screen.findByRole('tab', { name: /Overview/ })
+  // The head of the tree names the vault and the project in it, without being opened.
+  const where = screen.getByRole('button', { name: /handbook/ })
+  expect(where).toHaveTextContent('handbook')
+  expect(where).toHaveTextContent('api')
+
+  await userEvent.click(where)
+  await userEvent.click(await screen.findByRole('menuitemradio', { name: /web/ }))
+
+  // The menu holds its pick for the double-click window, so the switch lands a moment
+  // after the click — and until it does, the menu is over everything the rest asks about.
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: /handbook/ })).toHaveTextContent('web'),
+  )
+  // The tab belonged to the checkout you were in, and that is where it stayed.
+  expect(screen.queryByRole('tab', { name: /Overview/ })).not.toBeInTheDocument()
+})
+
+/* Two branch selectors, one for each repository: the vault's over the tree it changes, the
+   project's at the end of the tabs it changes. */
+it('gives the vault and the project a branch selector each', async () => {
+  show(
+    createMockClient({
+      projects: [{ name: 'api', repo: '/dev/api', missing: false }],
+      project: 'api',
+      projectBranches: [
+        { name: 'main', path: '/dev/api', checkedOut: true, primary: true },
+        {
+          name: 'fix-login',
+          path: '/h/.projects/api/fix-login',
+          checkedOut: false,
+          primary: false,
+        },
+      ],
+    }),
+  )
+  await screen.findByText('the vault')
+
+  const menus = await screen.findAllByRole('button', { name: 'Branch' })
+  expect(menus).toHaveLength(2)
+  // The one in the tab bar is the project's, and it offers the project's branches.
+  await userEvent.click(menus[1]!)
+  expect(
+    await screen.findByRole('menuitemradio', { name: /fix-login/ }),
+  ).toBeInTheDocument()
 })
 
 /* The dialog that used to stand here asked for a path, which is the one thing you cannot
@@ -194,7 +309,7 @@ it('makes a note called Untitled and opens its row to be named', async () => {
   await userEvent.click(await screen.findByRole('menuitem', { name: /New note/ }))
 
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-  await waitFor(() => expect(push).toHaveBeenCalledWith('/doc/Untitled.md'))
+  await waitFor(() => expect(push).toHaveBeenCalledWith('/doc/vault/Untitled.md'))
   const field = await screen.findByRole('textbox', { name: 'Rename Untitled.md' })
   expect(field).toHaveValue('Untitled')
   expect(field).toHaveFocus()
@@ -209,15 +324,15 @@ it('follows the note to the name it is given', async () => {
   await userEvent.click(screen.getByRole('button', { name: 'New tab' }))
   await userEvent.click(await screen.findByRole('menuitem', { name: /New note/ }))
   await screen.findByRole('textbox', { name: 'Rename Untitled.md' })
-  pathname = '/doc/Untitled.md'
+  pathname = '/doc/vault/Untitled.md'
 
   await userEvent.keyboard('Ideas{Enter}')
 
-  const { entries } = await client.request('GET /api/vault', null)
+  const { vault: entries } = await client.request('GET /api/tree', null)
   await waitFor(() =>
     expect(entries.some((entry) => entry.path === 'Ideas.md')).toBe(true),
   )
-  await waitFor(() => expect(push).toHaveBeenCalledWith('/doc/Ideas.md'))
+  await waitFor(() => expect(push).toHaveBeenCalledWith('/doc/vault/Ideas.md'))
 })
 
 /* Rename used to be "Rename or move…", a dialog asking for a whole path. The name is typed
@@ -232,7 +347,7 @@ it('renames from the row itself rather than a dialog', async () => {
     keys: '[MouseRight]',
     target: screen.getByRole('treeitem', { name: 'README.md' }),
   })
-  await userEvent.click(await screen.findByRole('menuitem', { name: 'Rename' }))
+  await userEvent.click(await screen.findByRole('menuitem', { name: 'Rename note' }))
 
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   const field = await screen.findByRole('textbox', { name: 'Rename README.md' })
@@ -255,12 +370,13 @@ it('renames a folder beside itself, not into itself', async () => {
     keys: '[MouseRight]',
     target: screen.getByRole('treeitem', { name: 'Handbook' }),
   })
-  await userEvent.click(await screen.findByRole('menuitem', { name: 'Rename' }))
+  await userEvent.click(await screen.findByRole('menuitem', { name: 'Rename folder' }))
   await screen.findByRole('textbox', { name: 'Rename Handbook' })
   await userEvent.keyboard('Manual{Enter}')
 
   await waitFor(() =>
     expect(request).toHaveBeenCalledWith('POST /api/doc/move', {
+      root: 'vault',
       from: 'Handbook',
       to: 'Manual',
     }),
@@ -281,36 +397,36 @@ it('numbers the next Untitled rather than colliding with it', async () => {
   await screen.findByRole('textbox', { name: 'Rename Untitled.md' })
   await note()
 
-  await waitFor(() => expect(push).toHaveBeenCalledWith('/doc/Untitled 2.md'))
+  await waitFor(() => expect(push).toHaveBeenCalledWith('/doc/vault/Untitled 2.md'))
 })
 
-it('opens the new-worktree modal from the menu', async () => {
+it('opens the new-branch modal from the menu', async () => {
   show(createMockClient())
   await screen.findByText('the vault')
 
-  await userEvent.click(await screen.findByRole('button', { name: 'Worktree' }))
-  await userEvent.click(await screen.findByRole('menuitem', { name: /New worktree/ }))
+  await userEvent.click(await screen.findByRole('button', { name: 'Branch' }))
+  await userEvent.click(await screen.findByRole('menuitem', { name: /New branch/ }))
 
-  await screen.findByRole('dialog', { name: 'New worktree' })
+  await screen.findByRole('dialog', { name: 'New branch' })
 })
 
 /* The route is one route for the whole window, so a switch that changed only the tabs left
    a document from the branch you just left sitting on screen. */
 it('leaves the document behind when you switch checkout', async () => {
   const client = createMockClient({
-    worktrees: [
-      { name: 'local', path: '/v/local', branch: 'main', primary: true },
-      { name: 'fix', path: '/v/fix', branch: 'fix', primary: false },
+    branches: [
+      { name: 'main', path: '/v/local', checkedOut: true, primary: true },
+      { name: 'fix', path: '/v/fix', checkedOut: true, primary: false },
     ],
   })
   const { rerender } = show(client)
   await screen.findByText('the vault')
 
-  pathname = '/doc/Handbook/Overview.md'
+  pathname = '/doc/vault/Handbook/Overview.md'
   rerender(tree(client))
   await screen.findByRole('tab', { name: /Overview/ })
 
-  await userEvent.click(screen.getByRole('button', { name: 'Worktree' }))
+  await userEvent.click(screen.getByRole('button', { name: 'Branch' }))
   await userEvent.click(await screen.findByRole('menuitemradio', { name: /fix/ }))
 
   // Nothing was open in `fix`, so it goes to the home screen rather than showing a file
@@ -320,20 +436,20 @@ it('leaves the document behind when you switch checkout', async () => {
 
 it('goes back to what was open when you return', async () => {
   const client = createMockClient({
-    worktrees: [
-      { name: 'local', path: '/v/local', branch: 'main', primary: true },
-      { name: 'fix', path: '/v/fix', branch: 'fix', primary: false },
+    branches: [
+      { name: 'main', path: '/v/local', checkedOut: true, primary: true },
+      { name: 'fix', path: '/v/fix', checkedOut: true, primary: false },
     ],
   })
   const { rerender } = show(client)
   await screen.findByText('the vault')
 
-  pathname = '/doc/Handbook/Overview.md'
+  pathname = '/doc/vault/Handbook/Overview.md'
   rerender(tree(client))
   await screen.findByRole('tab', { name: /Overview/ })
 
   // Away…
-  await userEvent.click(screen.getByRole('button', { name: 'Worktree' }))
+  await userEvent.click(screen.getByRole('button', { name: 'Branch' }))
   await userEvent.click(await screen.findByRole('menuitemradio', { name: /fix/ }))
   await waitFor(() => expect(push).toHaveBeenCalledWith('/'))
   pathname = '/'
@@ -341,30 +457,32 @@ it('goes back to what was open when you return', async () => {
 
   // …and back.
   push.mockClear()
-  await userEvent.click(screen.getByRole('button', { name: 'Worktree' }))
-  await userEvent.click(await screen.findByRole('menuitemradio', { name: /local/ }))
+  await userEvent.click(screen.getByRole('button', { name: 'Branch' }))
+  await userEvent.click(await screen.findByRole('menuitemradio', { name: /main/ }))
 
-  await waitFor(() => expect(push).toHaveBeenCalledWith('/doc/Handbook/Overview.md'))
+  await waitFor(() =>
+    expect(push).toHaveBeenCalledWith('/doc/vault/Handbook/Overview.md'),
+  )
 })
 
 /* Held in the window, the page each checkout was left on lasted exactly as long as the
    window did, and a relaunch sent every branch back to the home screen. */
 it('remembers the page a checkout was left on across a relaunch', async () => {
   const client = createMockClient({
-    worktrees: [
-      { name: 'local', path: '/v/local', branch: 'main', primary: true },
-      { name: 'fix', path: '/v/fix', branch: 'fix', primary: false },
+    branches: [
+      { name: 'main', path: '/v/local', checkedOut: true, primary: true },
+      { name: 'fix', path: '/v/fix', checkedOut: true, primary: false },
     ],
   })
   const { rerender, unmount } = show(client)
   await screen.findByText('the vault')
 
-  pathname = '/doc/Handbook/Overview.md'
+  pathname = '/doc/vault/Handbook/Overview.md'
   rerender(tree(client))
   await screen.findByRole('tab', { name: /Overview/ })
 
   // Left on `fix`, which is where the window closes.
-  await userEvent.click(screen.getByRole('button', { name: 'Worktree' }))
+  await userEvent.click(screen.getByRole('button', { name: 'Branch' }))
   await userEvent.click(await screen.findByRole('menuitemradio', { name: /fix/ }))
   await waitFor(() => expect(push).toHaveBeenCalledWith('/'))
   pathname = '/'
@@ -374,8 +492,10 @@ it('remembers the page a checkout was left on across a relaunch', async () => {
   push.mockClear()
   show(client)
   await screen.findByText('the vault')
-  await userEvent.click(await screen.findByRole('button', { name: 'Worktree' }))
-  await userEvent.click(await screen.findByRole('menuitemradio', { name: /local/ }))
+  await userEvent.click(await screen.findByRole('button', { name: 'Branch' }))
+  await userEvent.click(await screen.findByRole('menuitemradio', { name: /main/ }))
 
-  await waitFor(() => expect(push).toHaveBeenCalledWith('/doc/Handbook/Overview.md'))
+  await waitFor(() =>
+    expect(push).toHaveBeenCalledWith('/doc/vault/Handbook/Overview.md'),
+  )
 })

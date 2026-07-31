@@ -1,1 +1,1 @@
-export { basename, extensionOf } from './core'
+export { basename, extensionOf, tilde } from './core'

@@ -58,9 +58,13 @@
   --opal-indigo: #818cf8;
   --opal-cyan: #22d3ee;
   --opal-mint: #34d399;
-  --opal-gold: #fbbf24;
+  --opal-gold: #b39051;
   --opal-rose: #f472b6;
-  --opal-navy: #1d4ed8;
+  --opal-navy: #051e39;
+
+  /* Red is not one of the opals, and nothing in the palette stands in for it: it is the one
+     colour that only ever means what is about to happen cannot be undone. */
+  --danger: #f85149;
 
   /* Not ours — Anthropic's, and the mark is only itself in it. */
   --claude: #d97757;
@@ -80,12 +84,6 @@
   --line: color-mix(in srgb, var(--white) 10%, transparent);
   --line-hover: color-mix(in srgb, var(--white) 20%, transparent);
 
-  /* One scrollbar for the whole app. Monaco draws its own rather than the browser's, so it
-     is given the same two values in `highlighter.ts` and the same 8px in `editor.tsx` —
-     these are the numbers those have to agree with. */
-  --scroll-thumb: var(--line);
-  --scroll-thumb-hover: var(--line-hover);
-
   /* Apple's own type, everywhere: SF Pro for text, SF Mono where it must be fixed-width. */
   --sans:
     -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', ui-sans-serif,
@@ -97,11 +95,15 @@
   --radius-sm: 0;
 
   /* Floating surfaces are the one place the app is not square: a menu or a modal reads as
-     a sheet lifted off the chrome, and the corner is what says so. */
-  --surface-radius: 12px;
+     a sheet lifted off the chrome, and the corner is what says so.
+
+     The surface's corner is its rows' corner plus the room it holds them in, which is the
+     only ratio that keeps the two curves parallel — pick the outer one freehand and the
+     highlight inside it reads as a different shape sitting in a rounded box. */
   --row-radius: 6px;
-  --field-radius: 8px;
   --surface-inset: 4px;
+  --surface-radius: calc(var(--row-radius) + var(--surface-inset));
+  --field-radius: 8px;
   --surface-shadow: 0 8px 24px -4px rgb(0 0 0 / 65%), 0 2px 6px rgb(0 0 0 / 45%);
   --gutter: 0.5rem;
   --head: 2.6rem;
@@ -116,16 +118,16 @@
   box-sizing: border-box;
 }
 
-/* Every scrolling surface in the app wears the same scrollbar: the document, the tree, the
-   palette, a modal, a code block, the terminal. Set on `*` rather than per pane because the
+/* Nothing in the app draws a scrollbar: the document, the tree, the palette, a modal, a code
+   block, the terminal all scroll without one. Set on `*` rather than per pane because the
    list of things that scroll is not a list anyone can keep up to date, and one pane left on
-   the platform default is exactly the inconsistency this exists to stop.
+   the platform default is exactly the inconsistency this exists to stop. Monaco draws its
+   own rather than the browser's, so `editor/core.tsx` hides that one where it is set.
 
-   The standard properties only — Chromium ignores `::-webkit-scrollbar` rules once
+   The standard property only — Chromium ignores `::-webkit-scrollbar` rules once
    `scrollbar-width` is set, so styling it both ways styles it neither. */
 * {
-  scrollbar-width: thin;
-  scrollbar-color: var(--scroll-thumb) transparent;
+  scrollbar-width: none;
 }
 
 body {
@@ -189,19 +191,18 @@ button:hover {
 
 button:focus-visible {
   outline: none;
-  border-color: var(--opal-indigo);
 }
 
 /* What cannot be undone says so before it is clicked, not after. */
 button.danger {
-  background: color-mix(in srgb, var(--opal-rose) 16%, transparent);
-  border-color: color-mix(in srgb, var(--opal-rose) 40%, transparent);
-  color: var(--opal-rose);
+  background: color-mix(in srgb, var(--danger) 16%, transparent);
+  border-color: color-mix(in srgb, var(--danger) 40%, transparent);
+  color: var(--danger);
 }
 
 button.danger:hover {
-  background: color-mix(in srgb, var(--opal-rose) 26%, transparent);
-  border-color: color-mix(in srgb, var(--opal-rose) 60%, transparent);
+  background: color-mix(in srgb, var(--danger) 26%, transparent);
+  border-color: color-mix(in srgb, var(--danger) 60%, transparent);
 }
 
 input,
@@ -227,6 +228,11 @@ input:focus-visible,
 select:focus-visible,
 textarea:focus-visible {
   outline: none;
+}
+
+/* The caret says where you are in a field; a select has one to itself and does not. */
+input:focus-visible,
+textarea:focus-visible {
   border-color: var(--opal-indigo);
 }
 
@@ -257,23 +263,46 @@ textarea:focus-visible {
   touch-action: none;
 }
 
-.resizer[data-axis='sidebar'] {
-  top: 0;
-  bottom: 0;
-  left: calc(var(--sidebar, 17rem) - 3px);
+/* Shape and cursor by the line it draws; where it sits is per edge, below. A seam between
+   two terminal panes is the same element as the window's own edges. */
+.resizer[data-axis='sidebar'],
+.resizer[data-axis='row'] {
   width: 7px;
   justify-content: center;
   cursor: col-resize;
+}
+
+.resizer[data-axis='panel'],
+.resizer[data-axis='column'] {
+  height: 7px;
+  flex-direction: column;
+  justify-content: center;
+  cursor: row-resize;
+}
+
+/* The seam here is the sidebar's own right border, which is the last pixel of the track
+   rather than the first of the next one — so the strip starts 4px back, not 3, and its
+   middle lands on the border instead of a pixel past it. */
+.resizer[data-axis='sidebar'] {
+  top: 0;
+  bottom: 0;
+  left: calc(var(--sidebar, 17rem) - 4px);
 }
 
 .resizer[data-axis='panel'] {
   top: -3px;
   left: 0;
   right: 0;
-  height: 7px;
-  flex-direction: column;
-  justify-content: center;
-  cursor: row-resize;
+}
+
+/* Placed on the split it divides, so the 3px that straddles it comes off here rather than
+   out of a position the layout would have to know about. */
+.resizer[data-axis='row'] {
+  transform: translateX(-3px);
+}
+
+.resizer[data-axis='column'] {
+  transform: translateY(-3px);
 }
 
 .resizer::after {
@@ -282,11 +311,13 @@ textarea:focus-visible {
   transition: background 120ms ease 90ms;
 }
 
-.resizer[data-axis='sidebar']::after {
+.resizer[data-axis='sidebar']::after,
+.resizer[data-axis='row']::after {
   width: 1px;
 }
 
-.resizer[data-axis='panel']::after {
+.resizer[data-axis='panel']::after,
+.resizer[data-axis='column']::after {
   height: 1px;
   align-self: stretch;
 }
@@ -305,11 +336,15 @@ textarea:focus-visible {
     background 140ms ease;
 }
 
+/* On the head's rule, which is the head's own bottom border: its middle is half a pixel
+   above where the head ends, and the handle is centred there rather than under it. */
 .resizer[data-axis='sidebar']::before {
-  top: var(--head);
+  top: calc(var(--head) - 0.5px);
 }
 
-.resizer[data-axis='panel']::before {
+.resizer[data-axis='panel']::before,
+.resizer[data-axis='row']::before,
+.resizer[data-axis='column']::before {
   top: 50%;
 }
 
@@ -335,7 +370,10 @@ textarea:focus-visible {
 
 .resizer[data-axis='panel']:hover::after,
 .resizer[data-axis='panel']:focus-visible::after,
-.resizer[data-axis='panel'][data-dragging]::after {
+.resizer[data-axis='panel'][data-dragging]::after,
+.resizer[data-axis='column']:hover::after,
+.resizer[data-axis='column']:focus-visible::after,
+.resizer[data-axis='column'][data-dragging]::after {
   background: repeating-linear-gradient(
     90deg,
     var(--line-hover) 0 4px,
@@ -355,11 +393,13 @@ body[data-resizing] {
   user-select: none;
 }
 
-body[data-resizing='sidebar'] {
+body[data-resizing='sidebar'],
+body[data-resizing='row'] {
   cursor: col-resize;
 }
 
-body[data-resizing='panel'] {
+body[data-resizing='panel'],
+body[data-resizing='column'] {
   cursor: row-resize;
 }
 
@@ -375,23 +415,25 @@ body[data-resizing='panel'] {
    partway across. It owns the head's padding, which is why this outranks .tree-head.
 
    In the desktop app the window's close/minimise/zoom buttons land on exactly this row,
-   so the app declares how much room they take and the project starts after them. The gap
+   so the app declares how much room they take and the vault starts after them. The gap
    they leave is the one part of the row that is not a button, which makes it the place to
    drag the window by. In a browser tab the variable is unset and neither applies. */
-.tree-head.project {
+.tree-head.vault {
   padding: 0 0 0 var(--titlebar-inset, 0px);
   -webkit-app-region: drag;
 }
 
-.project-anchor {
+.vault-anchor {
   -webkit-app-region: no-drag;
 }
 
-/* The inset the app declares is the whole distance to the logo, so the anchor does not add
-   its own padding on top of it — otherwise the gap after the window buttons is that much
-   wider than the one before them, and the logo reads as pushed off to one side. */
-.tree-head.project .project-anchor {
-  padding-left: 0;
+/* The inset the app declares is the whole distance to the logo, so the anchor gives back
+   what the row already spent — otherwise the gap after the window buttons is that much
+   wider than the one before them, and the logo reads as pushed off to one side. What is
+   left over is the row's own padding, which is what a browser tab gets: no inset there,
+   so the logo stands off the edge by the same 0.85rem the chevron does at the other end. */
+.tree-head.vault .vault-anchor {
+  padding-left: max(0px, 0.85rem - var(--titlebar-inset, 0px));
 }
 
 .tree-head .logo {
@@ -401,7 +443,7 @@ body[data-resizing='panel'] {
   object-fit: contain;
 }
 
-.project-anchor {
+.vault-anchor {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -414,18 +456,39 @@ body[data-resizing='panel'] {
   font-weight: 550;
 }
 
-.project-anchor:hover,
-.project-anchor[data-state='open'] {
+.vault-anchor:hover,
+.vault-anchor[data-state='open'] {
   background: var(--raised);
 }
 
-.project-anchor .name {
+.vault-anchor .name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.project-anchor .icon {
+/* The project reads as something the vault is holding rather than a second name of equal
+   weight, so it is quieter and gives up its room first when the sidebar narrows. */
+.vault-anchor .in-project {
+  overflow: hidden;
+  flex-shrink: 1;
+  min-width: 0;
+  padding: 0.05rem 0.35rem;
+  border-radius: 0.25rem;
+  background: var(--raised);
+  color: var(--muted);
+  font-size: 0.8em;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vault-anchor:hover .in-project,
+.vault-anchor[data-state='open'] .in-project {
+  color: var(--white);
+}
+
+.vault-anchor .icon {
   flex: none;
   margin-left: auto;
   width: 0.85rem;
@@ -433,7 +496,7 @@ body[data-resizing='panel'] {
   color: var(--faint);
 }
 
-.project-anchor:hover .icon {
+.vault-anchor:hover .icon {
   color: var(--muted);
 }
 
@@ -467,8 +530,8 @@ body[data-resizing='panel'] {
   background: var(--opal-violet);
 }
 
-/* Every rule below is scoped through `> ul` — the file list. The project dropdown is also
-   inside .tree, and a bare `.tree ul` outranked `.project ul` on source order alone. */
+/* Every rule below is scoped through `> ul` — the file list. The vault dropdown is also
+   inside .tree, and a bare `.tree ul` outranked `.vault ul` on source order alone. */
 .tree > ul {
   list-style: none;
   margin: 0;
@@ -554,7 +617,6 @@ body[data-resizing='panel'] {
   font-size: 0.6rem;
   line-height: 1.2;
   letter-spacing: 0.05em;
-  text-transform: uppercase;
 }
 
 .tree > ul li:hover {
@@ -676,14 +738,9 @@ body[data-resizing='panel'] {
   padding: 0 0.35rem;
   border-bottom: 1px solid var(--line);
   overflow-x: auto;
-  scrollbar-width: none;
 }
 
-.tabs::-webkit-scrollbar {
-  display: none;
-}
-
-/* The strip and the worktree control share one bar. The border lives on the bar so the two
+/* The strip and the branch control share one bar. The border lives on the bar so the two
    read as one row rather than as a strip with something bolted to the end of it. */
 .tab-bar {
   display: flex;
@@ -709,14 +766,14 @@ body[data-resizing='panel'] {
 }
 
 /* Which checkout the tabs beside it belong to, at the end of the row they belong to. */
-.worktree-menu {
+.branch-menu {
   display: flex;
   align-items: center;
   flex: none;
   padding: 0 0.45rem 0 0.35rem;
 }
 
-.worktree-anchor {
+.branch-anchor {
   display: flex;
   align-items: center;
   gap: 0.35rem;
@@ -731,20 +788,20 @@ body[data-resizing='panel'] {
   -webkit-app-region: no-drag;
 }
 
-.worktree-anchor:hover,
-.worktree-anchor[data-state='open'] {
+.branch-anchor:hover,
+.branch-anchor[data-state='open'] {
   border-color: var(--line-hover);
   background: var(--raised);
   color: var(--white);
 }
 
-.worktree-anchor .name {
+.branch-anchor .name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.worktree-anchor .icon {
+.branch-anchor .icon {
   flex: none;
   width: 0.85rem;
   height: 0.85rem;
@@ -888,6 +945,24 @@ body[data-resizing='panel'] {
   border-top: none;
 }
 
+/* Panes tile the tab from their rects rather than nesting in boxes: a shell that moves in
+   the React tree unmounts, and a pty that unmounts dies. */
+.terminal-pane {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  opacity: 0.68;
+}
+
+/* Which pane your keys go to. xterm hollows its own cursor when it is not focused, which is
+   a small thing to find across four of them, so the ones you are not in stand back — the
+   same thing iTerm2 does. A tab that has not been split has nothing to stand back from. */
+.terminal-pane:focus-within,
+.terminal-pane:only-child {
+  opacity: 1;
+}
+
 /* The body is the whole pane: which document it is belongs to the tab strip above it. */
 .doc {
   display: flex;
@@ -921,7 +996,7 @@ body[data-resizing='panel'] {
   color: var(--muted);
 }
 
-/* A vault with nothing open: the mark over the name over the one hint, in the middle of
+/* A vault with nothing open: the mark over the name over the two keys, in the middle of
    the pane. It is a sign, not a surface — nothing to select, nothing to drag off. */
 .home {
   flex: 1;
@@ -955,6 +1030,29 @@ body[data-resizing='panel'] {
   margin: 0;
 }
 
+/* One line per key: the key, then what it does, in the same run of text. Left-aligned
+   inside a centred block, because a list read down the keys wants them all starting in the
+   same place. */
+.home-keys {
+  margin: 1.1rem 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  text-align: left;
+  font-size: 0.9rem;
+}
+
+.home-keys dt,
+.home-keys dd {
+  display: inline;
+  margin: 0;
+}
+
+.home-keys dd {
+  margin-left: 0.5rem;
+  color: var(--faint);
+}
+
 /* ---------- editor ---------- */
 
 .broodmother-editor {
@@ -982,6 +1080,41 @@ body[data-resizing='panel'] {
 .monaco-host {
   position: relative;
   height: 100%;
+}
+
+/* Monaco measures the box it is given and this one is a field, so the height is stated
+   here rather than inherited from a pane. Dressed as the inputs around it: same ground,
+   same border, same corner. */
+.broodmother-editor.inline-editor {
+  height: 9.5rem;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--white) 4%, var(--ground));
+  border: 1px solid var(--line);
+  border-radius: var(--field-radius);
+  transition: border-color 120ms ease;
+}
+
+.inline-editor:hover,
+.inline-editor:focus-within {
+  border-color: var(--line-hover);
+}
+
+/* The document's own ground is the pane's; in a field it is the field's. */
+.inline-editor .monaco-editor,
+.inline-editor .monaco-editor .monaco-editor-background,
+.inline-editor .monaco-editor .margin {
+  background: transparent;
+}
+
+/* Monaco draws the caret as tall as the line, and prose is set at a line height half again
+   its own size — so the bar stands well clear of the words it sits between. This is the
+   height of what is being typed instead, measured off the line in `editor/core.tsx` and
+   centred in the line box. `!important` because the height Monaco writes is inline. */
+.monaco-host.prose .monaco-editor .cursors-layer > .cursor {
+  height: calc(1.15em * var(--caret-scale, 1)) !important;
+  transform: translateY(
+    calc((var(--line-box, 1.7em) - 1.15em * var(--caret-scale, 1)) / 2)
+  );
 }
 
 .monaco-mount {
@@ -1151,13 +1284,6 @@ body[data-resizing='panel'] {
 
 /* A field in this form is a label stacked over its input, which is right for a text box
    and wrong for a radio: the dot belongs beside what it names, not above it. */
-.fields .choices {
-  display: flex;
-  flex-direction: row;
-  gap: 1.25rem;
-  margin-top: -0.35rem;
-}
-
 .fields .check {
   flex-direction: row;
   align-items: center;
@@ -1339,8 +1465,6 @@ body[data-resizing='panel'] {
 
 .monaco-commands .hint {
   margin-left: auto;
-  padding: 0;
-  border: none;
   color: var(--faint);
   font-size: 0.75rem;
 }
@@ -1487,15 +1611,6 @@ body[data-resizing='panel'] {
   color: var(--muted);
 }
 
-.status .spacer {
-  flex: 1;
-}
-
-.status .hint {
-  border: none;
-  padding: 0;
-}
-
 .sync[data-state='syncing'],
 .session[data-state='connecting'] {
   color: var(--opal-cyan);
@@ -1554,8 +1669,8 @@ body[data-resizing='panel'] {
   backdrop-filter: blur(3px);
 }
 
-/* The field stays put and the list scrolls under it: with every document in the vault on
-   offer, arrowing down should not carry what you typed off the top of the dialog. */
+/* The field stays put and the list scrolls under it: with every document in the vault
+   on offer, arrowing down should not carry what you typed off the top of the dialog. */
 .palette {
   display: flex;
   flex-direction: column;
@@ -1582,7 +1697,6 @@ label.palette-label {
   color: var(--faint);
   font-size: 0.72rem;
   letter-spacing: 0.06em;
-  text-transform: uppercase;
 }
 
 p.palette-label {
@@ -1661,7 +1775,6 @@ p.palette-label {
   font-size: 0.6rem;
   line-height: 1.2;
   letter-spacing: 0.05em;
-  text-transform: uppercase;
 }
 
 .palette li:hover {
@@ -1743,14 +1856,12 @@ p.palette-label {
   font-size: 0.56rem;
   font-weight: 600;
   letter-spacing: 0.08em;
-  text-transform: uppercase;
 }
 
-/* Full-bleed, so the rule reads as a division of the surface and not of the rows. */
-.menu-divider {
-  height: 1px;
-  margin: var(--surface-inset) calc(var(--surface-inset) * -1);
-  background: var(--line);
+/* Sections are told apart by the room between them and by the heading over each, rather
+   than by a rule drawn across the surface. */
+.menu-section + .menu-section {
+  margin-top: 0.35rem;
 }
 
 .menu-item {
@@ -1778,13 +1889,14 @@ p.palette-label {
   pointer-events: none;
 }
 
+/* The same red the danger buttons are, rather than a second one that means the same thing. */
 .menu-item[data-danger] {
-  color: var(--opal-rose);
+  color: var(--danger);
 }
 
 .menu-item[data-danger][data-highlighted] {
-  background: color-mix(in srgb, var(--opal-rose) 16%, transparent);
-  color: var(--opal-rose);
+  background: color-mix(in srgb, var(--danger) 16%, transparent);
+  color: var(--danger);
 }
 
 .menu-item > .icon {
@@ -1796,6 +1908,13 @@ p.palette-label {
 
 .menu-item[data-highlighted] > .icon {
   color: var(--muted);
+}
+
+/* What the row says it will do, the glyph says too: a red label beside a grey cross is the
+   mark disagreeing with the words. */
+.menu-item[data-danger] > .icon,
+.menu-item[data-danger][data-highlighted] > .icon {
+  color: inherit;
 }
 
 .menu-text {
@@ -1830,7 +1949,43 @@ p.palette-label {
   color: var(--opal-violet);
 }
 
-/* An initial on the presence color reads as an identity; a bare square reads as decoration. */
+/* The one dropdown in a field's clothes: it opens the same surface every other selector in
+   the app does, so in a column of inputs it has to read as one of them and not as a button
+   that happens to be there. */
+.select {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.35rem 0.55rem;
+  background: color-mix(in srgb, var(--white) 4%, var(--ground));
+  border-color: var(--line);
+  font-size: 0.9rem;
+  font-weight: 400;
+}
+
+.select:hover {
+  background: color-mix(in srgb, var(--white) 4%, var(--ground));
+  border-color: var(--line-hover);
+}
+
+.select-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The chevron is the part that says this opens, so it sits at the far end whatever the
+   value beside it is. */
+.select > .icon {
+  width: 0.85rem;
+  height: 0.85rem;
+  margin-left: auto;
+  flex: none;
+  color: var(--faint);
+}
+
+/* An initial on the profile's colour reads as an identity; a bare square reads as decoration. */
 .menu-badge {
   display: grid;
   place-items: center;
@@ -1901,7 +2056,6 @@ p.palette-label {
   gap: 0.75rem;
   flex: none;
   padding: 0.7rem 0.7rem 0.7rem 1rem;
-  border-bottom: 1px solid var(--line);
 }
 
 .modal-head h2 {
@@ -1939,7 +2093,7 @@ p.palette-label {
   margin: 0;
   padding: 0.85rem 1rem 0;
   color: var(--muted);
-  font-size: 0.78rem;
+  font-size: 0.8rem;
   line-height: 1.5;
 }
 
@@ -1949,22 +2103,16 @@ p.palette-label {
   padding: 1rem;
 }
 
+/* No rule over the buttons: the gap is what separates them from the form, and a line under
+   the last field reads as a field that has one. */
+/* Centred, because what a modal asks for is the whole of what is in front of you, and the
+   answer belongs under the question rather than in a corner of it. */
 .modal-foot {
   display: flex;
-  justify-content: flex-end;
+  justify-content: center;
   gap: 0.5rem;
   flex: none;
   padding: 0.75rem 1rem;
-  border-top: 1px solid var(--line);
-}
-
-/* Consequential choices are spelled out on the buttons, which makes them too wide to sit
-   side by side. */
-.modal-foot .stacked {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  width: 100%;
 }
 
 .modal-foot [type='submit'] {
@@ -1985,26 +2133,57 @@ p.palette-label {
   gap: 0.85rem;
 }
 
-.fields label {
+/* A field whose control is not one a label can point at — an editor rather than an input —
+   is captioned the same way and sits in the same column. */
+.fields label,
+.fields .field {
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
   color: var(--muted);
-  font-size: 0.78rem;
+  font-size: 0.8rem;
 }
 
+/* The same size the `.select` beside them is set at, so a column of fields does not change
+   type where one of them happens to be a dropdown. */
 .fields input,
 .fields select {
   color: var(--white);
-  font-size: 0.85rem;
+  font-size: 0.9rem;
 }
 
 .fields h2 {
   font-size: 0.58rem;
   font-weight: 600;
   letter-spacing: 0.08em;
-  text-transform: uppercase;
   color: var(--faint);
+}
+
+/* Fields that belong to one thing, in a box that says which. The only container in a form
+   here: everything else in the column stands on its own label. */
+.field-group {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0.7rem 0.8rem 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: var(--field-radius);
+}
+
+/* Pulled back by exactly the padding that keeps the border off the word, so the name of the
+   box starts on the same line down as the fields inside it. */
+/* Radios are one list rather than a stack of separate fields, so they sit closer together
+   than the gap the box keeps between everything else in it. */
+.field-group .check + .check {
+  margin-top: -0.42rem;
+}
+
+.field-group legend {
+  margin-inline-start: -0.35rem;
+  padding: 0 0.35rem;
+  color: var(--muted);
 }
 
 .swatches {
@@ -2049,10 +2228,20 @@ p.palette-label {
   box-shadow: 0 0 0 2px var(--opal-indigo);
 }
 
+/* What a control does, said under it. One rule for all of them: the same sentence under the
+   same field read at three different sizes depending on which surface it had landed on. */
+.hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
 .field-error {
   margin: 0;
   color: var(--opal-rose);
-  font-size: 0.78rem;
+  font-size: 0.8rem;
+  line-height: 1.5;
 }
 
 .sr-only {
@@ -2064,59 +2253,155 @@ p.palette-label {
   white-space: nowrap;
 }
 
-/* ---------- dialogs ---------- */
-
-.versions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1rem;
-}
-
-.versions pre {
-  background: var(--ground);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  padding: 0.65rem 0.75rem;
-  max-height: 30vh;
-  overflow: auto;
-  margin: 0;
-}
-
 /* ---------- settings ---------- */
 
-/* A column down the middle of the pane rather than a form pinned to the left edge: there
-   is nothing beside it to line up with. */
+/* A rail of sections beside the one being edited, the shape every settings page of this size
+   has settled on. The title is over the column it names rather than over the rail, so the
+   rail starts on the row under it and the two read as one page rather than two.
+
+   `align-content` because this grid is also the pane that scrolls: left to stretch, the two
+   rows share the height of the window between them and the title floats above a row of
+   nothing. The rows are as tall as what is in them, and the page starts at the top. */
 .settings {
-  display: flex;
-  flex-direction: column;
-  gap: 0.9rem;
+  display: grid;
+  grid-template-columns: 13rem 1fr;
+  column-gap: 2rem;
+  row-gap: 1rem;
+  align-content: start;
+  align-items: start;
   width: 100%;
-  max-width: 40rem;
+  max-width: 60rem;
   margin-inline: auto;
 }
 
+/* All three placed rather than flowed: an item given a column is placed before the ones that
+   are not, so left to the auto-placement the rail lands beside the title instead of under
+   it. */
 .settings h1 {
-  margin-bottom: 0.25rem;
+  grid-area: 1 / 2;
+  margin: 0;
+  line-height: 1.25;
 }
 
+.settings-nav {
+  grid-area: 2 / 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  position: sticky;
+  top: 0;
+}
+
+.settings-nav button {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  background: transparent;
+  border-color: transparent;
+  border-radius: var(--row-radius);
+  padding: 0.35rem 0.55rem;
+  font-size: 0.85rem;
+}
+
+.settings-nav .icon {
+  width: 0.9rem;
+  height: 0.9rem;
+  color: var(--faint);
+}
+
+.settings-nav button:hover {
+  background: var(--raised);
+  border-color: transparent;
+}
+
+/* Selected is a fill and a weight, and the accent bar outside it is what carries down the
+   rail: the fill alone is easy to lose against the panel. */
+.settings-nav button[aria-selected='true'] {
+  background: var(--active);
+  font-weight: 600;
+}
+
+.settings-nav button[aria-selected='true'] .icon {
+  color: var(--white);
+}
+
+.settings-nav button[aria-selected='true']::after {
+  content: '';
+  position: absolute;
+  left: -0.6rem;
+  top: 0.2rem;
+  bottom: 0.2rem;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+
+.settings-main {
+  grid-area: 2 / 2;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.settings-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+/* What belongs to the thing the section is about but is not the thing itself: the key is the
+   profile's, the sync is the vault's. A rule and a heading rather than a page of its own. */
+.settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  margin-top: 1.25rem;
+}
+
+/* Named, not ruled off: the space above a section is what separates it, and a line under
+   every heading in the app adds up to a page of them. */
+.settings-section h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 400;
+}
+
+/* A button is as wide as what it says. The column stretches everything in it, so the ones
+   standing on their own rather than in a row say otherwise. */
+.settings-panel > button,
+.settings-section > button {
+  align-self: flex-start;
+}
+
+.settings-panel input,
+.settings-panel .select {
+  max-width: 26rem;
+}
+
+/* The name of a field is part of the form rather than a note beside it, so it is set in the
+   text colour and carries the weight. */
 .settings label {
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
-  color: var(--muted);
-  font-size: 0.85rem;
+  font-size: 0.8rem;
+  font-weight: 600;
 }
 
 .settings label input,
 .settings label select {
   color: var(--white);
   font-size: 0.9rem;
+  font-weight: 400;
 }
 
 .settings label.check {
   flex-direction: row;
   align-items: center;
   gap: 0.5rem;
+  font-weight: 400;
 }
 
 .settings .row {
@@ -2126,12 +2411,6 @@ p.palette-label {
   font-size: 0.85rem;
 }
 
-.settings [type='submit'] {
-  align-self: flex-start;
-  margin-top: 0.5rem;
-  padding: 0.4rem 1.1rem;
-}
-
 .result[data-ok='true'] {
   color: var(--opal-mint);
 }
@@ -2139,9 +2418,67 @@ p.palette-label {
   color: var(--opal-rose);
 }
 
+/* Eight characters to be read off a screen and typed into another one, so they are set as
+   big and as unambiguously as the app can set them. */
+.device-code {
+  align-self: flex-start;
+  padding: 0.5rem 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: var(--field-radius);
+  background: var(--editor-ground);
+  font-family: var(--mono);
+  font-size: 1.5rem;
+  letter-spacing: 0.18em;
+  user-select: all;
+}
+
+/* The public half of a key is one long unbroken word, so it wraps anywhere rather than
+   pushing the settings pane sideways. Monospace because it is meant to be compared. */
+.public-key {
+  display: block;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: var(--field-radius);
+  background: var(--editor-ground);
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
+/* A link that has to sit in a row of buttons and read as one of them. */
+.link-button {
+  padding: 0.42rem 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: var(--field-radius);
+  background: var(--raised);
+  color: var(--white);
+  /* A button takes the app's own type through `font: inherit`; a link is set in whatever the
+     UA gives an anchor, so it has to be told the same thing or it stands a size too large. */
+  font: inherit;
+  letter-spacing: inherit;
+  text-decoration: none;
+  transition:
+    background 120ms ease,
+    border-color 120ms ease;
+}
+
+.link-button:hover {
+  background: var(--active);
+  border-color: var(--line-hover);
+}
+
 .reset {
   color: var(--opal-gold);
   margin: 0;
+}
+
+/* The sections that cannot be taken back. The colour of the heading is what marks them —
+   a box drawn round the whole thing on top of that is saying it twice. */
+.danger-zone h3 {
+  color: var(--danger);
 }
 
 /* ---------- vault picker ---------- */
@@ -2154,14 +2491,6 @@ p.palette-label {
   gap: 1.25rem;
 }
 
-.vault-picker h2 {
-  font-size: 0.58rem;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--faint);
-}
-
 .vault-list {
   display: flex;
   flex-direction: column;
@@ -2171,11 +2500,13 @@ p.palette-label {
   padding: 0;
 }
 
+/* Inset a little from the surface it is on: a row that reaches the edge reads as the edge. */
 .vault-list button {
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
-  width: 100%;
+  width: calc(100% - 0.5rem);
+  margin-inline: 0.25rem;
   padding: 0.5rem 0.65rem;
   text-align: left;
   background: var(--raised);
@@ -2205,29 +2536,10 @@ p.palette-label {
   line-height: 1.3;
 }
 
+/* The list above and the form below are two answers to one question, kept apart by the room
+   between them. The fields themselves are `.fields` like every other form in a modal, and
+   are not restyled here: the same form asked for in two places must not be set two
+   different ways. */
 .vault-picker form {
-  border-top: 1px solid var(--line);
-  padding-top: 1.25rem;
-}
-
-.vault-picker label {
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-  color: var(--muted);
-  font-size: 0.72rem;
-}
-
-.vault-picker label input {
-  padding: 0.4rem 0.55rem;
-  color: var(--white);
-  font-size: 0.8rem;
-}
-
-.vault-picker .hint,
-.vault-picker .empty-note {
-  color: var(--faint);
-  font-size: 0.72rem;
-  line-height: 1.5;
-  margin: 0;
+  padding-top: 0.5rem;
 }

@@ -1,13 +1,14 @@
 'use client'
 
 import type { SyncStatus } from '@broodmother/shared'
+import { Button } from '../ui'
 
 function syncLabel(sync: SyncStatus): string {
   switch (sync.state) {
-    // A vault with no repository, or with sync turned off. Saying "idle" here would claim a
+    // A project with no repository, or with sync turned off. Saying "idle" here would claim a
     // backup that is not happening.
     case 'off':
-      return `not syncing · ${sync.message ?? 'sync is off for this vault'}`
+      return `not syncing · ${sync.message ?? 'sync is off for this project'}`
     // A pass can succeed and still have done less than the whole round — auto-commit off,
     // no remote to push to — and that is what the message says.
     case 'idle':
@@ -47,9 +48,7 @@ export function StatusLine({
             {sync.conflicted.length === 1 ? 'it' : 'them'} in the app or the terminal,
             then clear.
           </span>
-          <button type="button" onClick={onClearConflict}>
-            clear conflict
-          </button>
+          <Button onClick={onClearConflict}>clear conflict</Button>
         </div>
       )}
       <div className="line" role="status">
@@ -61,8 +60,6 @@ export function StatusLine({
             {notice} ✕
           </button>
         )}
-        <span className="spacer" />
-        <span className="hint">⌘K</span>
       </div>
     </footer>
   )

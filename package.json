@@ -1,7 +1,7 @@
 {
   "name": "@broodmother/root",
   "private": true,
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Local markdown optimized for collaboration between people and agents.",
   "license": "MIT",
   "homepage": "https://github.com/SwampPear/broodmother#readme",
@@ -13,7 +13,7 @@
     "markdown",
     "notes",
     "obsidian",
-    "vault",
+    "project",
     "local-first",
     "editor"
   ],
@@ -27,8 +27,9 @@
   ],
   "scripts": {
     "setup": "npm install && npm link",
-    "dev": "concurrently -k -n server,web -c magenta,cyan \"npm run dev -w @broodmother/server\" \"npm run dev -w @broodmother/web\"",
+    "localhost": "concurrently -k -n server,web -c magenta,cyan \"npm run dev -w @broodmother/server\" \"npm run dev -w @broodmother/web\"",
     "start": "concurrently -k -n server,web -c magenta,cyan \"npm run start -w @broodmother/server\" \"npm run start -w @broodmother/web\"",
+    "app": "npm run start -w @broodmother/desktop",
     "build": "npm run typecheck && npm run build -w @broodmother/web",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",

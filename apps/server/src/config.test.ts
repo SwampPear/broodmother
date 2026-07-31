@@ -7,6 +7,7 @@ import {
   configSchema,
   defaultConfig,
   hasEmbeddedCredentials,
+  normalizeRemote,
   remoteUrlSchema,
   repair,
 } from './config'
@@ -45,53 +46,85 @@ describe('hasEmbeddedCredentials', () => {
   })
 })
 
+/* What is on the clipboard is the address bar, not the clone URL — the app takes the
+   difference rather than teaching it. */
+describe('normalizeRemote', () => {
+  it.each([
+    ['https://github.com/you/vault', 'https://github.com/you/vault'],
+    ['https://github.com/you/vault/', 'https://github.com/you/vault'],
+    ['https://github.com/you/vault.git', 'https://github.com/you/vault.git'],
+    ['  https://github.com/you/vault  ', 'https://github.com/you/vault'],
+    ['https://github.com/you/vault/tree/main', 'https://github.com/you/vault'],
+    ['https://github.com/you/vault/blob/main/README.md', 'https://github.com/you/vault'],
+    ['https://github.com/you/vault/pull/12', 'https://github.com/you/vault'],
+    ['https://github.com/you/vault?tab=readme-ov-file', 'https://github.com/you/vault'],
+    // A segment is never dropped: a subgroup is one, and so is the repository under it.
+    ['https://gitlab.com/group/sub/vault', 'https://gitlab.com/group/sub/vault'],
+    [
+      'https://gitlab.com/group/sub/vault/-/tree/main',
+      'https://gitlab.com/group/sub/vault',
+    ],
+    // Already a clone URL, so left exactly as typed.
+    ['git@github.com:you/vault.git', 'git@github.com:you/vault.git'],
+    ['ssh://git@github.com/you/vault.git', 'ssh://git@github.com/you/vault.git'],
+  ])('%s -> %s', (typed, cloned) => {
+    expect(normalizeRemote(typed)).toBe(cloned)
+  })
+
+  it('is what a remote is accepted as', () => {
+    expect(remoteUrlSchema.parse('https://github.com/you/vault/tree/main')).toBe(
+      'https://github.com/you/vault',
+    )
+  })
+})
+
 describe('defaults', () => {
   it('are complete enough to start with no setup', () => {
-    expect(configSchema.safeParse(defaultConfig('/vault')).success).toBe(true)
+    expect(configSchema.safeParse(defaultConfig('/project')).success).toBe(true)
   })
 })
 
 describe('repair', () => {
   it('keeps good fields and reports only the bad ones', () => {
-    const defaults = defaultConfig('/vault')
+    const defaults = defaultConfig('/project')
     const { config, reset } = repair(
       {
         vaultPath: '/elsewhere',
         profiles: { '/elsewhere': 'ada' },
-        worktrees: 42,
+        checkouts: 42,
         git: { '/elsewhere': { enabled: 'yes' } },
       },
       defaults,
     )
-    expect(reset.sort()).toEqual(['git', 'worktrees'])
+    expect(reset.sort()).toEqual(['checkouts', 'git'])
     expect(config.vaultPath).toBe('/elsewhere')
     expect(config.profiles).toEqual({ '/elsewhere': 'ada' })
-    expect(config.worktrees).toEqual(defaults.worktrees)
+    expect(config.checkouts).toEqual(defaults.checkouts)
     expect(config.git).toEqual(defaults.git)
   })
 
-  it('keeps a whole set of sync settings for a vault', () => {
+  it('keeps a whole set of sync settings for a project', () => {
     const settings = { ...defaultGitSettings(), enabled: true, push: false }
     const { config, reset } = repair(
-      { vaultPath: '/vault', git: { '/vault': settings } },
+      { vaultPath: '/project', git: { '/project': settings } },
       defaultConfig(null),
     )
     expect(reset).toEqual([])
-    expect(config.git['/vault']).toEqual(settings)
+    expect(config.git['/project']).toEqual(settings)
   })
 
   it('falls back to every default when the file is not an object', () => {
-    const { config, reset } = repair('nonsense', defaultConfig('/vault'))
+    const { config, reset } = repair('nonsense', defaultConfig('/project'))
     expect(reset).toEqual(Object.keys(configSchema.shape))
-    expect(config).toEqual(defaultConfig('/vault'))
+    expect(config).toEqual(defaultConfig('/project'))
   })
 })
 
 describe('adoptLegacySync', () => {
-  it('carries the old machine-wide sync fields onto the open vault', () => {
+  it('carries the old machine-wide sync fields onto the open project', () => {
     const { config } = repair(
       {
-        vaultPath: '/vault',
+        vaultPath: '/project',
         remoteUrl: 'git@github.com:you/x.git',
         branch: 'trunk',
         syncEnabled: true,
@@ -100,7 +133,7 @@ describe('adoptLegacySync', () => {
       defaultConfig(null),
     )
 
-    expect(config.git['/vault']).toEqual({
+    expect(config.git['/project']).toEqual({
       ...defaultGitSettings(),
       enabled: true,
       idleMs: 30_000,
@@ -113,13 +146,13 @@ describe('adoptLegacySync', () => {
   it('leaves settings the new layout already has alone', () => {
     const mine = { ...defaultGitSettings(), enabled: false, idleMs: 5_000 }
     const { config } = repair(
-      { vaultPath: '/vault', git: { '/vault': mine }, syncEnabled: true },
+      { vaultPath: '/project', git: { '/project': mine }, syncEnabled: true },
       defaultConfig(null),
     )
-    expect(config.git['/vault']).toEqual(mine)
+    expect(config.git['/project']).toEqual(mine)
   })
 
-  it('has nothing to carry when no vault is open', () => {
+  it('has nothing to carry when no project is open', () => {
     const { config } = repair({ syncEnabled: true }, defaultConfig(null))
     expect(config.git).toEqual({})
   })
@@ -142,18 +175,18 @@ describe('ConfigStore', () => {
 
   it('keeps .broodmother out of git so the sync loop never commits app state', async () => {
     const configStore = await store()
-    const vault = path.dirname(path.dirname(configStore.file))
-    await initRepo(vault)
+    const project = path.dirname(path.dirname(configStore.file))
+    await initRepo(project)
     await configStore.save(configStore.config)
 
-    expect((await new Git(vault).status()).changed).toEqual([])
+    expect((await new Git(project).status()).changed).toEqual([])
   })
 
   it('round-trips a saved config and clears the reset list', async () => {
-    const configStore = await store('{"worktrees": 7}')
-    expect((await configStore.load()).reset).toEqual(['worktrees'])
+    const configStore = await store('{"checkouts": 7}')
+    expect((await configStore.load()).reset).toEqual(['checkouts'])
 
-    const git = { '/vault': { ...defaultGitSettings(), enabled: true } }
+    const git = { '/project': { ...defaultGitSettings(), enabled: true } }
     const saved = await configStore.save({ ...configStore.config, git })
     expect(saved.git).toEqual(git)
     expect(configStore.reset).toEqual([])

@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { docTab, type Tab, TabStrip } from './tabs'
 
 const tabs: Tab[] = [
-  docTab('Handbook/Overview.md'),
+  docTab({ root: 'vault', path: 'Handbook/Overview.md' }),
   { id: 'terminal:1', kind: 'terminal', shell: 'shell' },
 ]
 
@@ -82,7 +82,7 @@ describe('the right-click menu', () => {
     await open(/Overview/)
     await userEvent.click(screen.getByRole('menuitem', { name: /Rename/ }))
     expect(onRename).toHaveBeenCalledWith(
-      expect.objectContaining({ path: 'Handbook/Overview.md' }),
+      expect.objectContaining({ ref: { root: 'vault', path: 'Handbook/Overview.md' } }),
     )
   })
 
@@ -91,7 +91,7 @@ describe('the right-click menu', () => {
     await open(/Overview/)
     await userEvent.click(screen.getByRole('menuitem', { name: 'Close' }))
     expect(onClose).toHaveBeenCalledWith(
-      expect.objectContaining({ path: 'Handbook/Overview.md' }),
+      expect.objectContaining({ ref: { root: 'vault', path: 'Handbook/Overview.md' } }),
     )
   })
 

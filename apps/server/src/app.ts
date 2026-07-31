@@ -3,19 +3,36 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import type { Context } from 'hono'
 import { z } from 'zod'
-import { imageTypeOf, type BroodmotherConfig } from '@broodmother/shared'
+import { imageTypeOf, type BroodmotherConfig, type DocRoot } from '@broodmother/shared'
+import { BranchError } from './branches'
 import { configSchema, gitSettingsSchema, remoteUrlSchema } from './config'
-import { NoProfileError, NoVaultError, type AppContext } from './context'
-import { ProfileError, identitySchema } from './profiles'
+import { NoProfileError, NoProjectError, NoVaultError, type AppContext } from './context'
+import { GithubError, configured as githubConfigured } from './github'
+import { ProfileError, identitySchema, machineAuthor } from './profiles'
 import { PathError, normalize } from './fs'
+import { ProjectError } from './project'
 import { VaultError } from './vault'
-import { WorktreeError } from './vault'
 
 export const WEB_ORIGINS = ['http://localhost:6767', 'http://127.0.0.1:6767']
 
-const docBody = z.object({ path: z.string(), markdown: z.string() })
-const moveBody = z.object({ from: z.string(), to: z.string() })
-const remoteBody = z.object({ remoteUrl: z.string(), branch: z.string() })
+/** `vault`, or `project:<name>` — a path alone stopped being an address the moment a vault
+ *  could link more than one repository. */
+const rootSchema = z.custom<DocRoot>(
+  (value) =>
+    value === 'vault' || (typeof value === 'string' && /^project:.+$/.test(value)),
+  'root must be "vault" or "project:<name>"',
+)
+const docBody = z.object({
+  root: rootSchema,
+  path: z.string(),
+  markdown: z.string(),
+})
+const moveBody = z.object({
+  root: rootSchema,
+  from: z.string(),
+  to: z.string(),
+})
+const rootBody = z.object({ root: rootSchema })
 /** Git is optional, so the remote and branch are too — but a vault asked to sync needs
  *  somewhere to sync to, and that is worth refusing early rather than half-creating. */
 const newVaultBody = z
@@ -30,14 +47,27 @@ const newVaultBody = z
     'a vault that syncs needs a remote',
   )
 const openVaultBody = z.object({ path: z.string().min(1) })
+/** The same shape a vault is made from, plus where it goes: a project is a repository too,
+ *  and one it has to make is made the same way. */
+const newProjectBody = z
+  .object({
+    name: z.string().min(1),
+    repo: z.string(),
+    vault: z.string().min(1).nullish(),
+    git: z.enum(['none', 'local', 'remote']).optional(),
+    remoteUrl: remoteUrlSchema.nullish(),
+    branch: z.string().min(1).nullish(),
+  })
+  .refine(
+    (body) => body.git !== 'remote' || Boolean(body.remoteUrl?.trim()),
+    'a project cloned from a remote needs one',
+  )
+const scopeBody = z.object({ root: rootSchema })
+const deviceCodeBody = z.object({ deviceCode: z.string().min(1) })
+const newRepoBody = z.object({ name: z.string().min(1), private: z.boolean() })
 const newProfileBody = identitySchema.extend({ name: z.string().min(1) })
 const pickProfileBody = z.object({ profile: z.string().min(1) })
-const nameBody = z.object({ name: z.string().min(1) })
-const newWorktreeBody = z.object({
-  name: z.string().min(1),
-  branch: z.string().min(1),
-  create: z.boolean(),
-})
+const branchBody = z.object({ root: rootSchema, name: z.string().min(1) })
 
 class BadRequest extends Error {}
 
@@ -57,12 +87,24 @@ function query(c: Context, name: string): string {
   return value
 }
 
+/** Which tree a GET is asking about. Every read names one, the same way every write does. */
+function root(c: Context): DocRoot {
+  const result = rootSchema.safeParse(c.req.query('root'))
+  if (!result.success) throw new BadRequest('root must be "vault" or "project:<name>"')
+  return result.data
+}
+
 export function createApp(ctx: AppContext): Hono {
   const app = new Hono()
   app.use('/api/*', cors({ origin: WEB_ORIGINS }))
 
   app.get('/api/profiles', async (c) =>
-    c.json({ profiles: await ctx.listProfiles(), active: ctx.profile }),
+    c.json({
+      profiles: await ctx.listProfiles(),
+      active: ctx.profile,
+      githubReady: githubConfigured(),
+      suggestedAuthor: await machineAuthor(ctx.home),
+    }),
   )
 
   app.post('/api/profiles', async (c) => {
@@ -72,6 +114,30 @@ export function createApp(ctx: AppContext): Hono {
 
   app.put('/api/profiles', async (c) =>
     c.json({ profile: await ctx.setIdentity(await parse(c, identitySchema)) }),
+  )
+
+  app.get('/api/profiles/key', async (c) => c.json({ publicKey: await ctx.publicKey() }))
+
+  app.post('/api/profiles/key', async (c) => c.json(await ctx.addKey()))
+
+  /* Signing in is two requests: one that opens a code, and one asked again while the browser
+     is being answered. Holding a request open for as long as someone takes to find their
+     password is a request nobody can tell from a hang. */
+  app.post('/api/github/device', async (c) => c.json(await ctx.startGithub()))
+
+  app.post('/api/github/connect', async (c) => {
+    const { deviceCode } = await parse(c, deviceCodeBody)
+    return c.json(await ctx.connectGithub(deviceCode))
+  })
+
+  app.delete('/api/github', async (c) =>
+    c.json({ profile: await ctx.disconnectGithub() }),
+  )
+
+  app.get('/api/github/repos', async (c) => c.json({ repos: await ctx.githubRepos() }))
+
+  app.post('/api/github/repos', async (c) =>
+    c.json({ repo: await ctx.createGithubRepo(await parse(c, newRepoBody)) }),
   )
 
   app.get('/api/vaults', async (c) =>
@@ -98,82 +164,115 @@ export function createApp(ctx: AppContext): Hono {
     return c.json({ active, config: ctx.config })
   })
 
-  app.get('/api/vault', async (c) => c.json({ entries: await ctx.open.vault.list() }))
+  app.get('/api/projects', async (c) => c.json({ projects: await ctx.listProjects() }))
 
-  app.get('/api/worktrees', async (c) =>
-    c.json({ worktrees: await ctx.listWorktrees(), active: ctx.worktree }),
-  )
-
-  app.post('/api/worktrees', async (c) => {
-    const worktree = await ctx.addWorktree(await parse(c, newWorktreeBody))
-    return c.json({ worktree, config: ctx.config })
+  app.post('/api/projects', async (c) => {
+    const project = await ctx.addProject(await parse(c, newProjectBody))
+    return c.json({ project, config: ctx.config })
   })
 
-  app.post('/api/worktrees/open', async (c) => {
-    const { name } = await parse(c, nameBody)
-    return c.json({ config: await ctx.openWorktree(name) })
+  app.delete('/api/projects', async (c) => {
+    await ctx.removeProject(query(c, 'name'))
+    return c.json({ config: ctx.config })
   })
 
-  app.delete('/api/worktrees', async (c) => {
-    const worktrees = await ctx.removeWorktree(query(c, 'name'))
-    return c.json({ worktrees, config: ctx.config })
+  app.post('/api/scope', async (c) => {
+    const { root: to } = await parse(c, scopeBody)
+    return c.json({ config: await ctx.setScope(to) })
+  })
+
+  /** Every tree at once: they are one sidebar, and they change together. */
+  app.get('/api/tree', async (c) => c.json(await ctx.trees()))
+
+  app.get('/api/branches', async (c) => {
+    const of = root(c)
+    return c.json({
+      branches: await ctx.listBranches(of),
+      active: await ctx.activeBranch(of),
+    })
+  })
+
+  app.post('/api/branches', async (c) => {
+    const { root: of, name } = await parse(c, branchBody)
+    return c.json({ branch: await ctx.addBranch(of, name), config: ctx.config })
+  })
+
+  app.post('/api/branches/open', async (c) => {
+    const { root: of, name } = await parse(c, branchBody)
+    return c.json({ branch: await ctx.openBranch(of, name), config: ctx.config })
+  })
+
+  app.delete('/api/branches', async (c) => {
+    const branches = await ctx.removeBranch(root(c), query(c, 'name'))
+    return c.json({ branches, config: ctx.config })
   })
 
   /**
-   * The bytes of a file, for the things in a vault that are not text. `/api/doc` reads as
+   * The bytes of a file, for the things in a tree that are not text. `/api/doc` reads as
    * UTF-8, which turns a PNG into replacement characters — and turns saving it back into
-   * losing it. The path goes through the vault's own resolution, so this reaches nothing a
+   * losing it. The path goes through the tree's own resolution, so this reaches nothing a
    * document could not.
    */
   app.get('/api/file', async (c) => {
     const path = query(c, 'path')
     const type = imageTypeOf(path)
     if (!type) throw new BadRequest('not a file this serves')
-    const bytes = await readFile(await ctx.open.vault.resolve(path))
+    const bytes = await readFile(await ctx.rootOf(root(c)).tree.resolve(path))
     return c.body(bytes.buffer as ArrayBuffer, 200, {
       'content-type': type,
-      // The vault is on disk and the watcher reports writes, so the answer is only good
+      // The file is on disk and the watcher reports writes, so the answer is only good
       // until something changes it.
       'cache-control': 'no-cache',
     })
   })
 
   app.get('/api/doc', async (c) =>
-    c.json({ markdown: await ctx.open.vault.read(query(c, 'path')) }),
+    c.json({ markdown: await ctx.rootOf(root(c)).tree.read(query(c, 'path')) }),
   )
 
   app.put('/api/doc', async (c) => {
-    const { path, markdown } = await parse(c, docBody)
-    const vaultPath = normalize(path)
-    const existed = await ctx.open.vault.exists(vaultPath)
-    ctx.open.watcher.suppress(vaultPath)
-    await ctx.open.vault.write(vaultPath, markdown)
-    await ctx.open.links.update(vaultPath)
-    ctx.sync.noteEdit()
+    const { root: of, path, markdown } = await parse(c, docBody)
+    const open = ctx.rootOf(of)
+    const docPath = normalize(path)
+    const existed = await open.tree.exists(docPath)
+    open.watcher?.suppress(docPath)
+    await open.tree.write(docPath, markdown)
+    if (of === 'vault') {
+      await ctx.open.links.update(docPath)
+      ctx.sync.noteEdit()
+    }
     ctx.broadcast({
-      type: 'vault',
-      event: { type: existed ? 'changed' : 'created', path: vaultPath },
+      type: 'tree',
+      root: of,
+      event: { type: existed ? 'changed' : 'created', path: docPath },
     })
     return c.json({ ok: true } as const)
   })
 
   app.post('/api/doc/move', async (c) => {
     const body = await parse(c, moveBody)
-    ctx.open.watcher.suppress(normalize(body.from), normalize(body.to))
-    const { from, to } = await ctx.open.vault.move(body.from, body.to)
-    const linksRewritten = await ctx.open.links.rewriteForMove(from, to)
-    ctx.sync.noteEdit()
-    ctx.broadcast({ type: 'vault', event: { type: 'moved', from, to } })
+    const open = ctx.rootOf(body.root)
+    open.watcher?.suppress(normalize(body.from), normalize(body.to))
+    const { from, to } = await open.tree.move(body.from, body.to)
+    // Wikilinks are a vault idea, so only a vault has links to put right afterwards.
+    const linksRewritten =
+      body.root === 'vault' ? await ctx.open.links.rewriteForMove(from, to) : 0
+    if (body.root === 'vault') ctx.sync.noteEdit()
+    ctx.broadcast({ type: 'tree', root: body.root, event: { type: 'moved', from, to } })
     return c.json({ to, linksRewritten })
   })
 
   app.delete('/api/doc', async (c) => {
+    const of = root(c)
+    const open = ctx.rootOf(of)
     const path = query(c, 'path')
-    ctx.open.watcher.suppress(normalize(path))
-    const removed = await ctx.open.vault.remove(path)
-    ctx.open.links.forget(removed)
-    ctx.sync.noteEdit()
-    ctx.broadcast({ type: 'vault', event: { type: 'removed', path: removed } })
+    open.watcher?.suppress(normalize(path))
+    const removed = await open.tree.remove(path)
+    if (of === 'vault') {
+      ctx.open.links.forget(removed)
+      ctx.sync.noteEdit()
+    }
+    ctx.broadcast({ type: 'tree', root: of, event: { type: 'removed', path: removed } })
     return c.json({ ok: true } as const)
   })
 
@@ -192,13 +291,16 @@ export function createApp(ctx: AppContext): Hono {
     return c.json({ config: await ctx.setConfig(config) })
   })
 
-  app.post('/api/config/test-remote', async (c) => {
-    const { remoteUrl, branch } = await parse(c, remoteBody)
-    return c.json(await ctx.open.git.testRemote(remoteUrl, branch))
+  /** Asked on purpose rather than found out by a sync failing, and it names which of the
+   *  four reasons it is — `auth` on its own is not something anyone can act on. */
+  app.post('/api/git/check', async (c) => {
+    const { root: of } = await parse(c, rootBody)
+    return c.json(await ctx.checkAccess(of))
   })
 
-  /** What git says about the open checkout, and how this vault is set to sync. Two halves
-   *  of one answer: the first is read off disk, the second is the machine's own setting. */
+  /** What git says about the open vault's checkout, and how this vault is set to sync. Two
+   *  halves of one answer: the first is read off disk, the second is the machine's own
+   *  setting. A project's repository is yours to commit, so nothing here speaks for it. */
   app.get('/api/git', async (c) =>
     c.json({ state: await ctx.gitState(), settings: ctx.gitSettings }),
   )
@@ -207,6 +309,8 @@ export function createApp(ctx: AppContext): Hono {
     c.json({ settings: await ctx.setGitSettings(await parse(c, gitSettingsSchema)) }),
   )
 
+  app.delete('/api/data', async (c) => c.json({ config: await ctx.removeEverything() }))
+
   app.get('/api/sync', (c) => c.json(ctx.sync.state))
   app.post('/api/sync/now', async (c) => c.json(await ctx.sync.syncNow()))
   app.post('/api/sync/clear-conflict', (c) => c.json(ctx.sync.clearConflict()))
@@ -214,14 +318,20 @@ export function createApp(ctx: AppContext): Hono {
   app.onError((error, c) => {
     const code = (error as NodeJS.ErrnoException).code
     if (code === 'ENOENT') return c.json({ error: error.message }, 404)
-    if (error instanceof NoVaultError || error instanceof NoProfileError)
+    if (
+      error instanceof NoVaultError ||
+      error instanceof NoProjectError ||
+      error instanceof NoProfileError
+    )
       return c.json({ error: error.message }, 409)
     if (
       error instanceof BadRequest ||
       error instanceof PathError ||
       error instanceof ProfileError ||
       error instanceof VaultError ||
-      error instanceof WorktreeError
+      error instanceof ProjectError ||
+      error instanceof BranchError ||
+      error instanceof GithubError
     )
       return c.json({ error: error.message }, 400)
     return c.json({ error: error.message }, 500)

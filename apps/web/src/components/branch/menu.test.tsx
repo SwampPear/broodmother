@@ -1,0 +1,171 @@
+import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { describe, expect, it, vi } from 'vitest'
+import type { Branch } from '@broodmother/shared'
+import { BranchMenu } from './menu'
+
+const branches: Branch[] = [
+  { name: 'main', path: '/v/Work/local', checkedOut: true, primary: true },
+  { name: 'fix-login', path: '/v/Work/fix-login', checkedOut: true, primary: false },
+  { name: 'feat/sync', path: '/v/Work/feat-sync', checkedOut: false, primary: false },
+]
+
+function show(active: string | null = 'main', list = branches) {
+  const onSelect = vi.fn()
+  const onCreate = vi.fn(async () => null)
+  const onDelete = vi.fn()
+  render(
+    <BranchMenu
+      label="handbook"
+      branches={list}
+      active={active}
+      onSelect={onSelect}
+      onCreate={onCreate}
+      onDelete={onDelete}
+    />,
+  )
+  return { onSelect, onCreate, onDelete }
+}
+
+const open = () => userEvent.click(screen.getByRole('button'))
+
+it('wears the branch you are on', () => {
+  show()
+  expect(screen.getByRole('button')).toHaveTextContent('main')
+})
+
+it('wears the other branch once you are on it', () => {
+  show('fix-login')
+  expect(screen.getByRole('button')).toHaveTextContent('fix-login')
+})
+
+/* The whole point of the list: work started elsewhere is offered without any setup. */
+it('lists branches that have no checkout yet, and says so', async () => {
+  show()
+  await open()
+  const rows = screen.getAllByRole('menuitemradio')
+  expect(rows).toHaveLength(3)
+  expect(rows[0]).toHaveTextContent('main')
+  expect(rows[0]).toHaveAttribute('aria-checked', 'true')
+  expect(screen.getByRole('menuitemradio', { name: /feat\/sync/ })).toHaveTextContent(
+    'not checked out yet',
+  )
+})
+
+/* One repository in the menu, headed by its name: whose branches these are is the thing
+   the scope decides, and it is not asked again here. */
+it('heads the list with the repository the scope is in', async () => {
+  show()
+  await open()
+  expect(screen.getByRole('menu')).toHaveTextContent('handbook')
+})
+
+it('switches on pick', async () => {
+  const { onSelect } = show()
+  await open()
+  await userEvent.click(screen.getByRole('menuitemradio', { name: /fix-login/ }))
+  await waitFor(() => expect(onSelect).toHaveBeenCalledWith('fix-login'))
+})
+
+/* Picking one that has no folder is the same gesture — the checkout happens on the way in. */
+it('picks a branch that is not checked out the same way', async () => {
+  const { onSelect } = show()
+  await open()
+  await userEvent.click(screen.getByRole('menuitemradio', { name: /feat\/sync/ }))
+  await waitFor(() => expect(onSelect).toHaveBeenCalledWith('feat/sync'))
+})
+
+it('does not re-open the one already active', async () => {
+  const { onSelect } = show()
+  await open()
+  await userEvent.click(screen.getByRole('menuitemradio', { name: /main/ }))
+  expect(onSelect).not.toHaveBeenCalled()
+})
+
+describe('a new branch', () => {
+  it('asks for one name and creates it', async () => {
+    const { onCreate } = show()
+    await open()
+    await userEvent.click(screen.getByRole('menuitem', { name: /New branch/ }))
+
+    await screen.findByRole('dialog', { name: 'New branch' })
+    await userEvent.type(screen.getByRole('textbox'), 'fix/session')
+    await userEvent.click(screen.getByRole('button', { name: 'create branch' }))
+
+    await waitFor(() => expect(onCreate).toHaveBeenCalledWith('fix/session'))
+  })
+
+  it('refuses a name that is already a branch', async () => {
+    const { onCreate } = show()
+    await open()
+    await userEvent.click(screen.getByRole('menuitem', { name: /New branch/ }))
+    await userEvent.type(await screen.findByRole('textbox'), 'fix-login')
+    await userEvent.click(screen.getByRole('button', { name: 'create branch' }))
+
+    expect(await screen.findByText(/already a branch/)).toBeVisible()
+    expect(onCreate).not.toHaveBeenCalled()
+  })
+
+  it('refuses a name git would not take', async () => {
+    const { onCreate } = show()
+    await open()
+    await userEvent.click(screen.getByRole('menuitem', { name: /New branch/ }))
+    await userEvent.type(await screen.findByRole('textbox'), 'bad name')
+    await userEvent.click(screen.getByRole('button', { name: 'create branch' }))
+
+    expect(await screen.findByText(/will not take/)).toBeVisible()
+    expect(onCreate).not.toHaveBeenCalled()
+  })
+})
+
+describe('removing one', () => {
+  it('names the folder before it goes', async () => {
+    const { onDelete } = show()
+    await open()
+    await userEvent.dblClick(screen.getByRole('menuitemradio', { name: /fix-login/ }))
+
+    const dialog = await screen.findByRole('dialog', { name: 'Remove fix-login?' })
+    expect(dialog).toHaveTextContent('/v/Work/fix-login')
+    expect(onDelete).not.toHaveBeenCalled()
+
+    await userEvent.click(screen.getByRole('button', { name: 'remove checkout' }))
+    expect(onDelete).toHaveBeenCalledWith('fix-login')
+  })
+
+  it('leaves it alone when the confirmation is cancelled', async () => {
+    const { onDelete } = show()
+    await open()
+    await userEvent.dblClick(screen.getByRole('menuitemradio', { name: /fix-login/ }))
+    await userEvent.click(await screen.findByRole('button', { name: 'cancel' }))
+    expect(onDelete).not.toHaveBeenCalled()
+  })
+
+  it('asks on a right click too, without switching to it', async () => {
+    const { onSelect } = show()
+    await open()
+
+    await userEvent.pointer({
+      target: screen.getByRole('menuitemradio', { name: /fix-login/ }),
+      keys: '[MouseRight]',
+    })
+
+    expect(await screen.findByRole('dialog', { name: 'Remove fix-login?' })).toBeVisible()
+    await waitFor(() => expect(onSelect).not.toHaveBeenCalled())
+  })
+
+  /* The clone is the repository every other checkout points into. */
+  it('offers nothing to remove on the clone', async () => {
+    show()
+    await open()
+    await userEvent.dblClick(screen.getByRole('menuitemradio', { name: /main/ }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  /* Nothing on disk to take away, so there is nothing to confirm. */
+  it('offers nothing to remove on a branch with no checkout', async () => {
+    show()
+    await open()
+    await userEvent.dblClick(screen.getByRole('menuitemradio', { name: /feat\/sync/ }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+})

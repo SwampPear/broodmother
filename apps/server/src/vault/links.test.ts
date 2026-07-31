@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, it } from 'vitest'
 import { cleanup, tempDir } from '../test'
 import { LinkIndex, extractLinks, resolveTarget, rewriteLinks } from './links'
-import { Vault } from './core'
+import { Tree } from '../tree'
 
 afterAll(cleanup)
 
@@ -13,11 +13,12 @@ const documents = [
 ]
 
 async function indexed(files: Record<string, string>) {
-  const vault = new Vault(await tempDir())
-  for (const [path, contents] of Object.entries(files)) await vault.write(path, contents)
-  const links = new LinkIndex(vault)
+  const project = new Tree(await tempDir())
+  for (const [path, contents] of Object.entries(files))
+    await project.write(path, contents)
+  const links = new LinkIndex(project)
   await links.rebuild()
-  return { vault, links }
+  return { project, links }
 }
 
 describe('extractLinks', () => {
@@ -40,6 +41,11 @@ describe('extractLinks', () => {
     expect(extractLinks('[x](Handbook/Field%20Notes.md)')[0]!.target).toBe(
       'Handbook/Field Notes.md',
     )
+  })
+
+  it('takes an escape that does not decode literally', () => {
+    expect(extractLinks('[x](Growth/100%.md)')[0]!.target).toBe('Growth/100%.md')
+    expect(extractLinks('[x](Growth/50%zz.md)')[0]!.target).toBe('Growth/50%zz.md')
   })
 })
 
@@ -78,33 +84,33 @@ describe('LinkIndex', () => {
   })
 
   it('rewrites links in every document on a rename', async () => {
-    const { vault, links } = await indexed({
+    const { project, links } = await indexed({
       'index.md': 'see [[Risks]] and [[Handbook/Risks]] once',
       'Business/Roadmap.md': 'and [a](Handbook/Risks.md)',
       'Business/Funding.md': 'no links here',
       'Handbook/Risks.md': '# Risks',
     })
 
-    await vault.move('Handbook/Risks.md', 'Handbook/Risks and Checklist.md')
+    await project.move('Handbook/Risks.md', 'Handbook/Risks and Checklist.md')
     const rewritten = await links.rewriteForMove(
       'Handbook/Risks.md',
       'Handbook/Risks and Checklist.md',
     )
 
     expect(rewritten).toBe(2)
-    expect(await vault.read('index.md')).toBe(
+    expect(await project.read('index.md')).toBe(
       'see [[Risks and Checklist]] and [[Handbook/Risks and Checklist]] once',
     )
-    expect(await vault.read('Business/Roadmap.md')).toBe(
+    expect(await project.read('Business/Roadmap.md')).toBe(
       'and [a](Handbook/Risks%20and%20Checklist.md)',
     )
-    expect(await vault.read('Business/Funding.md')).toBe('no links here')
+    expect(await project.read('Business/Funding.md')).toBe('no links here')
     expect(links.backlinks('Handbook/Risks and Checklist.md')).toHaveLength(3)
   })
 
   it('tracks a document created after the initial index', async () => {
-    const { vault, links } = await indexed({ 'Handbook/Risks.md': '# Risks' })
-    await vault.write('new.md', 'points at [[Risks]]')
+    const { project, links } = await indexed({ 'Handbook/Risks.md': '# Risks' })
+    await project.write('new.md', 'points at [[Risks]]')
     await links.update('new.md')
     expect(links.backlinks('Handbook/Risks.md').map((b) => b.from)).toEqual(['new.md'])
 

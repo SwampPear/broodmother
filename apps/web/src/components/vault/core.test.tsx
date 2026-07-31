@@ -5,7 +5,7 @@ import { createMockClient, type MockClient } from '../../api/mock'
 import { AppProvider } from '../../state'
 import { VaultPicker } from './core'
 
-async function show(client: MockClient = createMockClient(), onClose?: () => void) {
+async function show(client: MockClient = createMockClient(), onClose = () => {}) {
   render(
     <AppProvider client={client}>
       <VaultPicker onClose={onClose} />
@@ -14,6 +14,67 @@ async function show(client: MockClient = createMockClient(), onClose?: () => voi
   await screen.findByLabelText('Git remote')
   return client
 }
+
+/** The same modal for someone who has connected GitHub, where the remote is picked. */
+async function connected(seed: Parameters<typeof createMockClient>[0] = {}) {
+  const client = createMockClient({
+    ...seed,
+    profiles: [
+      {
+        name: 'you',
+        path: '/Users/you/.broodmother/profiles/you.json',
+        color: '#c084fc',
+        gitAuthor: { name: 'You', email: 'you@example.com' },
+        sshKeyPath: null,
+        claudeCfgDir: null,
+        soul: null,
+        github: 'you',
+      },
+    ],
+  })
+  render(
+    <AppProvider client={client}>
+      <VaultPicker onClose={() => {}} />
+    </AppProvider>,
+  )
+  await screen.findByLabelText('Repository')
+  return client
+}
+
+/* Nobody has a clone URL to hand. Connected, the question is which of your repositories —
+   and "one that does not exist yet" is one of the answers. */
+it('picks the remote off your own repositories once GitHub is connected', async () => {
+  await connected({
+    githubRepos: [
+      {
+        fullName: 'you/handbook',
+        cloneUrl: 'https://github.com/you/handbook.git',
+        private: true,
+        defaultBranch: 'main',
+      },
+    ],
+  })
+
+  expect(screen.queryByLabelText('Git remote')).not.toBeInTheDocument()
+  await userEvent.click(screen.getByLabelText('Repository'))
+  const offered = (await screen.findAllByRole('menuitemradio')).map(
+    (row) => row.textContent,
+  )
+  expect(offered).toEqual(['you/handbook · private', 'a new private repository…'])
+})
+
+/* And a repository is made from here, so the web is not a step before this one. */
+it('makes a repository for a name that has none yet', async () => {
+  const client = await connected()
+
+  await userEvent.type(screen.getByLabelText('New repository name'), 'handbook')
+  await userEvent.click(screen.getByRole('button', { name: 'create repository' }))
+
+  const { repos } = await client.request('GET /api/github/repos', null)
+  expect(repos.map((repo) => repo.fullName)).toEqual(['you/handbook'])
+  // And it is simply the one picked now, so there is nothing left to answer.
+  expect(await screen.findByLabelText('Repository')).toHaveTextContent('you/handbook')
+})
 
 it('lists every folder in the vault home as a vault', async () => {
   await show(

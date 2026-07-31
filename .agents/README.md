@@ -2,12 +2,12 @@
 
 Shared agent context for this repo. Written by hand, read on demand.
 
-| | |
-| --- | --- |
-| `STYLE.md` | how code here is written. Read before writing any. Binding. |
-| `implement/` | the loop from a request to a finished change. |
-| `REVIEW.md` | how code here is reviewed. Read before reviewing any. |
-| `LESSONS.md` | mistakes made more than once. Read before starting work. |
+|              |                                                             |
+| ------------ | ----------------------------------------------------------- |
+| `STYLE.md`   | how code here is written. Read before writing any. Binding. |
+| `implement/` | the loop from a request to a finished change.               |
+| `REVIEW.md`  | how code here is reviewed. Read before reviewing any.       |
+| `LESSONS.md` | mistakes made more than once. Read before starting work.    |
 
 Claude Code's own instructions are `../.claude/CLAUDE.md`; `../CLAUDE.md` indexes the
 workspace and the commands. One file or directory per other agent, named after it —

@@ -8,6 +8,7 @@ import {
   assertNonDestructive,
   classifyRemoteError,
   parseStatus,
+  authAdvice,
   sshCommand,
 } from './core'
 
@@ -102,10 +103,14 @@ describe('classifyRemoteError', () => {
 })
 
 describe('sshCommand', () => {
-  it('offers only the profile’s key when it names one', () => {
+  /* `IdentitiesOnly` used to be here, which turns off the agent and every other key — so a
+     profile that named one stopped reaching anything that key did not open. The key is
+     added to what ssh already has, not put in its place. */
+  it('adds the profile’s key to what ssh already offers', () => {
     expect(sshCommand('~/.ssh/id_ed25519')).toBe(
-      `ssh -oBatchMode=yes -oIdentitiesOnly=yes -i "${path.join(os.homedir(), '.ssh/id_ed25519')}"`,
+      `ssh -oBatchMode=yes -i "${path.join(os.homedir(), '.ssh/id_ed25519')}"`,
     )
+    expect(sshCommand('~/.ssh/id_ed25519')).not.toContain('IdentitiesOnly')
   })
 
   it('leaves ssh to its own defaults when the profile names none', () => {
@@ -198,21 +203,57 @@ describe('Git against a real repository', () => {
     expect(await new Git(dir).pull('main')).toEqual({ ok: true })
   })
 
-  it('tests a remote without leaving credentials in the message', async () => {
-    const remote = await bareRemote()
-    const dir = await cloneOf(remote)
-    await writeFile(path.join(dir, 'a.md'), 'a')
-    await git(dir, 'add', '-A')
-    await git(dir, 'commit', '-m', 'init')
-    await git(dir, 'push', 'origin', 'HEAD:main')
+  /* The four answers, each of which has a different thing to do about it. `auth` on its
+     own was never one anybody could act on. */
+  it('reports a folder that is not a repository', async () => {
+    const check = await new Git(await tempDir()).checkAccess()
+    expect(check.state).toBe('no-repo')
+    expect(check.remoteUrl).toBeNull()
+  })
 
-    const repo = new Git(await tempDir())
-    expect(await repo.testRemote(remote, 'main')).toEqual({
-      ok: true,
-      message: 'main found on remote',
-    })
-    const missing = await repo.testRemote(path.join(remote, 'nope'), 'main')
-    expect(missing.ok).toBe(false)
+  it('reports a repository that has no remote', async () => {
+    const dir = await tempDir()
+    await git(dir, 'init', '--initial-branch=main')
+    const check = await new Git(dir).checkAccess()
+    expect(check.state).toBe('no-remote')
+  })
+
+  it('reports a reachable remote, and names it', async () => {
+    const { dir, remote } = await repoWithRemote()
+    const check = await new Git(dir).checkAccess()
+    expect(check.state).toBe('ok')
+    expect(check.remoteUrl).toBe(remote)
+  })
+
+  it('reports a remote it cannot reach as something other than fine', async () => {
+    const { dir, remote } = await repoWithRemote()
+    await git(dir, 'remote', 'set-url', 'origin', path.join(remote, 'nope'))
+    const check = await new Git(dir).checkAccess()
+    expect(check.state).not.toBe('ok')
+    expect(check.message).toBeTruthy()
+  })
+
+  /* A refusal is the one failure with something to do about it, and the three kinds of
+     remote are fixed three different ways. Tested on the advice directly rather than
+     through a real refusal: making a remote genuinely 401 needs a server, and what is worth
+     asserting is which sentence each shape of URL gets. */
+  it('gives ssh, https and local remotes different advice on a refusal', () => {
+    const ssh = authAdvice('git@github.com:you/repo.git')
+    const https = authAdvice('https://github.com/you/repo.git')
+    const local = authAdvice('/Users/you/remotes/repo.git')
+
+    expect(new Set([ssh, https, local]).size).toBe(3)
+    // A key is the thing to fix for ssh, and a helper for https.
+    expect(ssh).toMatch(/key/i)
+    expect(https).toMatch(/credential helper/i)
+    // Nothing authenticates a path on this machine, so it must not ask for either.
+    expect(local).toMatch(/no credentials/i)
+    expect(local).not.toMatch(/credential helper|Generate a key/i)
+  })
+
+  it('treats ssh:// and file:// as their kinds too', () => {
+    expect(authAdvice('ssh://git@host/repo.git')).toMatch(/key/i)
+    expect(authAdvice('file:///Users/you/repo.git')).toMatch(/no credentials/i)
   })
 
   it('never writes an author into repository config', async () => {

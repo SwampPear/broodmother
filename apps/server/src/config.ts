@@ -11,10 +11,34 @@ export function hasEmbeddedCredentials(url: string): boolean {
   return match[1]!.includes(':') || !/^ssh:\/\//i.test(url)
 }
 
+/** The pages a git host puts under a repository, which is what the address bar holds when
+ *  the URL is copied from anywhere but the repository's front page. */
+const HOST_PAGE =
+  /(?:\/-)?\/(tree|blob|commit|commits|compare|pull|pulls|merge_requests|issues|releases|actions|wiki|settings)(\/.*)?$/
+
+/**
+ * What a person pastes, as something git can clone. Nobody has the clone URL to hand — what
+ * is on the clipboard is the address bar, sometimes with the page they were reading hanging
+ * off the end of it. Refusing that teaches nothing that could not be done for them.
+ *
+ * Only the path a host wraps around a repository is taken off. Whole segments are never
+ * dropped: a GitLab subgroup is a segment, and a repository two deep is a real address.
+ * `git@host:owner/repo` and `ssh://` are already clone URLs and are left exactly as typed.
+ */
+export function normalizeRemote(url: string): string {
+  const trimmed = url.trim()
+  if (!/^https?:\/\//i.test(trimmed)) return trimmed
+  return trimmed
+    .replace(/[?#].*$/, '')
+    .replace(HOST_PAGE, '')
+    .replace(/\/+$/, '')
+}
+
 export const remoteUrlSchema = z
   .string()
   .min(1)
   .refine((url) => !hasEmbeddedCredentials(url), 'remote URL must not embed credentials')
+  .transform(normalizeRemote)
 
 export const gitSettingsSchema = z.object({
   enabled: z.boolean(),
@@ -27,8 +51,10 @@ export const gitSettingsSchema = z.object({
 export const configSchema = z.object({
   vaultPath: z.string().min(1).nullable(),
   profiles: z.record(z.string().min(1), z.string().min(1)),
-  worktrees: z.record(z.string().min(1), z.string().min(1)),
+  checkouts: z.record(z.string().min(1), z.string().min(1)),
   git: z.record(z.string().min(1), gitSettingsSchema),
+  project: z.record(z.string().min(1), z.string().min(1).nullable()),
+  projectBranch: z.record(z.string().min(1), z.string().min(1)),
 })
 
 /**
@@ -38,14 +64,22 @@ export const configSchema = z.object({
  * it belongs to.
  */
 export function defaultConfig(vaultPath: string | null): BroodmotherConfig {
-  return { vaultPath, profiles: {}, worktrees: {}, git: {} }
+  return {
+    vaultPath,
+    profiles: {},
+    checkouts: {},
+    git: {},
+    project: {},
+    projectBranch: {},
+  }
 }
 
 /**
  * The layout before sync settings belonged to a vault: one remote, one branch and one
- * on-switch for the whole machine, which was only ever right while you had one vault. They
- * become the open vault's own settings, and the remote and branch are dropped rather than
- * carried — the repository already knows both, and it is the one that is right.
+ * on-switch for the whole machine, which was only ever right while you had one vault.
+ * They become the open vault's own settings, and the remote and branch are dropped
+ * rather than carried — the repository already knows both, and it is the one that is
+ * right.
  */
 export function adoptLegacySync(
   source: Record<string, unknown>,
@@ -74,6 +108,17 @@ export function adoptLegacySync(
   }
 }
 
+/** The field before there were projects to tell vaults apart from. Same meaning, older
+ *  name, and only read when the current one is absent. */
+export function adoptLegacyVaultPath(
+  source: Record<string, unknown>,
+  config: BroodmotherConfig,
+): BroodmotherConfig {
+  if (config.vaultPath || 'vaultPath' in source) return config
+  const legacy = source.projectPath
+  return typeof legacy === 'string' && legacy ? { ...config, vaultPath: legacy } : config
+}
+
 export interface LoadedConfig {
   config: BroodmotherConfig
   reset: string[]
@@ -97,10 +142,8 @@ export function repair(raw: unknown, defaults: BroodmotherConfig): LoadedConfig 
     if (result.success) config[key] = result.data
     else if (!reset.includes(key)) reset.push(key)
   }
-  return {
-    config: adoptLegacySync(source, config as unknown as BroodmotherConfig),
-    reset,
-  }
+  const loaded = adoptLegacyVaultPath(source, config as unknown as BroodmotherConfig)
+  return { config: adoptLegacySync(source, loaded), reset }
 }
 
 export class ConfigStore {
@@ -142,7 +185,7 @@ export class ConfigStore {
   async save(config: BroodmotherConfig): Promise<BroodmotherConfig> {
     const dir = path.dirname(this.file)
     await mkdir(dir, { recursive: true })
-    // App state, not vault content: a self-ignoring directory keeps the sync loop from
+    // App state, not project content: a self-ignoring directory keeps the sync loop from
     // committing it without touching a .gitignore the user owns.
     await writeFile(path.join(dir, '.gitignore'), '*\n')
     await atomicWrite(this.file, `${JSON.stringify(config, null, 2)}\n`)

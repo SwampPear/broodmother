@@ -18,6 +18,8 @@ relay, which is a process on a network so that two laptops can reach each other.
 | 05  | [Web app](05-web-app.md)                       | `apps/web/`                                               | parallel     |
 | 06  | [Editors & viewers](06-editors-and-viewers.md) | viewer registry, `packages/editor/` rebuilt on CodeMirror | wave 2       |
 | 07  | [Live collab over a relay](07-p2p-collab.md)   | `packages/collab/`, `apps/relay/`                         | wave 3       |
+| 08  | [Git credentials](08-git-credentials.md)       | ssh, the access check, key generation                     | built        |
+| 09  | [Active scope](09-active-scope.md)             | one root the tabs, terminals and branches all follow      | planned      |
 
 ## Rules
 

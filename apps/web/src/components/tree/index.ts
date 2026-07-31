@@ -1,2 +1,11 @@
 export { FileTree, type TreeCommand } from './core'
-export { filePaths, folderOf, parentOf, untitledIn } from './paths'
+export {
+  fileRefs,
+  folderOf,
+  isFolder,
+  parentOf,
+  refKey,
+  sameRef,
+  untitledIn,
+  type TreeRoot,
+} from './paths'

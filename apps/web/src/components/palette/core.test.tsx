@@ -7,7 +7,10 @@ import { type Flow, type FlowCtx } from './flows'
 
 function ctx(): FlowCtx {
   return {
-    paths: ['README.md', 'Handbook/Overview.md', 'Business/Roadmap.md'],
+    refs: ['README.md', 'Handbook/Overview.md', 'Business/Roadmap.md'].map((path) => ({
+      root: 'vault' as const,
+      path,
+    })),
     open: vi.fn(),
     newNote: vi.fn(),
     move: vi.fn(),
@@ -16,6 +19,8 @@ function ctx(): FlowCtx {
     settings: vi.fn(),
     toggleTerminal: vi.fn(),
     vaults: vi.fn(),
+    projects: vi.fn(),
+    createProject: vi.fn(),
   }
 }
 
@@ -38,6 +43,8 @@ it('offers every command and every document, commands first', async () => {
     'Delete document',
     'Toggle terminal',
     'Sync now',
+    'Switch project',
+    'New project',
     'Switch or create vault',
     'Settings',
     'README.md',
@@ -81,7 +88,10 @@ it('opens a document straight from the search', async () => {
   const flowCtx = ctx()
   open(flowCtx)
   await userEvent.keyboard('overview{Enter}')
-  expect(flowCtx.open).toHaveBeenCalledWith('Handbook/Overview.md')
+  expect(flowCtx.open).toHaveBeenCalledWith({
+    root: 'vault',
+    path: 'Handbook/Overview.md',
+  })
   expect(screen.getByText('closed')).toBeInTheDocument()
 })
 
@@ -90,14 +100,14 @@ it('moves the cursor with the arrow keys', async () => {
   open(flowCtx, {
     kind: 'pick',
     label: 'Open',
-    next: (path) => {
-      flowCtx.open(path)
+    next: (ref) => {
+      flowCtx.open(ref)
       return null
     },
   })
   const options = listed()
   await userEvent.keyboard('{ArrowDown}{ArrowDown}{ArrowUp}{Enter}')
-  expect(flowCtx.open).toHaveBeenCalledWith(options[1])
+  expect(flowCtx.open).toHaveBeenCalledWith({ root: 'vault', path: options[1] })
 })
 
 /* It used to ask for a path, which is the one thing you cannot give before there is a note
@@ -119,7 +129,7 @@ it('prefills the current path when moving', async () => {
   expect(input).toHaveValue('README.md')
   await userEvent.clear(input)
   await userEvent.type(input, 'Archive/README.md{Enter}')
-  expect(flowCtx.move).toHaveBeenCalledWith('README.md', 'Archive/README.md')
+  expect(flowCtx.move).toHaveBeenCalledWith('vault', 'README.md', 'Archive/README.md')
 })
 
 it('picks a document rather than a command inside a command', async () => {
@@ -136,7 +146,7 @@ it('confirms a delete and says what it costs', async () => {
   expect(screen.getByText('Delete README.md?')).toBeInTheDocument()
   expect(screen.getByText(/cannot undo/)).toBeInTheDocument()
   await userEvent.click(screen.getByRole('button', { name: 'delete' }))
-  expect(flowCtx.remove).toHaveBeenCalledWith('README.md')
+  expect(flowCtx.remove).toHaveBeenCalledWith({ root: 'vault', path: 'README.md' })
 })
 
 it('cancels a delete on escape without removing anything', async () => {

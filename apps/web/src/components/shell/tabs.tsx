@@ -1,6 +1,6 @@
 'use client'
 
-import { basename, type VaultPath } from '@broodmother/shared'
+import { basename, type DocRef, type DocRoot } from '@broodmother/shared'
 import {
   ContextMenu,
   displayName,
@@ -13,19 +13,27 @@ import {
 import { type TerminalKind, TERMINALS } from '../terminal'
 
 export type Tab =
-  | { id: string; kind: 'doc'; path: VaultPath }
-  | { id: string; kind: 'terminal'; shell: TerminalKind }
+  | { id: string; kind: 'doc'; ref: DocRef }
+  // The root is the tab's own rather than the app's: its shells were spawned where it was
+  // made, and they stay there.
+  | { id: string; kind: 'terminal'; shell: TerminalKind; root: DocRoot }
 
 /** What the plus offers: a place in the vault, or one of the shells. */
 export type NewTab = 'note' | TerminalKind
 
-export const docTab = (path: VaultPath): Tab => ({ id: `doc:${path}`, kind: 'doc', path })
+export const docTab = (ref: DocRef): Tab => ({
+  id: `doc:${ref.root}:${ref.path}`,
+  kind: 'doc',
+  ref,
+})
 
 const name = (tab: Tab) =>
-  tab.kind === 'terminal' ? TERMINALS[tab.shell].name : displayName(basename(tab.path))
+  tab.kind === 'terminal'
+    ? TERMINALS[tab.shell].name
+    : displayName(basename(tab.ref.path))
 
 const icon = (tab: Tab) =>
-  tab.kind === 'terminal' ? TERMINALS[tab.shell].icon : iconFor(tab.path)
+  tab.kind === 'terminal' ? TERMINALS[tab.shell].icon : iconFor(tab.ref.path)
 
 const NEW: (Omit<MenuAction, 'onSelect' | 'id'> & { id: NewTab })[] = [
   { id: 'note', label: 'New note', icon: 'plus' },
@@ -34,7 +42,7 @@ const NEW: (Omit<MenuAction, 'onSelect' | 'id'> & { id: NewTab })[] = [
 ]
 
 /**
- * What is open, across the top. A document tab is a place in the vault and the URL follows
+ * What is open, across the top.  A document tab is a place in a tree and the URL follows
  * it; a terminal tab is a running shell that takes the whole pane, which is why the strip
  * holds both — a terminal you can only have at the bottom of the window is a panel, not a
  * thing you work in.
@@ -53,7 +61,8 @@ export function TabStrip({
   activeId: string | null
   onPick: (tab: Tab) => void
   onClose: (tab: Tab) => void
-  onNew: (what: NewTab) => void
+  /** Absent where there is nothing a new tab could be, which is the settings page. */
+  onNew?: (what: NewTab) => void
   /** A tab is a document, so renaming one renames the file it stands for. */
   onRename: (tab: Tab) => void
   onCloseMany: (tabs: Tab[]) => void
@@ -142,21 +151,23 @@ export function TabStrip({
       ))}
       {/* The same menu the tree opens on a right click, for the one gesture that has no row
           to sit on: what a new tab could be. */}
-      <Menu
-        label="New tab"
-        anchorLabel="New tab"
-        anchorClass="tab-new"
-        sections={[
-          {
-            actions: NEW.map((action) => ({
-              ...action,
-              onSelect: () => onNew(action.id),
-            })),
-          },
-        ]}
-      >
-        <Icon name="plus" />
-      </Menu>
+      {onNew && (
+        <Menu
+          label="New tab"
+          anchorLabel="New tab"
+          anchorClass="tab-new"
+          sections={[
+            {
+              actions: NEW.map((action) => ({
+                ...action,
+                onSelect: () => onNew(action.id),
+              })),
+            },
+          ]}
+        >
+          <Icon name="plus" />
+        </Menu>
+      )}
     </div>
   )
 }

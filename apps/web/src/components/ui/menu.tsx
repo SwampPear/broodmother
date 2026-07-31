@@ -27,7 +27,8 @@ export interface MenuAction {
   danger?: boolean
   disabled?: boolean
   onSelect: () => void
-  /** A second gesture on the same row — its own options, say. A row that has one holds its
+  /** A second gesture on the same row — its own options, say. Reached by right click, or by
+   *  double click where there is no right button to hand. A row that has one holds its
    *  select for the double-click window, since closing on the first click would leave the
    *  second one landing on nothing. */
   onSecondClick?: () => void
@@ -89,6 +90,14 @@ function useTwoGestures(action: MenuAction) {
       stop()
       if (event.detail > 1) action.onSecondClick?.()
       else waiting.current = setTimeout(action.onSelect, DOUBLE_CLICK_MS)
+    },
+    // The waiting select is dropped rather than left to fire: a right click is not a
+    // pick, and switching project a moment after asking what could be done to it is not
+    // what was meant. The browser's own menu is refused so ours is not buried under it.
+    onContextMenu: (event: MouseEvent) => {
+      event.preventDefault()
+      stop()
+      action.onSecondClick?.()
     },
   }
 }
@@ -166,7 +175,6 @@ export function Menu({
 
             return (
               <div className="menu-section" key={section.heading ?? index}>
-                {index > 0 && <Dropdown.Separator className="menu-divider" />}
                 {section.heading && (
                   <Dropdown.Label className="menu-heading">
                     {section.heading}

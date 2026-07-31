@@ -1,17 +1,20 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { isImage, type VaultEvent } from '@broodmother/shared'
+import { isImage, type DocRef } from '@broodmother/shared'
 import { Editor } from '../../editor'
-import { useApp } from '../../state'
+import { useApp, type RootEvent } from '../../state'
 import { ImageView } from './image'
 
 const saveDebounceMs = 500
 
-const touches = (event: VaultEvent, path: string) =>
-  event.type === 'moved' ? event.from === path : event.path === path
+const touches = (report: RootEvent, ref: DocRef) => {
+  if (report.root !== ref.root) return false
+  const event = report.event
+  return event.type === 'moved' ? event.from === ref.path : event.path === ref.path
+}
 
-export function DocView({ path }: { path: string }) {
+export function DocView({ root, path }: DocRef) {
   const app = useApp()
   const [markdown, setMarkdown] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -25,54 +28,54 @@ export function DocView({ path }: { path: string }) {
     setMarkdown(null)
     setError(null)
     app.client
-      .request('GET /api/doc', { path })
+      .request('GET /api/doc', { root, path })
       .then((result) => setMarkdown(result.markdown))
       .catch((cause: Error) => setError(cause.message))
-  }, [app.client, path, picture])
+  }, [app.client, root, path, picture])
 
-  // Which checkout this was read out of. A path does not say everything about a document:
-  // the same name on another branch is another file, and switching between two checkouts
-  // that both had this one open leaves the route alone — so nothing else here would go and
+  // Which scope this was read out of. A path does not say everything about a document:
+  // the same name on another branch is another file, and moving between two scopes that
+  // both had this one open leaves the route alone — so nothing else here would go and
   // look again, and the old branch's contents would stay on screen.
-  const readFrom = useRef(app.checkout)
+  const readFrom = useRef(app.scopeKey)
   useEffect(() => {
     const was = readFrom.current
-    readFrom.current = app.checkout
+    readFrom.current = app.scopeKey
     // Which vault is open lands a request after the first paint, so a document opened in
     // the meantime was read under a key that names no vault. Learning the name is not a
-    // switch — the read already in flight was always this checkout's.
-    if (was === app.checkout || was.startsWith('#')) return
+    // switch — the read already in flight was always this scope's.
+    if (was === app.scopeKey || was.startsWith('#')) return
     // A picture is refetched by the browser, and it caches by src — which is the path, and
     // the path has not changed. The revision is what makes it ask again.
     if (picture) return setRevision((was) => was + 1)
     app.client
-      .request('GET /api/doc', { path })
+      .request('GET /api/doc', { root, path })
       .then((result) => {
         setMarkdown(result.markdown)
         // Missing on the branch you left, here on the one you arrived at: the failure
-        // belonged to the other checkout and does not survive the crossing.
+        // belonged to the other scope and does not survive the crossing.
         setError(null)
       })
       .catch((cause: Error) => setError(cause.message))
-  }, [app.client, app.checkout, path, picture])
+  }, [app.client, app.scopeKey, root, path, picture])
 
-  // A write broodmother did not make — Obsidian, a shell, a sync pull — is the truth about the
-  // file, so the open copy follows it. Typing that has not reached disk yet wins, because
-  // adopting mid-keystroke throws away what is being typed; that edit lands on top a moment
-  // later, which is the last-write-wins the app already had.
-  const event = app.vaultEvent
+  // A write broodmother did not make — Obsidian, a shell, an agent, a sync pull — is the truth
+  // about the file, so the open copy follows it. Typing that has not reached disk yet wins,
+  // because adopting mid-keystroke throws away what is being typed; that edit lands on top a
+  // moment later, which is the last-write-wins the app already had.
+  const event = app.treeEvent
   useEffect(() => {
-    if (!event || !touches(event, path) || timer.current) return
+    if (!event || !touches(event, { root, path }) || timer.current) return
     // A picture is refetched by the browser, not by this client: bumping the revision is
     // what changes the `src` it was told to cache.
     if (picture) return setRevision((was) => was + 1)
     app.client
-      .request('GET /api/doc', { path })
+      .request('GET /api/doc', { root, path })
       .then((result) => setMarkdown(result.markdown))
       // A read that fails once the file has been moved or deleted says so, which is the
       // truth about what is on screen.
       .catch((cause: Error) => setError(cause.message))
-  }, [app.client, event, path, picture])
+  }, [app.client, event, root, path, picture])
 
   useEffect(() => {
     return () => {
@@ -85,7 +88,7 @@ export function DocView({ path }: { path: string }) {
     if (timer.current) clearTimeout(timer.current)
     timer.current = setTimeout(() => {
       timer.current = null
-      void app.save(path, next)
+      void app.save({ root, path }, next)
     }, saveDebounceMs)
   }
 
@@ -93,7 +96,7 @@ export function DocView({ path }: { path: string }) {
     return (
       <article className="doc">
         <div className="doc-body">
-          <ImageView path={path} revision={revision} />
+          <ImageView root={root} path={path} revision={revision} />
         </div>
       </article>
     )

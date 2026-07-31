@@ -1,21 +1,22 @@
 'use client'
 
-import { useCallback, useState, type CSSProperties } from 'react'
-import type { Profile } from '@broodmother/shared'
+import { useCallback, useState } from 'react'
+import { tilde, type GitAuthor, type Profile } from '@broodmother/shared'
 import { opal } from '../../colors'
-import { Modal } from '../ui'
+import { Button, Modal } from '../ui'
 import { type ProfileDraft, ProfileForm, type ProfileFormState } from './form'
 
 /**
  * Who you work as: pick one of the profiles on this machine, or make one. Profiles are
- * shared by every vault, so this lists what is already there before offering to add to it.
+ * shared by every project, so this lists what is already there before offering to add to it.
  *
  * The same modal is first run: with no `onClose` there is no cancel, no escape and no
- * click-away, because a vault with nobody to commit as has nothing to go back to.
+ * click-away, because a project with nobody to commit as has nothing to go back to.
  */
 export function ProfilePicker({
   existing,
   home,
+  suggested,
   current,
   onSelect,
   onCreate,
@@ -24,6 +25,8 @@ export function ProfilePicker({
   existing: Profile[]
   /** The broodmother home, named in the first-run copy so the folder is not a surprise. */
   home?: string
+  /** Who git on this machine says you are, which is what the form opens on. */
+  suggested?: GitAuthor | null
   /** The profile in use, so the row that is already yours reads as chosen. */
   current?: string | null
   onSelect: (name: string) => void
@@ -60,27 +63,14 @@ export function ProfilePicker({
   return (
     <Modal
       title={first ? 'Welcome to broodmother' : 'Profiles'}
-      description={
-        first
-          ? `A profile is who you commit as, and the credentials you do it with. It is a file in ${home || '~/.broodmother'}/profiles, and every vault picks one.`
-          : 'A profile is who you commit as. It lives on this machine rather than in a vault, so the same one serves every vault that picks it.'
-      }
+      description={`A profile is who you commit as. It's in ${tilde(home || '~/.broodmother')}/profiles.`}
       onClose={onClose}
       footer={
         <>
-          {onClose && (
-            <button type="button" onClick={onClose}>
-              cancel
-            </button>
-          )}
-          <button
-            type="submit"
-            form="new-profile"
-            style={{ '--accent': form.color } as CSSProperties}
-            disabled={!form.ready || busy}
-          >
+          {onClose && <Button onClick={onClose}>cancel</Button>}
+          <Button form="new-profile" accent={form.color} disabled={!form.ready || busy}>
             {busy ? 'creating…' : first ? 'create profile' : 'add profile'}
-          </button>
+          </Button>
         </>
       }
     >
@@ -105,6 +95,7 @@ export function ProfilePicker({
         <ProfileForm
           id="new-profile"
           existing={existing}
+          suggested={suggested}
           onSubmit={(draft) => void create(draft)}
           onState={onState}
         />

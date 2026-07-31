@@ -7,8 +7,11 @@ export type {
   ServerMessage,
   WsRoute,
 } from './api'
+export type { Branch } from './branch'
 export {
   defaultGitSettings,
+  type AccessCheck,
+  type AccessState,
   type BroodmotherConfig,
   type GitAuthor,
   type GitSettings,
@@ -31,8 +34,19 @@ export {
   type TaskItemAttrs,
   type WikiLinkAttrs,
 } from './doc'
+export type { GithubDevice, GithubRepo } from './github'
 export { imageTypeOf, isImage } from './media'
-export { basename, extensionOf } from './path'
+export { basename, extensionOf, tilde } from './path'
+export type { NewProject, ProjectGit, ProjectSummary } from './project'
 export type { SyncStatus } from './sync'
 export type { TerminalClientMessage, TerminalServerMessage } from './terminal'
-export type { VaultEntry, VaultEvent, VaultPath, VaultSummary, Worktree } from './vault'
+export {
+  projectOf,
+  projectRoot,
+  type DocPath,
+  type DocRef,
+  type DocRoot,
+  type TreeEntry,
+  type TreeEvent,
+} from './tree'
+export type { VaultSummary } from './vault'

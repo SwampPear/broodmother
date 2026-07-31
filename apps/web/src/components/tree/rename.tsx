@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import type { VaultEntry } from '@broodmother/shared'
+import type { TreeEntry } from '@broodmother/shared'
 import { displayName } from '../ui'
 
 /** The row typed into where it sits. Only the basename is editable; the extension is the
@@ -10,7 +10,7 @@ export function RenameRow({
   entry,
   onDone,
 }: {
-  entry: VaultEntry
+  entry: TreeEntry
   onDone: (name: string | null) => void
 }) {
   const shown = entry.kind === 'file' ? displayName(entry.name) : entry.name

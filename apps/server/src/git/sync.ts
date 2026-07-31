@@ -1,4 +1,4 @@
-import type { GitAuthor, GitSettings, SyncStatus, VaultPath } from '@broodmother/shared'
+import type { GitAuthor, GitSettings, SyncStatus, DocPath } from '@broodmother/shared'
 import type { Git } from './core'
 
 const same = (a: SyncStatus, b: SyncStatus) =>
@@ -8,7 +8,7 @@ const same = (a: SyncStatus, b: SyncStatus) =>
   a.conflicted.length === b.conflicted.length &&
   a.conflicted.every((path, i) => path === b.conflicted[i])
 
-export function commitMessage(paths: readonly VaultPath[]): string {
+export function commitMessage(paths: readonly DocPath[]): string {
   if (paths.length === 0) return 'docs: update'
   if (paths.length === 1) return `docs: update ${paths[0]!.replace(/\.md$/i, '')}`
 
@@ -25,8 +25,8 @@ export function commitMessage(paths: readonly VaultPath[]): string {
 }
 
 export interface SyncDeps {
-  /** Null when no vault is open. A vault that is a plain folder still has a Git here — it
-   *  is the one that reports there is no repository. */
+  /** Null when no vault is open. A vault that is a plain folder still has a Git here
+   *  — it is the one that reports there is no repository. */
   git: () => Git | null
   /** The open vault's own settings. Every vault answers this differently. */
   settings: () => GitSettings
@@ -90,8 +90,9 @@ export class SyncLoop {
   }
 
   /**
-   * Recomputes the standing state without syncing, for when the vault underneath changes.
-   * Switching from a clone to a plain folder has to stop saying "synced two minutes ago".
+   * Recomputes the standing state without syncing, for when the vault underneath
+   * changes. Switching from a clone to a plain folder has to stop saying "synced two
+   * minutes ago".
    */
   async refresh(): Promise<SyncStatus> {
     if (this.status.state === 'conflict') return this.state
@@ -159,7 +160,7 @@ export class SyncLoop {
       if (before.conflicted.length)
         return this.latch(before.conflicted, 'unresolved conflict')
 
-      // The branch comes from the checkout rather than from settings: a worktree is the
+      // The branch comes from the checkout rather than from settings: a checkout is the
       // same repository on another branch, and it syncs to the branch it is on.
       const branch = await git.branch()
       if (!branch)
@@ -241,7 +242,7 @@ export class SyncLoop {
     return undefined
   }
 
-  private latch(conflicted: VaultPath[], message: string): SyncStatus {
+  private latch(conflicted: DocPath[], message: string): SyncStatus {
     return this.set({
       state: 'conflict',
       conflicted,

@@ -19,9 +19,24 @@ interface EditorProps {
   markdown: string
   onChange: (markdown: string) => void
   mode?: EditMode
-  /** The vault path, which is what decides the language. Markdown when nothing is given. */
+  /** The document's path, which is what decides the language. Markdown when nothing is given. */
   path?: string
   theme?: 'dark' | 'light'
+  /** A field rather than a page. Prose is given room to be read in, and a box a few lines
+   *  tall does not have it to give. */
+  compact?: boolean
+}
+
+/**
+ * How tall the caret stands, as a multiple of the editor's own font size. A heading is set
+ * larger than the prose around it, so the caret on one is too, and these are the sizes the
+ * stylesheet gives each level.
+ */
+const HEADING_SCALE = [1.6, 1.32, 1.15, 1.04, 1, 1]
+
+function caretScale(line: string): number {
+  const heading = /^(#{1,6})\s/.exec(line)
+  return heading ? HEADING_SCALE[heading[1]!.length - 1]! : 1
 }
 
 const SHARED: Monaco.editor.IStandaloneEditorConstructionOptions = {
@@ -31,14 +46,12 @@ const SHARED: Monaco.editor.IStandaloneEditorConstructionOptions = {
   cursorBlinking: 'smooth',
   scrollBeyondLastLine: false,
   tabSize: 2,
-  // The same scrollbar prose gets, because a code file scrolling differently from a note is
-  // two scrollbars in one app. 8px is `scrollbar-width: thin`, which is what every surface
-  // the browser scrolls uses; the colour is set on the theme, where Monaco keeps it.
-  // Horizontal is off in both: `wordWrap` is on, so there is nothing to scroll sideways to.
+  // Monaco draws its own scrollbar instead of the browser's, so `scrollbar-width: none` in
+  // the app's stylesheet cannot reach it and it is hidden here instead. The wheel still
+  // scrolls. Horizontal has nothing to scroll to anyway: `wordWrap` is on.
   scrollbar: {
-    vertical: 'auto',
+    vertical: 'hidden',
     horizontal: 'hidden',
-    verticalScrollbarSize: 8,
     useShadows: false,
   },
 }
@@ -88,9 +101,16 @@ const PROSE: Monaco.editor.IStandaloneEditorConstructionOptions = {
   padding: { top: 48, bottom: 96 },
 }
 
+const COMPACT: Monaco.editor.IStandaloneEditorConstructionOptions = {
+  ...PROSE,
+  fontSize: 14,
+  padding: { top: 10, bottom: 12 },
+}
+
 const isProse = (language: string) => language === 'markdown'
 
-const optionsFor = (language: string) => (isProse(language) ? PROSE : CODE)
+const optionsFor = (language: string, compact: boolean) =>
+  isProse(language) ? (compact ? COMPACT : PROSE) : CODE
 
 export function Editor({
   markdown: value,
@@ -98,6 +118,7 @@ export function Editor({
   mode = 'live',
   path = 'untitled.md',
   theme = 'dark',
+  compact = false,
 }: EditorProps) {
   const host = useRef<HTMLDivElement>(null)
   const editor = useRef<Monaco.editor.IStandaloneCodeEditor | null>(null)
@@ -128,7 +149,7 @@ export function Editor({
       if (!live || !host.current) return
 
       created = monaco.editor.create(host.current, {
-        ...optionsFor(language),
+        ...optionsFor(language, compact),
         value: emitted.current,
         language,
         theme: theme === 'dark' ? DARK : LIGHT,
@@ -151,13 +172,25 @@ export function Editor({
         emitted.current = model.getValue()
         emit.current(emitted.current)
         updateMenu()
+        caretSize()
       })
       created.onDidChangeCursorSelection(updateMenu)
+      created.onDidChangeCursorPosition(caretSize)
       created.onDidBlurEditorText(close)
+      caretSize()
 
       function close() {
         trigger.current = null
         setMenu(null)
+      }
+
+      /** The caret, sized off the line it is on and handed to the stylesheet. */
+      function caretSize() {
+        const model = created!.getModel()
+        if (!model || !host.current) return
+        const at = created!.getPosition()?.lineNumber ?? 1
+        const scale = caretScale(model.getLineContent(at))
+        host.current.style.setProperty('--caret-scale', String(scale))
       }
 
       function updateMenu() {
@@ -259,7 +292,7 @@ export function Editor({
     const language = languageForPath(monaco, path)
     if (language === model.getLanguageId()) return
     monaco.editor.setModelLanguage(model, language)
-    instance.updateOptions(optionsFor(language))
+    instance.updateOptions(optionsFor(language, compact))
     setProse(isProse(language))
     void useLanguage(monaco, language).then(() => preview.current?.refresh())
   }, [path])

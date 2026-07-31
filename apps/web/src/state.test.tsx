@@ -9,8 +9,8 @@ function Probe() {
   return (
     <div>
       <span data-testid="notice">{app.notice}</span>
-      <span data-testid="files">{app.entries.length}</span>
-      <button onClick={() => void app.move('README.md', 'Archive/README.md')}>
+      <span data-testid="files">{app.entries.vault.length}</span>
+      <button onClick={() => void app.move('vault', 'README.md', 'Archive/README.md')}>
         move
       </button>
     </div>
@@ -28,7 +28,7 @@ async function show(): Promise<MockClient> {
   return client
 }
 
-it('loads the vault tree over the API', async () => {
+it('loads the project tree over the API', async () => {
   await show()
   expect(screen.getByTestId('files')).toHaveTextContent('3')
 })

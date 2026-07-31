@@ -145,13 +145,17 @@ function tables(text: string, blocked: (at: number) => boolean): Table[] {
  */
 function fences(text: string): Fence[] {
   const found: Fence[] = []
-  const pattern = /^([ \t]*)(`{3,}|~{3,})[^\n]*$/gm
+  const pattern = /^([ \t]*)(`{3,}|~{3,})([^\n]*)$/gm
   let open: { from: number; to: number; fence: string } | null = null
 
   for (const match of text.matchAll(pattern)) {
     const fence = match[2]!
     const from = match.index
     const to = from + match[0].length
+    // What follows a backtick fence names the language, and a language cannot contain a
+    // backtick. A line of `` `\`\`\`const x()\`\`\`` `` is one code span on a line of its own, which
+    // is what it looks like and what every other markdown reader makes of it.
+    if (!open && fence[0] === '`' && match[3]!.includes('`')) continue
     if (!open) {
       open = { from, to, fence: fence[0]! }
       continue

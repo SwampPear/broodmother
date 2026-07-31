@@ -1,20 +1,20 @@
 'use client'
 
 import { useEffect, useRef, useState, type DragEvent } from 'react'
-import { basename, type VaultEntry, type VaultPath } from '@broodmother/shared'
-import { dropFolder, movable } from './paths'
+import { basename, type DocRef, type DocRoot, type TreeEntry } from '@broodmother/shared'
+import { dropFolder, movable, refKey } from './paths'
 
 const SPRING_MS = 600
 
 export interface TreeDrag {
-  dragging: VaultPath | null
-  /** The vault root is the empty path, so null is the only value meaning no target. */
-  target: VaultPath | null
-  start(event: DragEvent, path: VaultPath): void
-  overRow(event: DragEvent, entry: VaultEntry): void
+  dragging: DocRef | null
+  /** A tree's root is the empty path, so null is the only value meaning no target. */
+  target: DocRef | null
+  start(event: DragEvent, ref: DocRef): void
+  overRow(event: DragEvent, root: DocRoot, entry: TreeEntry): void
   overRoot(event: DragEvent): void
   leaveList(event: DragEvent): void
-  drop(event: DragEvent, folder: VaultPath): void
+  drop(event: DragEvent, to: DocRef): void
   end(): void
 }
 
@@ -23,13 +23,13 @@ export function useTreeDrag({
   onExpand,
   onMove,
 }: {
-  expanded: Set<VaultPath>
-  onExpand: (path: VaultPath) => void
-  onMove: (from: VaultPath, to: VaultPath) => void
+  expanded: Set<string>
+  onExpand: (ref: DocRef) => void
+  onMove: (root: DocRoot, from: string, to: string) => void
 }): TreeDrag {
-  const [dragging, setDragging] = useState<VaultPath | null>(null)
-  const [target, setTarget] = useState<VaultPath | null>(null)
-  const spring = useRef<{ path: VaultPath; timer: ReturnType<typeof setTimeout> } | null>(
+  const [dragging, setDragging] = useState<DocRef | null>(null)
+  const [target, setTarget] = useState<DocRef | null>(null)
+  const spring = useRef<{ key: string; timer: ReturnType<typeof setTimeout> } | null>(
     null,
   )
 
@@ -41,17 +41,19 @@ export function useTreeDrag({
   // A drag can end outside the window, where no event arrives to cancel the timer.
   useEffect(() => cancelSpring, [])
 
-  function armSpring(entry: VaultEntry) {
+  function armSpring(root: DocRoot, entry: TreeEntry) {
+    const ref = { root, path: entry.path }
+    const key = refKey(ref)
     const shut =
-      entry.kind === 'dir' && !expanded.has(entry.path) && entry.path !== dragging
+      entry.kind === 'dir' && !expanded.has(key) && key !== (dragging && refKey(dragging))
     if (!shut) return cancelSpring()
-    if (spring.current?.path === entry.path) return
+    if (spring.current?.key === key) return
     cancelSpring()
     spring.current = {
-      path: entry.path,
+      key,
       timer: setTimeout(() => {
         spring.current = null
-        onExpand(entry.path)
+        onExpand(ref)
       }, SPRING_MS),
     }
   }
@@ -63,33 +65,35 @@ export function useTreeDrag({
   }
 
   // The browser allows a drop only where the default was prevented.
-  function claim(event: DragEvent, from: VaultPath, folder: VaultPath) {
-    if (!movable(from, folder)) return setTarget(null)
+  function claim(event: DragEvent, from: DocRef, to: DocRef) {
+    if (!movable(from, to)) return setTarget(null)
     event.preventDefault()
     event.dataTransfer.dropEffect = 'move'
-    setTarget(folder)
+    setTarget(to)
   }
 
   return {
     dragging,
     target,
 
-    start(event, path) {
+    start(event, ref) {
       event.dataTransfer.effectAllowed = 'move'
-      event.dataTransfer.setData('text/plain', path)
-      setDragging(path)
+      event.dataTransfer.setData('text/plain', refKey(ref))
+      setDragging(ref)
     },
 
-    overRow(event, entry) {
+    overRow(event, root, entry) {
       if (dragging === null) return
       // The list underneath is the root target; the row with the pointer answers instead.
       event.stopPropagation()
-      armSpring(entry)
-      claim(event, dragging, dropFolder(entry))
+      armSpring(root, entry)
+      claim(event, dragging, { root, path: dropFolder(entry) })
     },
 
+    /** The list behind the rows is the vault's root. A project's is its own row, which is
+     *  a row like any other. */
     overRoot(event) {
-      if (dragging !== null) claim(event, dragging, '')
+      if (dragging !== null) claim(event, dragging, { root: 'vault', path: '' })
     },
 
     // Drag-leave also fires stepping from a row onto one of its own spans.
@@ -100,14 +104,17 @@ export function useTreeDrag({
       setTarget(null)
     },
 
-    drop(event, folder) {
+    drop(event, to) {
       event.preventDefault()
       event.stopPropagation()
-      // State carries a same-window drag; the transfer survives one from elsewhere.
-      const from = dragging ?? event.dataTransfer.getData('text/plain')
+      const from = dragging
       end()
-      if (!from || !movable(from, folder)) return
-      onMove(from, folder ? `${folder}/${basename(from)}` : basename(from))
+      if (!from || !movable(from, to)) return
+      onMove(
+        from.root,
+        from.path,
+        to.path ? `${to.path}/${basename(from.path)}` : basename(from.path),
+      )
     },
 
     end,

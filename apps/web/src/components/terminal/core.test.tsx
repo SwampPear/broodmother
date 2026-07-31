@@ -1,9 +1,9 @@
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, it, vi } from 'vitest'
 import { createMockClient, type MockClient } from '../../api/mock'
 import { AppProvider } from '../../state'
-import { TerminalPanel } from './core'
+import { TerminalPanel, TerminalTab } from './core'
 
 const written: string[] = []
 let typed: ((data: string) => void) | null = null
@@ -38,21 +38,35 @@ vi.mock('@xterm/addon-fit', () => ({
   },
 }))
 
+/* A seam is dragged in pixels, so a tab that measures zero has no run to drag along. jsdom
+   lays nothing out: the size is given, and the observer has to report it. */
 vi.stubGlobal(
   'ResizeObserver',
   class {
-    observe() {}
+    constructor(private readonly seen: () => void) {}
+    observe() {
+      this.seen()
+    }
     disconnect() {}
   },
 )
 
-async function show(props: Partial<Parameters<typeof TerminalPanel>[0]> = {}) {
-  const client = createMockClient()
+for (const [side, size] of [
+  ['clientWidth', 800],
+  ['clientHeight', 600],
+] as const)
+  Object.defineProperty(HTMLElement.prototype, side, { value: size, configurable: true })
+
+async function show(
+  props: Partial<Parameters<typeof TerminalPanel>[0]> = {},
+  client = createMockClient(),
+) {
   const onExit = vi.fn()
   const onHide = vi.fn()
   const view = render(
     <AppProvider client={client}>
       <TerminalPanel
+        root="vault"
         height={288}
         onHeight={vi.fn()}
         visible
@@ -108,11 +122,53 @@ it('opens a second shell on the claude tab and runs claude in it', async () => {
   const run = written.find((data) => data.startsWith('claude'))
   expect(run).toContain('--dangerously-skip-permissions')
   expect(run).toContain(
-    '--append-system-prompt "You are running in a terminal inside broodmother',
+    "--append-system-prompt 'You are running in a terminal inside broodmother",
   )
-  expect(run?.endsWith('"\r')).toBe(true)
+  expect(run?.endsWith("'\r")).toBe(true)
   expect(disposed).not.toHaveBeenCalled()
   expect(onExit).not.toHaveBeenCalled()
+})
+
+/* The soul is markdown somebody typed into a settings field, so it reaches the shell as
+   whatever they typed — quotes, newlines and all — and still has to arrive as one
+   argument. */
+it('carries the profile’s soul into the system prompt', async () => {
+  const { client } = await show(
+    {},
+    createMockClient({
+      profiles: [
+        {
+          name: 'you',
+          path: '/Users/you/.broodmother/profiles/you.json',
+          color: '#c084fc',
+          gitAuthor: { name: 'You', email: 'you@example.com' },
+          sshKeyPath: null,
+          claudeCfgDir: null,
+          soul: "# Rules\n\nDon't be cheerful.\n",
+          github: null,
+        },
+      ],
+    }),
+  )
+  await userEvent.click(screen.getByRole('button', { name: /claude code/ }))
+  await waitFor(() => expect(bodies()).toHaveLength(2))
+
+  act(() => client.emitTerminal({ type: 'output', data: '$ ' }))
+
+  const run = written.find((data) => data.startsWith('claude'))
+  expect(run).toContain("# Rules Don'\\''t be cheerful.")
+  expect(run?.split('\n')).toHaveLength(1)
+})
+
+it('says nothing extra for a profile with no soul', async () => {
+  const { client } = await show()
+  await userEvent.click(screen.getByRole('button', { name: /claude code/ }))
+  await waitFor(() => expect(bodies()).toHaveLength(2))
+
+  act(() => client.emitTerminal({ type: 'output', data: '$ ' }))
+
+  const run = written.find((data) => data.startsWith('claude'))
+  expect(run).not.toContain('Who you are')
 })
 
 /* Typed before the shell has printed its prompt, the command lands in a tty still echoing
@@ -169,4 +225,125 @@ it('stays mounted but hidden when the panel is put away', async () => {
   expect(disposed).not.toHaveBeenCalled()
   view.unmount()
   expect(disposed).toHaveBeenCalled()
+})
+
+/* ---------- the tab, which splits ---------- */
+
+const panes = () => document.querySelectorAll<HTMLElement>('.terminal-pane')
+
+async function tab() {
+  const client = createMockClient()
+  const onExit = vi.fn()
+  render(
+    <AppProvider client={client}>
+      <TerminalTab kind="shell" root="vault" active onExit={onExit} />
+    </AppProvider>,
+  )
+  await waitFor(() => expect(bodies()).toHaveLength(1))
+  return { client, onExit }
+}
+
+const press = (at: number, key: string, shift = false) =>
+  fireEvent.keyDown(panes()[at]!, { key, metaKey: true, shiftKey: shift })
+
+const box = (at: number) => {
+  const style = panes()[at]!.style
+  return { left: style.left, top: style.top, width: style.width, height: style.height }
+}
+
+/* The whole reason panes are positioned rather than nested: splitting moves nothing in the
+   React tree, so the shell that was already there is not remounted under a new parent. */
+it('splits into a second pane without disposing the shell already running', async () => {
+  const { onExit } = await tab()
+  press(0, 'd')
+  await waitFor(() => expect(bodies()).toHaveLength(2))
+
+  expect(disposed).not.toHaveBeenCalled()
+  expect(onExit).not.toHaveBeenCalled()
+})
+
+it('puts the new pane beside on ⌘D and below on ⌘⇧D', async () => {
+  await tab()
+  press(0, 'd')
+  await waitFor(() => expect(panes()).toHaveLength(2))
+  expect(box(0)).toEqual({ left: '0%', top: '0%', width: '50%', height: '100%' })
+  expect(box(1)).toEqual({ left: '50%', top: '0%', width: '50%', height: '100%' })
+
+  press(1, 'd', true)
+  await waitFor(() => expect(panes()).toHaveLength(3))
+  expect(box(0)).toEqual({ left: '0%', top: '0%', width: '50%', height: '100%' })
+  expect(box(1)).toEqual({ left: '50%', top: '0%', width: '50%', height: '50%' })
+  expect(box(2)).toEqual({ left: '50%', top: '50%', width: '50%', height: '50%' })
+})
+
+it('runs the same shell in the pane a split makes', async () => {
+  const { client } = await tab()
+  press(0, 'd')
+  await waitFor(() => expect(bodies()).toHaveLength(2))
+
+  act(() => client.emitTerminal({ type: 'output', data: '$ ' }))
+  expect(written.some((data) => data.startsWith('claude'))).toBe(false)
+})
+
+it('takes only its own pane when a shell exits', async () => {
+  const { client, onExit } = await tab()
+  press(0, 'd')
+  await waitFor(() => expect(bodies()).toHaveLength(2))
+
+  // The mock routes to the shell that connected last, which is the new pane's.
+  act(() => client.emitTerminal({ type: 'exit', code: 0 }))
+  await waitFor(() => expect(bodies()).toHaveLength(1))
+  expect(onExit).not.toHaveBeenCalled()
+  expect(box(0)).toEqual({ left: '0%', top: '0%', width: '100%', height: '100%' })
+})
+
+/* The same element the sidebar and the terminal panel are dragged by, given the run it
+   divides instead of an edge of the window. */
+it('divides two panes with a seam that drags them', async () => {
+  await tab()
+  press(0, 'd')
+  await waitFor(() => expect(panes()).toHaveLength(2))
+
+  const seam = screen.getByRole('separator', { name: 'resize panes' })
+  fireEvent.pointerDown(seam, { clientX: 400 })
+  fireEvent.pointerMove(seam, { clientX: 500 })
+
+  await waitFor(() => expect(box(0).width).toBe('62.5%'))
+  expect(box(1)).toEqual({ left: '62.5%', top: '0%', width: '37.5%', height: '100%' })
+})
+
+it('keeps a pane on both sides of a seam dragged to the end', async () => {
+  await tab()
+  press(0, 'd')
+  await waitFor(() => expect(panes()).toHaveLength(2))
+
+  const seam = screen.getByRole('separator', { name: 'resize panes' })
+  fireEvent.pointerDown(seam, { clientX: 400 })
+  fireEvent.pointerMove(seam, { clientX: -2000 })
+
+  // 96px of 800 is the narrowest a pane goes, whatever the pointer asks for.
+  await waitFor(() => expect(box(0).width).toBe('12%'))
+})
+
+it('has no seam until the tab is split', async () => {
+  await tab()
+  expect(screen.queryByRole('separator')).toBeNull()
+})
+
+/* The cursor is moved by the shell being told to take it, which is also what lights the pane
+   in the app: xterm focusing its textarea is what `:focus-within` reads. */
+it('hands the cursor to the next pane on ⌘]', async () => {
+  await tab()
+  press(0, 'd')
+  await waitFor(() => expect(bodies()).toHaveLength(2))
+  focused.mockClear()
+
+  press(0, ']')
+  await waitFor(() => expect(focused).toHaveBeenCalled())
+})
+
+it('closes the tab when the shell in its only pane exits', async () => {
+  const { client, onExit } = await tab()
+  act(() => client.emitTerminal({ type: 'exit', code: 0 }))
+  expect(onExit).toHaveBeenCalled()
 })

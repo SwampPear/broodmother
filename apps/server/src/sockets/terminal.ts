@@ -1,6 +1,10 @@
 import { spawn, type IPty } from '@lydell/node-pty'
 import type { WebSocket } from 'ws'
-import type { TerminalClientMessage, TerminalServerMessage } from '@broodmother/shared'
+import type {
+  DocRoot,
+  TerminalClientMessage,
+  TerminalServerMessage,
+} from '@broodmother/shared'
 
 const SHELL = process.env.SHELL ?? '/bin/bash'
 const TERM = 'xterm-256color'
@@ -28,30 +32,32 @@ function ambient(): Record<string, string> {
   return env
 }
 
-/** Where a shell opens and who it opens as: the project you are in, holding the credentials
- *  of the profile it works as. */
+/** Where a shell opens and who it opens as: the project you are in, holding the
+ *  credentials of the profile it works as. */
 export interface TerminalSession {
   cwd: string
   env: Record<string, string>
 }
 
 /**
- * One login shell per socket, standing in the project you are working in — its vaults are
- * the folders in it, which is what you would have cd'd to anyway. Asked per shell rather
- * than held, because switching project has to move where the next one opens. Closing the
- * socket kills the shell.
+ * One login shell per socket, standing in the checkout the root it was opened from names —
+ * the folder you would have cd'd to anyway. Asked per shell rather than held, because
+ * moving the scope has to move where the next one opens without touching the ones already
+ * running: a pty someone is typing in is not somewhere to send a `cd`. Closing the socket
+ * kills the shell.
  */
 export class Terminals {
   private readonly shells = new Map<WebSocket, IPty>()
 
-  constructor(private readonly session: () => TerminalSession) {}
+  constructor(private readonly session: (root: DocRoot | null) => TerminalSession) {}
 
   get count(): number {
     return this.shells.size
   }
 
-  accept(socket: WebSocket): void {
-    const { cwd, env } = this.session()
+  /** A socket that names no root gets the scope's, which is where the app is standing. */
+  accept(socket: WebSocket, root: DocRoot | null = null): void {
+    const { cwd, env } = this.session(root)
     const shell = spawn(SHELL, ['-l'], {
       name: TERM,
       cwd,
