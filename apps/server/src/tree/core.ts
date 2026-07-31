@@ -84,6 +84,16 @@ export class Tree {
     return docPath
   }
 
+  /** A folder with nothing in it yet. Git has no way to hold one, so it is on disk and
+   *  nowhere else until something is put in it — which is what every git client does. */
+  async mkdir(input: string): Promise<DocPath> {
+    const docPath = normalize(input)
+    const absolute = await this.resolve(docPath)
+    if (await exists(absolute)) throw new PathError(`${docPath} already exists`)
+    await mkdir(absolute, { recursive: true })
+    return docPath
+  }
+
   async move(
     fromInput: string,
     toInput: string,

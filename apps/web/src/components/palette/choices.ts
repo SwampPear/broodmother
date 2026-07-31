@@ -1,10 +1,12 @@
 import { basename, projectOf, type DocRef } from '@broodmother/shared'
-import { displayName, fileTag, iconFor, type IconName } from '../ui'
+import { displayName, fileTag, type IconName } from '../ui'
 import { deleteFlow, type Flow, type FlowCtx, moveFlow } from './flows'
 
 export interface Choice {
   key: string
-  icon: IconName
+  /** A command names the icon it wears; a document's is earned by `path`. */
+  icon?: IconName
+  path?: string
   /** What fuzzy matching sees, and the accessible name of the row. */
   text: string
   name: string
@@ -50,7 +52,7 @@ function documentChoice(ref: DocRef, run: () => Flow | null): Choice {
   const prefix = projectOf(ref.root) ?? ''
   return {
     key: `${ref.root}:${ref.path}`,
-    icon: iconFor(ref.path),
+    path: ref.path,
     text: prefix ? `${prefix}/${ref.path}` : ref.path,
     name: displayName(base),
     note: [prefix, folder].filter(Boolean).join('/') || undefined,

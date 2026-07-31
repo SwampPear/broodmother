@@ -116,12 +116,16 @@ export function folderOf(entries: TreeEntry[], path: DocPath): DocPath {
 /** What a new note is called before it is called anything, and the first number after it
  *  that the folder has not taken. A note is named by being renamed, so the only thing this
  *  has to get right is not landing on a name already there. */
-export function untitledIn(entries: TreeEntry[], folder: DocPath): DocPath {
+export function untitledIn(
+  entries: TreeEntry[],
+  folder: DocPath,
+  extension = '.md',
+): DocPath {
   const inside = folder ? entryAt(entries, folder) : null
   const here = folder ? (inside?.kind === 'dir' ? inside.children : []) : entries
   const taken = new Set(here.map((entry) => entry.name))
-  let name = 'Untitled.md'
-  for (let n = 2; taken.has(name); n++) name = `Untitled ${n}.md`
+  let name = `Untitled${extension}`
+  for (let n = 2; taken.has(name); n++) name = `Untitled ${n}${extension}`
   return folder ? `${folder}/${name}` : name
 }
 

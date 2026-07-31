@@ -125,8 +125,9 @@ export function ProfilePanel() {
 
       <p className="hint">
         Added to the system prompt of every claude shell this profile opens, after what
-        broodmother tells it about the vault. Empty leaves broodmother's own, which asks
-        for precedent over memory and verified claims over confident ones.
+        broodmother tells it about the vault. It starts as broodmother's own, which asks
+        for precedent over memory and verified claims over confident ones — edit it
+        freely, and clear it to have it back.
       </p>
 
       {/* A soul of nothing but whitespace is no soul, and it is read that way here rather

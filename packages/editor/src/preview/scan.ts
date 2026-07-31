@@ -9,6 +9,9 @@ export interface Span {
 export interface Marker extends Span {
   /** The element the marker belongs to. It reveals when the cursor is anywhere in this. */
   owner: Span
+  /** An element that is a run inside a line rather than the line itself, which is what
+   *  decides whether a caret sitting against its edge is in it or has left it. */
+  inline?: boolean
 }
 
 export interface Styled extends Span {
@@ -27,7 +30,10 @@ export interface Fence {
 
 /** A `- [ ]` box, and the text it governs. */
 export interface Task {
+  /** The bullet, which is where the box is drawn. */
   box: Span
+  /** The character between the brackets, which is what ticking one writes. */
+  state: Span
   text: Span
   done: boolean
 }
@@ -237,7 +243,12 @@ export function scan(text: string): Scan {
     const body = { from: match.index + match[0].length, to: line.to }
 
     taskBullets.add(bullet)
-    tasks.push({ box: { from: bullet, to: bullet + 1 }, text: body, done })
+    tasks.push({
+      box: { from: bullet, to: bullet + 1 },
+      state: { from: brackets + 1, to: brackets + 2 },
+      text: body,
+      done,
+    })
     markers.push({
       from: brackets,
       to: brackets + match[4]!.length,
@@ -280,8 +291,8 @@ export function scan(text: string): Scan {
       if (claimed.some((span) => from < span.to && to > span.from)) continue
       claimed.push({ from, to })
       const owner = { from, to }
-      markers.push({ from, to: from + width, owner })
-      markers.push({ from: to - width, to, owner })
+      markers.push({ from, to: from + width, owner, inline: true })
+      markers.push({ from: to - width, to, owner, inline: true })
       styled.push({ from: from + width, to: to - width, className })
     }
   }
@@ -289,8 +300,8 @@ export function scan(text: string): Scan {
   // Inline code: the backticks go, the text inside is styled.
   for (const span of inlineCode) {
     const ticks = /^`+/.exec(text.slice(span.from, span.to))![0].length
-    markers.push({ from: span.from, to: span.from + ticks, owner: span })
-    markers.push({ from: span.to - ticks, to: span.to, owner: span })
+    markers.push({ from: span.from, to: span.from + ticks, owner: span, inline: true })
+    markers.push({ from: span.to - ticks, to: span.to, owner: span, inline: true })
     styled.push({ from: span.from + ticks, to: span.to - ticks, className: 'md-code' })
   }
 
@@ -302,8 +313,8 @@ export function scan(text: string): Scan {
     const owner = { from, to }
     const open = from + match[1]!.length
     const close = open + 1 + match[2]!.length
-    markers.push({ from, to: open + 1, owner })
-    markers.push({ from: close, to, owner })
+    markers.push({ from, to: open + 1, owner, inline: true })
+    markers.push({ from: close, to, owner, inline: true })
     styled.push({ from: open + 1, to: close, className: 'md-link' })
   }
 
@@ -314,9 +325,10 @@ export function scan(text: string): Scan {
     const to = from + match[0].length
     const owner = { from, to }
     const bar = match[1]!.indexOf('|')
-    markers.push({ from, to: from + 2, owner })
-    markers.push({ from: to - 2, to, owner })
-    if (bar >= 0) markers.push({ from: from + 2, to: from + 3 + bar, owner })
+    markers.push({ from, to: from + 2, owner, inline: true })
+    markers.push({ from: to - 2, to, owner, inline: true })
+    if (bar >= 0)
+      markers.push({ from: from + 2, to: from + 3 + bar, owner, inline: true })
     styled.push({ from: from + 2, to: to - 2, className: 'md-wikilink' })
   }
 
@@ -346,7 +358,17 @@ function lineAt(text: string, at: number): Span {
   return { from, to: end < 0 ? text.length : end }
 }
 
-/** Obsidian's rule: a marker shows the moment a cursor or selection is inside its element. */
-export function revealed(owner: Span, cursors: Span[]): boolean {
-  return cursors.some((cursor) => cursor.from <= owner.to && cursor.to >= owner.from)
+/**
+ * Obsidian's rule: a marker shows the moment a cursor or selection is inside its element.
+ *
+ * Where an element ends is the whole question. A line keeps its markers up while the caret
+ * is anywhere on it, either end included — the caret at the end of a heading is still on
+ * the heading. A run inside a line ends where it ends: step off the last `*` of a bold run
+ * or the `)` of a link and you have left it, so it closes behind you. Counting the edge as
+ * inside would leave a link open because the caret is resting against the one before it.
+ */
+export function revealed(owner: Span, cursors: Span[], inline = false): boolean {
+  return inline
+    ? cursors.some((cursor) => cursor.from < owner.to && cursor.to > owner.from)
+    : cursors.some((cursor) => cursor.from <= owner.to && cursor.to >= owner.from)
 }

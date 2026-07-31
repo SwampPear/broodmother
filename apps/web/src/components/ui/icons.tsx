@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { extensionOf } from '@broodmother/shared'
+import { setiGlyph } from './seti'
 
 export type IconName =
   | 'branch'
@@ -176,12 +177,31 @@ export function iconFor(path: string): IconName {
   return extension === 'md' || extension === 'pdf' ? 'file-text' : 'file'
 }
 
-/** Obsidian titles a file by its basename and moves the extension to a tag. */
-export const displayName = (name: string) =>
-  extensionOf(name) ? name.slice(0, name.lastIndexOf('.')) : name
+/**
+ * What a file wears in a row. Code gets the glyph its language is known by, drawn from the
+ * pack rather than the sprite sheet; everything else gets the Lucide outline.
+ */
+export function FileIcon({ path }: { path: string }) {
+  const glyph = setiGlyph(path)
+  if (!glyph) return <Icon name={iconFor(path)} />
+  return (
+    <span className="icon seti" style={{ color: glyph.color }} aria-hidden>
+      {glyph.character}
+    </span>
+  )
+}
 
-/** Notes are the default and carry no tag; everything else is labelled. */
-export const fileTag = (name: string) => {
+/** Obsidian titles a note by its basename and moves the extension to a tag. A code file is
+ *  known by its whole name, so it keeps the extension and the glyph says the rest. */
+export function displayName(name: string) {
+  if (setiGlyph(name)) return name
+  return extensionOf(name) ? name.slice(0, name.lastIndexOf('.')) : name
+}
+
+/** Notes are the default and carry no tag, and a code file's glyph has already said what
+ *  it is; everything else is labelled. */
+export function fileTag(name: string) {
   const extension = extensionOf(name)
-  return extension === 'md' ? null : extension
+  if (extension === 'md' || setiGlyph(name)) return null
+  return extension
 }

@@ -5,7 +5,7 @@ import type {
   PostBranches,
 } from './branches'
 import type { DeleteData } from './data'
-import type { DeleteDoc, GetDoc, GetLinks, PostDocMove, PutDoc } from './docs'
+import type { DeleteDoc, GetDoc, GetLinks, PostDocMove, PostFolder, PutDoc } from './docs'
 import type {
   GetConfig,
   GetGit,
@@ -70,6 +70,7 @@ interface ApiRoutes {
   'PUT /api/doc': PutDoc
   'POST /api/doc/move': PostDocMove
   'DELETE /api/doc': DeleteDoc
+  'POST /api/folder': PostFolder
   'GET /api/links': GetLinks
   'GET /api/config': GetConfig
   'PUT /api/config': PutConfig

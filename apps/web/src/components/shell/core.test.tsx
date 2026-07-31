@@ -294,6 +294,19 @@ it('points the branch selector at the repository the scope is in', async () => {
   ).toBeInTheDocument()
 })
 
+/* Syncing was a command behind ⌘K, which is three gestures for the one thing you want the
+   moment you have stopped typing. */
+it('syncs on ⌘⇧S', async () => {
+  const client = createMockClient()
+  const request = vi.spyOn(client, 'request')
+  show(client)
+  await screen.findByText('the vault')
+
+  await userEvent.keyboard('{Meta>}{Shift>}S{/Shift}{/Meta}')
+
+  await waitFor(() => expect(request).toHaveBeenCalledWith('POST /api/sync/now', null))
+})
+
 /* The dialog that used to stand here asked for a path, which is the one thing you cannot
    give before there is a note to give it to. */
 it('makes a note called Untitled and opens its row to be named', async () => {

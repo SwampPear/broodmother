@@ -97,6 +97,31 @@ describe('Tree', () => {
     expect(await project.exists('index.md')).toBe(false)
   })
 
+  it('makes an empty folder, and lists it as one', async () => {
+    const project = await seed()
+    expect(await project.mkdir('Notes')).toBe('Notes')
+    const made = (await project.list()).find((entry) => entry.path === 'Notes')
+    expect(made?.kind === 'dir' && made.children).toEqual([])
+  })
+
+  it('makes one nested inside a folder that is not there yet', async () => {
+    const project = await seed()
+    await project.mkdir('Handbook/Drafts/Old')
+    expect(await project.exists('Handbook/Drafts/Old')).toBe(true)
+  })
+
+  /* Making one over something that is already there is how a folder eats a note. */
+  it('refuses to make one where something already stands', async () => {
+    const project = await seed()
+    await expect(project.mkdir('index.md')).rejects.toThrow(PathError)
+    await expect(project.mkdir('Handbook')).rejects.toThrow(PathError)
+  })
+
+  it('refuses to make one outside the project', async () => {
+    const project = await seed()
+    await expect(project.mkdir('../escaped')).rejects.toThrow(PathError)
+  })
+
   it('refuses to read, write or delete outside the project', async () => {
     const project = await seed()
     const outside = await tempDir()

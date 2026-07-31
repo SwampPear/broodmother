@@ -112,11 +112,14 @@ export function Shell({ children }: { children: ReactNode }) {
       } else if (event.key === 'j') {
         event.preventDefault()
         toggleTerminal()
+      } else if (event.shiftKey && event.key.toLowerCase() === 's') {
+        event.preventDefault()
+        void app.syncNow()
       }
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [toggleTerminal])
+  }, [toggleTerminal, app])
 
   /**
    * A note is made by making it. `Untitled` in the folder you asked from, open in the pane,
@@ -167,6 +170,23 @@ export function Shell({ children }: { children: ReactNode }) {
     if (to !== from.path) void app.move(from.root, from.path, to)
   }
 
+  /**
+   * A folder the same way, and for the same reason: `Untitled` where you asked for it, with
+   * its row waiting to be typed into. It holds nothing, so there is nothing to open in the
+   * pane — the tree is the whole of it.
+   */
+  const newFolder = (seed: DocRef) => {
+    const entries = entriesOf(seed.root)
+    const at: DocRef = {
+      root: seed.root,
+      path: untitledIn(entries, folderOf(entries, seed.path), ''),
+    }
+    void app.createFolder(at).then((failed) => {
+      if (failed) return
+      setRenaming(at)
+    })
+  }
+
   const ctx: FlowCtx = {
     refs: fileRefs(roots),
     open: (ref) => show(docRoute(ref)),
@@ -188,6 +208,7 @@ export function Shell({ children }: { children: ReactNode }) {
 
   const fromTree = (command: TreeCommand, ref: DocRef) => {
     if (command === 'create') return newNote(ref)
+    if (command === 'create-folder') return newFolder(ref)
     // Renaming is the row turning into a field, not a dialog over the top of it — the same
     // thing a new note does the moment it exists, so there is one way to name anything.
     if (command === 'rename') return startRename(ref)

@@ -1,7 +1,8 @@
 import type * as Monaco from 'monaco-editor'
 import { rangeOf } from '../commands'
+import { renderInline } from './inline'
 import { renderMath } from './math'
-import { revealed, scan, type Align, type Span, type Table } from './scan'
+import { revealed, scan, type Align, type Span, type Table, type Task } from './scan'
 
 type Editor = Monaco.editor.IStandaloneCodeEditor
 
@@ -16,10 +17,19 @@ type Foldable = Editor & {
   setHiddenAreas?: (ranges: Monaco.IRange[], source?: unknown) => void
 }
 
-const HIDDEN = { inlineClassName: 'md-hidden' } as const
-
 /** The classes that draw something other than the characters underneath them. */
 const GLYPHS = /md-(bullet|task)/
+
+/**
+ * A hidden marker is `display: none`, so the characters under it are no width at all.
+ * Monaco places the caret and paints the selection from widths it computed for the text it
+ * thinks is there; this is what tells it to measure the line instead. Without it every
+ * caret on a line holding a hidden URL is drawn that URL's width off.
+ */
+const HIDDEN = {
+  inlineClassName: 'md-hidden',
+  inlineClassNameAffectsLetterSpacing: true,
+} as const
 
 /**
  * Markdown drawn as what it means rather than as what it says, following the same rule
@@ -42,7 +52,7 @@ export class LivePreview {
    *  lines come back first and this is what tells the next refresh to leave them alone. */
   private pending: Span | null = null
   /** Where the checkboxes are, as of the last draw. */
-  private boxes: { box: Span; done: boolean }[] = []
+  private boxes: Task[] = []
   private disposables: Monaco.IDisposable[] = []
   private enabled = false
   /**
@@ -100,7 +110,7 @@ export class LivePreview {
     const decorations: Monaco.editor.IModelDeltaDecoration[] = []
 
     for (const marker of found.markers) {
-      if (revealed(marker.owner, cursors)) continue
+      if (revealed(marker.owner, cursors, marker.inline)) continue
       decorations.push({ range: rangeOf(model, marker.from, marker.to), options: HIDDEN })
     }
     for (const style of found.styled) {
@@ -135,7 +145,7 @@ export class LivePreview {
     const tables = found.tables.filter((table) => !revealed(table, cursors))
     for (const table of tables) folded.push(rangeOf(model, table.from, table.to))
 
-    this.boxes = found.tasks.map((task) => ({ box: task.box, done: task.done }))
+    this.boxes = found.tasks
     this.decorations.set(decorations)
     this.fold(folded)
     this.draw(model, drawn, tables)
@@ -157,7 +167,7 @@ export class LivePreview {
     event.event.stopPropagation()
     this.editor.executeEdits('broodmother', [
       {
-        range: rangeOf(model, hit.box.from + 1, hit.box.from + 2),
+        range: rangeOf(model, hit.state.from, hit.state.to),
         text: hit.done ? ' ' : 'x',
       },
     ])
@@ -216,6 +226,7 @@ export class LivePreview {
     // before it is handed over. A zone is as wide as the text is, and measuring at any
     // other width measures something the reader is never shown.
     const width = this.editor.getLayoutInfo().contentWidth
+    const stage = this.editor.getDomNode() ?? document.body
     const rendered = [...wanted.values()].map((piece) => {
       const host = document.createElement('div')
       if (piece.kind === 'math') {
@@ -239,7 +250,7 @@ export class LivePreview {
         this.editor.focus()
         this.pending = null
       })
-      return { host, line: piece.line, height: measure(host, width) }
+      return { host, line: piece.line, height: measure(host, width, stage) }
     })
 
     this.editor.changeViewZones((accessor) => {
@@ -288,8 +299,8 @@ function same(a: Map<string, Piece>, b: Map<string, Piece>): boolean {
   return true
 }
 
-/** A pipe table as a table. Cells are set as text, never as markup: a vault is a folder of
- *  files anyone can write into, and a cell is not a place to run one of them. */
+/** A pipe table as a table. A cell holds inline markdown like anywhere else in a note, and
+ *  is built out of nodes rather than parsed as markup. */
 export function renderTable(table: Table): HTMLElement {
   const element = document.createElement('table')
   element.className = 'md-table'
@@ -297,7 +308,7 @@ export function renderTable(table: Table): HTMLElement {
   const head = element.createTHead().insertRow()
   table.header.forEach((cell, index) => {
     const th = document.createElement('th')
-    th.textContent = cell
+    th.appendChild(renderInline(cell))
     setAlign(th, table.align[index] ?? null)
     head.appendChild(th)
   })
@@ -307,7 +318,7 @@ export function renderTable(table: Table): HTMLElement {
     const tr = body.insertRow()
     table.header.forEach((_, index) => {
       const td = tr.insertCell()
-      td.textContent = row[index] ?? ''
+      td.appendChild(renderInline(row[index] ?? ''))
       setAlign(td, table.align[index] ?? null)
     })
   }
@@ -318,16 +329,19 @@ function setAlign(cell: HTMLTableCellElement, align: Align): void {
   if (align) cell.style.textAlign = align
 }
 
-/** Offscreen but laid out, and laid out at the width it will be drawn at: `display: none`
- *  would measure zero, and a stage with room the zone does not have measures a height the
- *  zone does not get. */
-function measure(host: HTMLElement, width: number): number {
+/**
+ * Offscreen but laid out, and laid out where it will be drawn: `display: none` would measure
+ * zero, a stage with room the zone does not have measures a height the zone does not get,
+ * and a stage outside the editor inherits the page's type rather than the editor's — which
+ * is a table measured a row short of the one the reader is given.
+ */
+function measure(host: HTMLElement, width: number, within: HTMLElement): number {
   const stage = document.createElement('div')
   stage.style.cssText = `position:absolute;visibility:hidden;pointer-events:none;left:-9999px;top:0;width:${width}px`
   stage.appendChild(host)
-  document.body.appendChild(stage)
+  within.appendChild(stage)
   const height = host.getBoundingClientRect().height
-  document.body.removeChild(stage)
+  within.removeChild(stage)
   stage.removeChild(host)
   return Math.max(1, Math.ceil(height))
 }

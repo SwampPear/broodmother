@@ -140,6 +140,28 @@ describe('document routes', () => {
     )
   })
 
+  /* A folder is not a document, so nothing is written into it and nothing is indexed. What
+     it does do is show up in the tree, which is drawn from the disk rather than the repo. */
+  it('POST /api/folder makes an empty folder', async () => {
+    const { call } = await server()
+    expect(await call('POST', '/api/folder', { root: 'vault', path: 'Drafts' })).toEqual({
+      status: 200,
+      body: { ok: true },
+    })
+    const { vault } = (await call('GET', '/api/tree')).body as {
+      vault: { path: string; kind: string }[]
+    }
+    expect(vault.find((entry) => entry.path === 'Drafts')?.kind).toBe('dir')
+  })
+
+  it('POST /api/folder refuses one that is already there', async () => {
+    const { call } = await server()
+    await call('POST', '/api/folder', { root: 'vault', path: 'Drafts' })
+    expect(
+      (await call('POST', '/api/folder', { root: 'vault', path: 'Drafts' })).status,
+    ).toBe(400)
+  })
+
   it('POST /api/doc/move renames and rewrites links', async () => {
     const { call } = await server()
     expect(

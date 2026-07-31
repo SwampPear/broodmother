@@ -2,7 +2,7 @@
 
 import fuzzysort from 'fuzzysort'
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
-import { Button, Icon } from '../ui'
+import { Button, FileIcon, Icon } from '../ui'
 import { choices } from './choices'
 import { type Flow, type FlowCtx } from './flows'
 
@@ -133,7 +133,11 @@ export function Palette({
                     ref={index === cursor ? current : undefined}
                     onClick={() => setFlow(match.run())}
                   >
-                    <Icon name={match.icon} />
+                    {match.path ? (
+                      <FileIcon path={match.path} />
+                    ) : (
+                      match.icon && <Icon name={match.icon} />
+                    )}
                     <span className="name">{match.name}</span>
                     {match.note && <span className="note">{match.note}</span>}
                     {match.tag && <span className="tag">{match.tag}</span>}

@@ -28,6 +28,13 @@ export interface PostDocMove {
   response: MoveResult
 }
 
+/** A folder, made empty. Git cannot hold an empty directory, so one lives on disk until it
+ *  has something in it — the same bargain every git client makes. */
+export interface PostFolder {
+  request: DocRef
+  response: { ok: true }
+}
+
 export interface DeleteDoc {
   request: DocRef
   response: { ok: true }

@@ -1,7 +1,7 @@
 {
   "name": "@broodmother/root",
   "private": true,
-  "version": "0.1.4",
+  "version": "0.2.0",
   "description": "Local markdown optimized for collaboration between people and agents.",
   "license": "MIT",
   "homepage": "https://github.com/SwampPear/broodmother#readme",

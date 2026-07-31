@@ -97,6 +97,7 @@ export interface App {
   notice: string | null
   dismissNotice(): void
   create(ref: DocRef): Promise<Failure>
+  createFolder(ref: DocRef): Promise<Failure>
   move(root: DocRoot, from: DocPath, to: DocPath): Promise<Failure>
   remove(ref: DocRef): Promise<Failure>
   save(ref: DocRef, markdown: string): Promise<Failure>
@@ -380,6 +381,12 @@ export function AppProvider({
     create: (ref) =>
       run(async () => {
         await client.request('PUT /api/doc', { ...ref, markdown: '' })
+        return `created ${ref.path}`
+      }),
+
+    createFolder: (ref) =>
+      run(async () => {
+        await client.request('POST /api/folder', ref)
         return `created ${ref.path}`
       }),
 

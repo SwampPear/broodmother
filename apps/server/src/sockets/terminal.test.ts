@@ -134,7 +134,7 @@ describe('terminals', () => {
     holds(`project ${project.name}`, 'tree')
     await until(() => shell.output().includes('tree-1\r\n'))
 
-    holds('# SOUL', 'soul')
+    holds('## Who you are', 'soul')
     await until(() => shell.output().includes('soul-1\r\n'))
   })
 

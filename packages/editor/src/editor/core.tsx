@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type * as Monaco from 'monaco-editor'
 import { COMMANDS, toggleWrap, triggerAt, type Command, type Trigger } from '../commands'
+import { INDENT, installLists } from '../lists'
 import {
   DARK,
   LIGHT,
@@ -89,6 +90,8 @@ const PROSE: Monaco.editor.IStandaloneEditorConstructionOptions = {
   bracketPairColorization: { enabled: false },
   guides: { indentation: false, bracketPairs: false, highlightActiveIndentation: false },
   renderWhitespace: 'none',
+  // A level of list, so a tab someone else wrote stands where Tab here would have put it.
+  tabSize: INDENT.length,
   overviewRulerLanes: 0,
   overviewRulerBorder: false,
   hideCursorInOverviewRuler: true,
@@ -99,6 +102,10 @@ const PROSE: Monaco.editor.IStandaloneEditorConstructionOptions = {
   fontSize: 16,
   lineHeight: 1.7,
   padding: { top: 48, bottom: 96 },
+  // Prose is set in a proportional face, and the cheap way to wrap counts every character
+  // as one typical one — which is most of a line too narrow when the line is mostly `i`,
+  // `l` and spaces. This measures the text instead, so a line fills the width it has.
+  wrappingStrategy: 'advanced',
 }
 
 const COMPACT: Monaco.editor.IStandaloneEditorConstructionOptions = {
@@ -165,6 +172,7 @@ export function Editor({
       created.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyI, () =>
         toggleWrap(created!, '*'),
       )
+      installLists(created, monaco)
 
       created.onDidChangeModelContent(() => {
         const model = created!.getModel()

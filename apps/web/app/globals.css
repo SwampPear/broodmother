@@ -50,6 +50,17 @@
   font-display: block;
 }
 
+/* Seti UI, the pack VS Code draws its file icons from. Only woff is published; every glyph
+   sits in the private use area, so nothing here falls back to a letter. */
+@font-face {
+  font-family: 'Seti';
+  src: url('/fonts/seti.woff') format('woff');
+  font-weight: normal;
+  font-style: normal;
+  font-display: block;
+  unicode-range: U+E000-F8FF;
+}
+
 :root {
   --white: #fffeee;
   --black: #1f1f1f;
@@ -432,11 +443,12 @@ body[data-resizing='column'] {
 
 /* The inset the app declares is the whole distance to the logo, so the anchor gives back
    what the row already spent — otherwise the gap after the window buttons is that much
-   wider than the one before them, and the logo reads as pushed off to one side. What is
-   left over is the row's own padding, which is what a browser tab gets: no inset there,
-   so the logo stands off the edge by the same 0.85rem the chevron does at the other end. */
+   wider than the one before them, and the logo reads as pushed off to one side. The margin
+   is spent first, being the part that shows: what is left over is padding, which is what a
+   browser tab gets — no inset there, so the logo stands off the edge by the same 0.85rem
+   the chevron does at the other end. */
 .tree-head.vault .vault-anchor {
-  padding-left: max(0px, 0.85rem - var(--titlebar-inset, 0px));
+  padding-left: max(0px, 0.85rem - var(--titlebar-inset, 0px) - 0.3rem);
 }
 
 .tree-head .logo {
@@ -446,14 +458,18 @@ body[data-resizing='column'] {
   object-fit: contain;
 }
 
+/* Standing off the row rather than filling it: the hover is a control you can see the edges
+   of, so it is inset by its own margin and rounded like everything else that lights up. */
 .vault-anchor {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   flex: 1;
   min-width: 0;
-  height: 100%;
-  padding: 0 0.85rem;
+  align-self: stretch;
+  margin: 0.3rem;
+  padding: 0 0.6rem;
+  border-radius: 0.4rem;
   background: transparent;
   border: none;
   font-weight: 550;
@@ -688,9 +704,23 @@ body[data-resizing='column'] {
 
 .icon {
   flex: none;
-  width: 1rem;
-  height: 1rem;
+  width: 1.15rem;
+  height: 1.15rem;
   color: var(--faint);
+}
+
+/* A glyph, not a drawing: it needs a line box the size of the sprite it stands in for, and
+   its own colour, which the language it names has already chosen. Seti hangs its ink off a
+   baseline near the foot of the em, which leaves it riding high in a box that is centred on
+   the row — so it comes back down by the distance between the two, measured. */
+.icon.seti {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Seti';
+  font-size: 1.15rem;
+  line-height: 1;
+  transform: translateY(0.17em);
 }
 
 .tree > ul li:hover .icon,
@@ -706,6 +736,12 @@ body[data-resizing='column'] {
   color: var(--tint);
   opacity: 0.55;
   transition: opacity 120ms ease;
+}
+
+/* The depth tint is what an outline has instead of a colour of its own. A language glyph
+   arrives with one, and dimming it that far takes the thing it was there to say. */
+.tree > ul .icon.seti {
+  opacity: 0.8;
 }
 
 .tree > ul li:hover .icon,
@@ -860,6 +896,10 @@ body[data-resizing='column'] {
   flex: none;
   width: 0.85rem;
   height: 0.85rem;
+}
+
+.tab .icon.seti {
+  font-size: 0.85rem;
 }
 
 /* The spark carries its colour into the strip: one glance says which tab is claude. */
@@ -1033,26 +1073,30 @@ body[data-resizing='column'] {
   margin: 0;
 }
 
-/* One line per key: the key, then what it does, in the same run of text. Left-aligned
-   inside a centred block, because a list read down the keys wants them all starting in the
-   same place. */
+/* One line per key: the key, then what it does. Two columns rather than one run of text,
+   so the keys start in the same place and so do the descriptions — a chord as wide as ⌘⇧S
+   no longer pushes its own line out of step with the rest. */
 .home-keys {
   margin: 1.1rem 0 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.35rem 0.75rem;
   text-align: left;
   font-size: 0.9rem;
 }
 
+/* Each row hands its two cells straight up to the grid, so the columns are measured across
+   every key at once instead of within a row. */
+.home-keys > div {
+  display: contents;
+}
+
 .home-keys dt,
 .home-keys dd {
-  display: inline;
   margin: 0;
 }
 
 .home-keys dd {
-  margin-left: 0.5rem;
   color: var(--faint);
 }
 

@@ -4,8 +4,8 @@ import { basename, type DocRef, type DocRoot } from '@broodmother/shared'
 import {
   ContextMenu,
   displayName,
+  FileIcon,
   Icon,
-  iconFor,
   Menu,
   type MenuAction,
   type MenuSection,
@@ -33,7 +33,11 @@ const name = (tab: Tab) =>
     : displayName(basename(tab.ref.path))
 
 const icon = (tab: Tab) =>
-  tab.kind === 'terminal' ? TERMINALS[tab.shell].icon : iconFor(tab.ref.path)
+  tab.kind === 'terminal' ? (
+    <Icon name={TERMINALS[tab.shell].icon} />
+  ) : (
+    <FileIcon path={tab.ref.path} />
+  )
 
 const NEW: (Omit<MenuAction, 'onSelect' | 'id'> & { id: NewTab })[] = [
   { id: 'note', label: 'New note', icon: 'plus' },
@@ -142,7 +146,7 @@ export function TabStrip({
             // Middle click closes, the way every other tab strip does.
             onAuxClick={(event) => event.button === 1 && onClose(tab)}
           >
-            <Icon name={icon(tab)} />
+            {icon(tab)}
             <span className="tab-name">{name(tab)}</span>
             <button
               type="button"

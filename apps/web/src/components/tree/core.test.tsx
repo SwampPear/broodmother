@@ -201,6 +201,19 @@ it('titles files by basename and tags every extension but markdown', () => {
   ).toBeInTheDocument()
 })
 
+/* A tag saying `rs` beside a glyph that already says rust is the same word twice, and the
+   name it was taken from is the one the file is known by everywhere else. */
+it('leaves a code file its extension and the glyph its language is known by', async () => {
+  show(null, withProject)
+  await userEvent.click(item('api'))
+
+  const code = item('main.rs')
+  expect(within(code).getByText('main.rs')).toBeInTheDocument()
+  expect(within(code).queryByText('rs')).not.toBeInTheDocument()
+  // Seti's rust glyph, U+E082.
+  expect(within(code).getByText('\uE082')).toBeInTheDocument()
+})
+
 it('expands a folder and opens a note with the keyboard alone', async () => {
   const { onOpen } = show()
   expect(screen.queryByRole('treeitem', { name: 'Overview.md' })).not.toBeInTheDocument()
@@ -379,4 +392,56 @@ it('offers the row commands on a right click, deleting through the same path as 
 
   await userEvent.click(within(menu).getByRole('menuitem', { name: 'Delete note…' }))
   expect(onCommand).toHaveBeenCalledWith('delete', vault('README.md'))
+})
+
+/* Somewhere to put a note is somewhere to put a folder. Both rows say `here`, because the
+   folder they are opened over is the one they land in. */
+it('offers a new folder on a folder, beside the new note', async () => {
+  const { onCommand } = show()
+
+  await userEvent.pointer({
+    keys: '[MouseRight]',
+    target: screen.getByRole('treeitem', { name: 'Handbook' }),
+  })
+
+  const menu = await screen.findByRole('menu')
+  expect(
+    within(menu)
+      .getAllByRole('menuitem')
+      .map((item) => item.textContent),
+  ).toEqual(['New note here', 'New folder here', 'Rename folder', 'Delete folder…'])
+
+  await userEvent.click(within(menu).getByRole('menuitem', { name: 'New folder here' }))
+  expect(onCommand).toHaveBeenCalledWith('create-folder', vault('Handbook'))
+})
+
+it('offers no new folder on a file, there being nowhere to put one', async () => {
+  show()
+
+  await userEvent.pointer({
+    keys: '[MouseRight]',
+    target: screen.getByRole('treeitem', { name: 'README.md' }),
+  })
+
+  expect(screen.queryByRole('menuitem', { name: /New folder/ })).not.toBeInTheDocument()
+})
+
+/* The pane behind the rows is the top of the vault, which is a folder like any other. */
+it('offers a new folder from the empty part of the pane', async () => {
+  const { onCommand } = show()
+
+  fireEvent.contextMenu(screen.getByRole('tree'))
+  const menu = await screen.findByRole('menu')
+  await userEvent.click(within(menu).getByRole('menuitem', { name: 'New folder' }))
+
+  expect(onCommand).toHaveBeenCalledWith('create-folder', vault(''))
+})
+
+it('makes one from the keyboard, where the note key already was', async () => {
+  const { onCommand } = show()
+
+  screen.getByRole('tree').focus()
+  await userEvent.keyboard('f')
+
+  expect(onCommand).toHaveBeenCalledWith('create-folder', vault('Handbook'))
 })

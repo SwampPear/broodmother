@@ -118,6 +118,7 @@ export function FileTree({
       ArrowLeft: () => row.entry.kind === 'dir' && toggle(ref, false),
       Enter: () => activate(row),
       n: () => onCommand('create', ref),
+      f: () => onCommand('create-folder', ref),
       // A tree's own row has no path: it is not a document to rename or throw away, and
       // what can be done to it is in the menu it opens.
       r: () => ref.path && onCommand('rename', ref),
@@ -142,6 +143,12 @@ export function FileTree({
           label: 'New note',
           icon: 'plus',
           onSelect: () => onCommand('create', VAULT_TOP),
+        },
+        {
+          id: 'new-folder',
+          label: 'New folder',
+          icon: 'plus',
+          onSelect: () => onCommand('create-folder', VAULT_TOP),
         },
         {
           id: 'new-project',

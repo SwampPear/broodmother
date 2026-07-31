@@ -37,19 +37,18 @@ Never commit or push unless you were asked to: the vault may be syncing on a tim
 commit of yours rides out with it. Never edit broodmother's config.json by hand — the
 routes above are how it changes.`
 
-const SOUL = '## Who you are, in the words of the person you are working with'
+const SOUL = '## Who you are'
 
 const MARK = '   ← you are here'
 
 export function brief(state: BriefState): string {
-  const written = state.soul?.trim()
   return [
     OPENING,
     where(state),
     trees(state),
     asking(state.api),
     HERE,
-    written ? `${SOUL}\n\n${written}` : DEFAULT_SOUL,
+    `${SOUL}\n\n${state.soul?.trim() || DEFAULT_SOUL}`,
   ]
     .filter(Boolean)
     .join('\n\n')

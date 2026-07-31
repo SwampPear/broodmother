@@ -1,12 +1,20 @@
 'use client'
 
 import type { DocRef, DocRoot, TreeEntry } from '@broodmother/shared'
-import { ContextMenu, displayName, fileTag, Icon, iconFor, type MenuSection } from '../ui'
+import {
+  ContextMenu,
+  displayName,
+  FileIcon,
+  fileTag,
+  Icon,
+  type MenuSection,
+} from '../ui'
 import { RenameRow } from './rename'
 import { dropFolder, sameRef } from './paths'
 import { type TreeDrag } from './drag'
 
-export type TreeCommand = 'create' | 'rename' | 'delete' | 'delete-project'
+export type TreeCommand =
+  'create' | 'create-folder' | 'rename' | 'delete' | 'delete-project'
 
 // The same commands the keys run, named after what the row is: a menu that says
 // `Delete folder…` over a folder has already answered what it is about to take. Rename opens
@@ -48,6 +56,12 @@ function menuFor(
                 label: 'New note here',
                 icon: 'plus' as const,
                 onSelect: () => onCommand('create', ref),
+              },
+              {
+                id: 'create-folder',
+                label: 'New folder here',
+                icon: 'plus' as const,
+                onSelect: () => onCommand('create-folder', ref),
               },
             ]
           : []),
@@ -145,7 +159,7 @@ export function TreeRow({
         {entry.kind === 'dir' ? (
           <Icon name={expanded ? 'chevron-down' : 'chevron-right'} />
         ) : (
-          <Icon name={iconFor(entry.path)} />
+          <FileIcon path={entry.path} />
         )}
         {renaming ? (
           <RenameRow entry={entry} onDone={onRename} />

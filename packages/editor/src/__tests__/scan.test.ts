@@ -5,7 +5,7 @@ import { revealed, scan, type Span } from '../preview'
 function hidden(text: string, caret = -1): string {
   const cursors: Span[] = caret < 0 ? [] : [{ from: caret, to: caret }]
   const marks = scan(text)
-    .markers.filter((marker) => !revealed(marker.owner, cursors))
+    .markers.filter((marker) => !revealed(marker.owner, cursors, marker.inline))
     .sort((a, b) => b.from - a.from)
   let out = text
   for (const mark of marks) out = out.slice(0, mark.from) + out.slice(mark.to)
@@ -32,6 +32,37 @@ describe('headings', () => {
 
   it('styles the line by its level', () => {
     expect(classes('### Title')).toContain('md-h3')
+  })
+})
+
+/* A run inside a line closes behind a caret that has stepped off it. Counting the edge as
+   inside leaves an element open because the caret is resting against the one before it —
+   which is how a link two along from the cursor came to be showing its whole URL. */
+describe('where an element ends', () => {
+  const LINE = 'see [one](http://a), [two](http://b) [three](http://c).'
+
+  it('closes a link the caret has just left', () => {
+    expect(hidden(LINE, LINE.indexOf(')') + 1)).toBe('see one, two three.')
+  })
+
+  it('closes a link the caret is resting in front of', () => {
+    expect(hidden(LINE, LINE.indexOf('[three]'))).toBe('see one, two three.')
+  })
+
+  it('opens the one the caret is actually in', () => {
+    expect(hidden(LINE, LINE.indexOf('three'))).toBe('see one, two [three](http://c).')
+  })
+
+  /* `a **bold** word` — the run is [2, 10), so 10 is off the end of it and 2 is in front. */
+  it('closes a bold run the caret is against either end of', () => {
+    expect(hidden('a **bold** word', 10)).toBe('a bold word')
+    expect(hidden('a **bold** word', 2)).toBe('a bold word')
+    expect(hidden('a **bold** word', 4)).toBe('a **bold** word')
+  })
+
+  it('keeps a heading open with the caret at either end of its line', () => {
+    expect(hidden('## Title', 0)).toBe('## Title')
+    expect(hidden('## Title', 8)).toBe('## Title')
   })
 })
 
@@ -160,6 +191,18 @@ describe('lists', () => {
     const [task] = scan(text).tasks
     expect(text.slice(task!.box.from, task!.box.to)).toBe('-')
     expect(task!.done).toBe(false)
+  })
+
+  /* Ticking one writes to the character between the brackets and to nothing else — the
+     space after the bullet is not part of the box, and writing an `x` over it would leave
+     a line that is no longer a task at all. */
+  it('points at the character a tick is written into', () => {
+    for (const text of ['- [ ] open', '  - [x] nested', '-   [ ] spaced']) {
+      const [task] = scan(text).tasks
+      expect(text.slice(task!.state.from, task!.state.to)).toMatch(/[ x]/)
+      expect(text[task!.state.from - 1]).toBe('[')
+      expect(text[task!.state.to]).toBe(']')
+    }
   })
 
   it('hides the brackets, so only the box shows', () => {

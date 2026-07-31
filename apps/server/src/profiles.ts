@@ -4,6 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { z } from 'zod'
 import type { GitAuthor, Identity, Profile } from '@broodmother/shared'
+import { DEFAULT_SOUL } from './brief'
 import { atomicWrite } from './fs'
 import { nameProblem } from './fs'
 
@@ -132,7 +133,20 @@ async function identityOf(file: string, name: string): Promise<Identity> {
     const result = field.safeParse(source[key])
     if (result.success) (identity as Record<string, unknown>)[key] = result.data
   }
-  return identity
+  return souled(identity)
+}
+
+/**
+ * Every profile has a soul whether or not anyone has written one, which is the rule the
+ * brief already follows. A file that never mentions one and a file that says `null` are the
+ * same thing said twice, so both read back as the default — and the profile's page opens on
+ * the prompt its agents are actually held to rather than on a blank box.
+ *
+ * Only what is handed back, never what is written: baking the default into every file would
+ * freeze it at the day the profile was made.
+ */
+function souled<T extends { soul: string | null }>(value: T): T {
+  return value.soul?.trim() ? value : { ...value, soul: DEFAULT_SOUL }
 }
 
 /** Every folder in the home holding a `profile.json` is a profile — drop one in and it is
@@ -175,9 +189,14 @@ export async function writeIdentity(
   identity: Identity,
 ): Promise<Profile> {
   const raw = await rawProfile(profile.path)
-  const next = { ...raw, ...identity }
+  // The page opens on the default, so saving one that was never touched comes back here as
+  // the default's own text. Storing it would freeze a copy of it on the day it was saved;
+  // what it means is that nobody has written a soul, which is what goes in the file.
+  const written =
+    identity.soul?.trim() === DEFAULT_SOUL ? { ...identity, soul: null } : identity
+  const next = { ...raw, ...written }
   await atomicWrite(profile.path, `${JSON.stringify(next, null, 2)}\n`, 0o600)
-  return { ...profile, ...identity }
+  return souled({ ...profile, ...written })
 }
 
 /** The key a profile keeps beside its own file, when it has one broodmother made. */

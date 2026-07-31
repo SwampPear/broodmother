@@ -27,6 +27,7 @@ const docBody = z.object({
   path: z.string(),
   markdown: z.string(),
 })
+const folderBody = z.object({ root: rootSchema, path: z.string() })
 const moveBody = z.object({
   root: rootSchema,
   from: z.string(),
@@ -245,6 +246,19 @@ export function createApp(ctx: AppContext): Hono {
       root: of,
       event: { type: existed ? 'changed' : 'created', path: docPath },
     })
+    return c.json({ ok: true } as const)
+  })
+
+  /**
+   * An empty folder. Nothing is written into it, so there is no link index to update and
+   * nothing for a commit to carry — git does not track a directory, only the files in one.
+   * The tree still hears about it, because the sidebar draws the disk rather than the repo.
+   */
+  app.post('/api/folder', async (c) => {
+    const { root: of, path } = await parse(c, folderBody)
+    const open = ctx.rootOf(of)
+    const docPath = await open.tree.mkdir(path)
+    ctx.broadcast({ type: 'tree', root: of, event: { type: 'created', path: docPath } })
     return c.json({ ok: true } as const)
   })
 

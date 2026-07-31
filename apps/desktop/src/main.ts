@@ -20,6 +20,12 @@ const PATH = [
   .concat(process.env.PATH ? [process.env.PATH] : [])
   .join(':')
 
+// Packaged, the name comes off the bundle electron-builder stamped. Run from a checkout
+// there is no bundle to read, so Electron calls the app after itself — in the menu bar, in
+// the About box, and in the folder it keeps its own state in. It is the same app either way
+// and answers to the same name.
+app.setName('broodmother')
+
 /** Assembled by `build.mjs`, then shipped beside the asar rather than inside it. */
 const runtime = app.isPackaged
   ? join(process.resourcesPath, 'runtime')
@@ -79,6 +85,18 @@ async function waitForSite(): Promise<boolean> {
   return false
 }
 
+/**
+ * The window controls float over the page, landing on the top-left of the app's own chrome.
+ * The app is told how wide they are; where to put them is its business, not ours. Full
+ * screen takes the controls away, and the room they were holding goes back to the page.
+ */
+function sendTitlebarInset(window: BrowserWindow): void {
+  const inset = window.isFullScreen() ? '0px' : '5rem'
+  void window.webContents.executeJavaScript(
+    `document.documentElement.style.setProperty('--titlebar-inset', '${inset}')`,
+  )
+}
+
 async function createWindow(): Promise<void> {
   const window = new BrowserWindow({
     width: 1280,
@@ -90,11 +108,10 @@ async function createWindow(): Promise<void> {
     show: false,
   })
   window.once('ready-to-show', () => window.show())
-  // The window controls float over the page, landing on the top-left of the app's own
-  // chrome. The app is told how wide they are; where to put them is its business, not ours.
-  window.webContents.on('did-finish-load', () => {
-    void window.webContents.insertCSS(':root { --titlebar-inset: 5rem }')
-  })
+  const inset = () => sendTitlebarInset(window)
+  window.webContents.on('did-finish-load', inset)
+  window.on('enter-full-screen', inset)
+  window.on('leave-full-screen', inset)
   // A link to somewhere on the web is the browser's job; this window is the app.
   window.webContents.setWindowOpenHandler(({ url }) => {
     void shell.openExternal(url)

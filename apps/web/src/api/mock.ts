@@ -67,14 +67,18 @@ const seedProfile: Profile = {
   github: null,
 }
 
-function tree(paths: DocPath[]): TreeEntry[] {
+/** `folders` are the ones holding nothing yet: every other folder is implied by a path
+ *  through it, and one nobody has put anything in has no path to be implied by. */
+function tree(paths: DocPath[], folders: Iterable<DocPath> = []): TreeEntry[] {
   const roots: TreeEntry[] = []
-  for (const path of [...paths].sort()) {
-    const parts = path.split('/')
+  const all = [...paths, ...[...folders].map((path) => `${path}/`)]
+  for (const path of all.sort()) {
+    const parts = path.split('/').filter(Boolean)
+    const file = !path.endsWith('/')
     let level = roots
     for (const [depth, name] of parts.entries()) {
       const here = parts.slice(0, depth + 1).join('/')
-      if (depth === parts.length - 1) {
+      if (file && depth === parts.length - 1) {
         level.push({ kind: 'file', path: here, name, size: 0, modifiedAt: 0 })
         break
       }
@@ -179,6 +183,8 @@ export function createMockClient(
   const emit = (message: ServerMessage) => listener?.(message)
   const emitTerminal = (message: TerminalServerMessage) => shell?.(message)
 
+  const dirs: Record<string, Set<DocPath>> = { vault: new Set() }
+  const dirsIn = (root: DocRoot) => (dirs[root] ??= new Set())
   const filesIn = (root: DocRoot) => {
     const name = projectOf(root)
     if (!name) return docs
@@ -202,10 +208,13 @@ export function createMockClient(
   const handlers: { [R in ApiRoute]: (body: ApiRequest<R>) => Promise<ApiResponse<R>> } =
     {
       'GET /api/tree': async () => ({
-        vault: tree(Object.keys(docs)),
+        vault: tree(Object.keys(docs), dirs.vault),
         projects: projects.map((one) => ({
           name: one.name,
-          entries: tree(Object.keys(projectDocs[one.name] ?? {})),
+          entries: tree(
+            Object.keys(projectDocs[one.name] ?? {}),
+            dirsIn(`project:${one.name}`),
+          ),
         })),
       }),
       'GET /api/branches': async ({ root }) => {
@@ -410,6 +419,11 @@ export function createMockClient(
           root,
           event: { type: created ? 'created' : 'changed', path },
         })
+        return { ok: true }
+      },
+      'POST /api/folder': async ({ root, path }) => {
+        dirsIn(root).add(path)
+        emit({ type: 'tree', root, event: { type: 'created', path } })
         return { ok: true }
       },
       'POST /api/doc/move': async ({ root, from, to }) => {

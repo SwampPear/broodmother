@@ -4,8 +4,8 @@ import { useEffect, useRef, useState } from 'react'
 import type { TreeEntry } from '@broodmother/shared'
 import { displayName } from '../ui'
 
-/** The row typed into where it sits. Only the basename is editable; the extension is the
- *  tag beside it and comes back on the way out. */
+/** The row typed into where it sits, editable as far as the name shows: a note hands back
+ *  the extension its tag was standing in for, a code file already wore its own. */
 export function RenameRow({
   entry,
   onDone,

@@ -5,7 +5,15 @@ export type {
   PostBranches,
 } from './branches'
 export type { DeleteData } from './data'
-export type { Backlink, DeleteDoc, GetDoc, GetLinks, PostDocMove, PutDoc } from './docs'
+export type {
+  Backlink,
+  DeleteDoc,
+  GetDoc,
+  GetLinks,
+  PostDocMove,
+  PostFolder,
+  PutDoc,
+} from './docs'
 export type {
   GetConfig,
   GetGit,

@@ -50,21 +50,20 @@ describe('brief', () => {
     expect(text).toContain('You are running in a terminal inside broodmother')
   })
 
-  it('gives a written soul a heading of its own, in place of the default', () => {
+  it('puts a written soul under the one heading, in place of the default', () => {
     const text = brief({ ...STATE, soul: "# Rules\n\nDon't be cheerful.\n" })
 
-    expect(text).toContain('## Who you are')
-    expect(text.trimEnd().endsWith("Don't be cheerful.")).toBe(true)
+    expect(text).toContain("## Who you are\n\n# Rules\n\nDon't be cheerful.")
     expect(text).not.toContain(DEFAULT_SOUL)
   })
 
   /* A profile that has never been written a soul is every profile on a fresh machine, so
-     the default is what an agent is held to until somebody says otherwise. */
-  it('falls back to the default soul, which speaks for itself', () => {
+     the default is what an agent is held to until somebody says otherwise — under the same
+     heading a written one gets, being the same thing. */
+  it('falls back to the default soul, under the same heading', () => {
     for (const soul of [null, '', '  \n ']) {
       const text = brief({ ...STATE, soul })
-      expect(text).toContain(DEFAULT_SOUL)
-      expect(text).not.toContain('## Who you are')
+      expect(text).toContain(`## Who you are\n\n${DEFAULT_SOUL}`)
     }
   })
 
