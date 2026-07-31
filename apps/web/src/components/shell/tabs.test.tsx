@@ -5,7 +5,7 @@ import { docTab, type Tab, TabStrip } from './tabs'
 
 const tabs: Tab[] = [
   docTab({ root: 'vault', path: 'Handbook/Overview.md' }),
-  { id: 'terminal:1', kind: 'terminal', shell: 'shell' },
+  { id: 'terminal:1', kind: 'terminal', shell: 'shell', root: 'vault' },
 ]
 
 function show(activeId: string | null = tabs[0]!.id) {

@@ -241,10 +241,10 @@ it('swaps the tabs when you switch project, from the same menu as the vault', as
       { name: 'web', repo: '/dev/web', missing: false },
     ],
     project: 'api',
-    projectDocs: { 'main.rs': 'fn main() {}\n' },
-    projectBranches: [
-      { name: 'main', path: '/dev/api', checkedOut: true, primary: true },
-    ],
+    projectDocs: { api: { 'main.rs': 'fn main() {}\n' } },
+    projectBranches: {
+      api: [{ name: 'main', path: '/dev/api', checkedOut: true, primary: true }],
+    },
   })
   const { rerender } = show(client)
   await screen.findByText('the vault')
@@ -257,11 +257,10 @@ it('swaps the tabs when you switch project, from the same menu as the vault', as
   expect(where).toHaveTextContent('handbook')
   expect(where).toHaveTextContent('api')
 
-  await userEvent.click(where)
-  await userEvent.click(await screen.findByRole('menuitemradio', { name: /web/ }))
+  // Clicking the project's row is the whole gesture: the row you touch is the tree you
+  // are working in, so there is no second control that says so.
+  await userEvent.click(await screen.findByRole('treeitem', { name: 'web' }))
 
-  // The menu holds its pick for the double-click window, so the switch lands a moment
-  // after the click — and until it does, the menu is over everything the rest asks about.
   await waitFor(() =>
     expect(screen.getByRole('button', { name: /handbook/ })).toHaveTextContent('web'),
   )
@@ -269,30 +268,32 @@ it('swaps the tabs when you switch project, from the same menu as the vault', as
   expect(screen.queryByRole('tab', { name: /Overview/ })).not.toBeInTheDocument()
 })
 
-/* Two branch selectors, one for each repository: the vault's over the tree it changes, the
-   project's at the end of the tabs it changes. */
-it('gives the vault and the project a branch selector each', async () => {
+/* One branch selector, not one per repository: it belongs to the tabs beside it, and the
+   tabs are about the tree you are standing in. So it follows the scope. */
+it('points the branch selector at the repository the scope is in', async () => {
   show(
     createMockClient({
       projects: [{ name: 'api', repo: '/dev/api', missing: false }],
       project: 'api',
-      projectBranches: [
-        { name: 'main', path: '/dev/api', checkedOut: true, primary: true },
-        {
-          name: 'fix-login',
-          path: '/h/.projects/api/fix-login',
-          checkedOut: false,
-          primary: false,
-        },
-      ],
+      projectBranches: {
+        api: [
+          { name: 'main', path: '/dev/api', checkedOut: true, primary: true },
+          {
+            name: 'fix-login',
+            path: '/h/.projects/api/fix-login',
+            checkedOut: false,
+            primary: false,
+          },
+        ],
+      },
     }),
   )
   await screen.findByText('the vault')
 
   const menus = await screen.findAllByRole('button', { name: 'Branch' })
-  expect(menus).toHaveLength(2)
-  // The one in the tab bar is the project's, and it offers the project's branches.
-  await userEvent.click(menus[1]!)
+  expect(menus).toHaveLength(1)
+  // The scope opens on the project, so the branches offered are the project's.
+  await userEvent.click(menus[0]!)
   expect(
     await screen.findByRole('menuitemradio', { name: /fix-login/ }),
   ).toBeInTheDocument()

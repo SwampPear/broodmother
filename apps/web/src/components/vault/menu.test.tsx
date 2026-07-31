@@ -2,17 +2,12 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
-import type { Profile, ProjectSummary, VaultSummary } from '@broodmother/shared'
+import type { Profile, VaultSummary } from '@broodmother/shared'
 import { VaultMenu } from './menu'
 
 const vaults: VaultSummary[] = [
   { name: 'Work', path: '/Users/you/.broodmother/Work', profile: 'ada' },
   { name: 'Personal', path: '/Users/you/.broodmother/Personal', profile: undefined },
-]
-
-const projects: ProjectSummary[] = [
-  { name: 'api', repo: '/Users/you/dev/api', missing: false },
-  { name: 'web', repo: '/Users/you/dev/web', missing: false },
 ]
 
 const profiles: Profile[] = [
@@ -45,9 +40,7 @@ function show(
   const onSelect = vi.fn()
   const onAdd = vi.fn()
   const onDelete = vi.fn()
-  const onSelectProject = vi.fn()
   const onCreateProject = vi.fn()
-  const onUnlinkProject = vi.fn()
   const onSelectProfile = vi.fn()
   const onAddProfile = vi.fn()
   const onSettings = vi.fn()
@@ -58,7 +51,6 @@ function show(
       <VaultMenu
         vaults={vaults}
         activePath={activePath}
-        projects={projects}
         activeProject={activeProject}
         profiles={profiles}
         activeProfile="ada"
@@ -67,9 +59,7 @@ function show(
         onSelect={onSelect}
         onAdd={onAdd}
         onDelete={onDelete}
-        onSelectProject={onSelectProject}
         onCreateProject={onCreateProject}
-        onUnlinkProject={onUnlinkProject}
         onSelectProfile={onSelectProfile}
         onAddProfile={onAddProfile}
         onSettings={onSettings}
@@ -81,9 +71,7 @@ function show(
     onSelect,
     onAdd,
     onDelete,
-    onSelectProject,
     onCreateProject,
-    onUnlinkProject,
     onSelectProfile,
     onAddProfile,
     onSettings,
@@ -150,57 +138,11 @@ it('does not re-apply the profile already in use', async () => {
 
 /* Where you are working is one question, so the project is picked in the same list as the
    vault it belongs to and the profile you do it as — not from a control of its own. */
-it('picks the project in the same surface as the vault and the profile', async () => {
-  const { onSelectProject } = show()
-  await open()
-
-  const headings = screen.getAllByRole('group').length
-  expect(headings).toBeGreaterThanOrEqual(3)
-  await userEvent.click(screen.getByRole('menuitemradio', { name: /api/ }))
-
-  await waitFor(() => expect(onSelectProject).toHaveBeenCalledWith('api'))
-})
-
 it('names the open project beside the vault, so neither has to be opened to read', () => {
   show('/Users/you/.broodmother/Work', 'api')
   const anchor = screen.getByRole('button')
   expect(anchor).toHaveTextContent('Work')
   expect(anchor).toHaveTextContent('api')
-})
-
-/* Closing the project is a row like any other: it is one of the things it can be. */
-it('closes the project from the row that says no project', async () => {
-  const { onSelectProject } = show('/Users/you/.broodmother/Work', 'api')
-  await open()
-
-  await userEvent.click(screen.getByRole('menuitemradio', { name: /No project/ }))
-
-  await waitFor(() => expect(onSelectProject).toHaveBeenCalledWith(null))
-})
-
-it('does not re-open the project already open', async () => {
-  const { onSelectProject } = show('/Users/you/.broodmother/Work', 'api')
-  await open()
-  await userEvent.click(screen.getByRole('menuitemradio', { name: /api/ }))
-  expect(onSelectProject).not.toHaveBeenCalled()
-})
-
-/* The same second gesture the vault rows have, and it unlinks rather than deletes: the
-   repository is yours. */
-it('drills into a project and unlinks it after saying what stays', async () => {
-  const { onUnlinkProject, onSelectProject } = show()
-  await open()
-
-  await rightClick(/api/)
-  await userEvent.click(await screen.findByRole('menuitem', { name: /Unlink project/ }))
-
-  const dialog = await screen.findByRole('dialog', { name: 'Unlink api?' })
-  expect(dialog).toHaveTextContent('/Users/you/dev/api')
-  expect(dialog).toHaveTextContent(/stays exactly where it is/)
-  await userEvent.click(screen.getByRole('button', { name: 'unlink project' }))
-
-  expect(onUnlinkProject).toHaveBeenCalledWith('api')
-  await waitFor(() => expect(onSelectProject).not.toHaveBeenCalled())
 })
 
 it('opens the link-a-project flow from its own row', async () => {

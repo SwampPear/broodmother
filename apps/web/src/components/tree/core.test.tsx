@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, expect, it, vi } from 'vitest'
-import type { TreeEntry } from '@broodmother/shared'
+import { projectRoot, type TreeEntry } from '@broodmother/shared'
 import { FileTree } from './core'
 import { fileRefs, type TreeRoot } from './paths'
 
@@ -40,6 +40,9 @@ const entries: TreeEntry[] = [
 
 const vault = (path: string) => ({ root: 'vault' as const, path })
 
+const API = projectRoot('api')
+const project = (path: string) => ({ root: API, path })
+
 const projectEntries: TreeEntry[] = [
   { kind: 'file', path: 'main.rs', name: 'main.rs', size: 0, modifiedAt: 0 },
 ]
@@ -48,20 +51,27 @@ const roots: TreeRoot[] = [{ root: 'vault', entries }]
 
 const withProject: TreeRoot[] = [
   ...roots,
-  { root: 'project', entries: projectEntries, label: 'api' },
+  { root: API, entries: projectEntries, label: 'api' },
 ]
 
 function show(renaming: string | null = null, trees: TreeRoot[] = roots) {
   const onOpen = vi.fn()
+  const onOpenFolder = vi.fn()
+  const onScope = vi.fn()
   const onCommand = vi.fn()
+  const onCreateProject = vi.fn()
   const onMove = vi.fn()
   const onRename = vi.fn()
   render(
     <FileTree
       roots={trees}
       current={vault('README.md')}
+      scope="vault"
       onOpen={onOpen}
+      onOpenFolder={onOpenFolder}
+      onScope={onScope}
       onCommand={onCommand}
+      onCreateProject={onCreateProject}
       onMove={onMove}
       renaming={renaming === null ? null : vault(renaming)}
       onRename={onRename}
@@ -70,7 +80,7 @@ function show(renaming: string | null = null, trees: TreeRoot[] = roots) {
   // Focus belongs to the field when there is one; taking it for the list would be taking
   // it off the thing the test is about.
   if (!renaming) screen.getByRole('tree').focus()
-  return { onOpen, onCommand, onMove, onRename }
+  return { onOpen, onOpenFolder, onScope, onCommand, onCreateProject, onMove, onRename }
 }
 
 const field = () => screen.getByRole('textbox') as HTMLInputElement
@@ -110,7 +120,7 @@ it('collects every file in every tree, as the address that names it', () => {
     vault('Handbook/Archive/Old.md'),
     vault('README.md'),
     vault('chip.png'),
-    { root: 'project', path: 'main.rs' },
+    project('main.rs'),
   ])
 })
 
@@ -124,7 +134,7 @@ it('heads the project’s files with its name and opens them from there', async 
 
   await userEvent.click(head)
   await userEvent.click(screen.getByRole('treeitem', { name: 'main.rs' }))
-  expect(onOpen).toHaveBeenCalledWith({ root: 'project', path: 'main.rs' })
+  expect(onOpen).toHaveBeenCalledWith(project('main.rs'))
 })
 
 /* Carrying a file between a vault and a repository is a copy, and dragging a row is not
