@@ -42,6 +42,10 @@ describe('Tree', () => {
     expect(dotted?.kind === 'dir' && dotted.children.map((c) => c.path)).toEqual([
       '.claude/Notes.md',
     ])
+
+    // Listed is not enough: a dotted file has to read and count as a document too.
+    expect(await project.read('.env')).toBe('SECRET=1')
+    expect(await project.documents()).toContain('.claude/Notes.md')
   })
 
   it('skips .git and gitignored files', async () => {

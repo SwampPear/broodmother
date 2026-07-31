@@ -1,5 +1,4 @@
 import { watch, type FSWatcher } from 'chokidar'
-import path from 'node:path'
 import type { TreeEvent } from '@broodmother/shared'
 import { RESERVED, toDocPath } from '../fs'
 
@@ -31,7 +30,15 @@ export class TreeWatcher {
     this.watcher = watch(root, {
       ignoreInitial: true,
       followSymlinks: false,
-      ignored: (target) => target !== root && RESERVED.has(path.basename(target)),
+      // What the tree lists is what is watched: dotted files included, git's store and the
+      // app's own folder left alone — `.git` churns on every command and none of it is
+      // content. Every segment is checked, not just the last: nothing under `.git/` is
+      // content either.
+      ignored: (target) =>
+        target !== root &&
+        toDocPath(root, target)
+          .split('/')
+          .some((segment) => RESERVED.has(segment)),
     })
     this.ready = new Promise((resolve) => this.watcher.once('ready', () => resolve()))
     this.watcher.on('add', (p) =>

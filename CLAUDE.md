@@ -1,7 +1,6 @@
 # broodmother — agent resources
 
-A Mac app for reading and writing a folder of markdown. Everything runs on one laptop: no
-deployment, no CI, no auth.
+A Mac app for reading and writing a folder of markdown. Everything runs on one laptop: no deployment, no CI, no auth.
 
 ## Read first
 

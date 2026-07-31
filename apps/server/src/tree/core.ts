@@ -26,6 +26,8 @@ export class Tree {
     const entries: TreeEntry[] = []
 
     for (const dirent of dirents) {
+      // A dotted name is still a document — `.gitignore` is as editable as any other.
+      // Only git's store and the app's own folders are held back.
       if (RESERVED.has(dirent.name)) continue
       const docPath = prefix ? `${prefix}/${dirent.name}` : dirent.name
       if (ignored.has(docPath)) continue

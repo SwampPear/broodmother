@@ -51,6 +51,19 @@ describe('TreeWatcher', { retry: 2 }, () => {
     }
   })
 
+  it('reports a dotted file the way it reports any other', async () => {
+    const w = await watching()
+    try {
+      await writeFile(path.join(w.root, '.gitignore'), 'build/\n')
+      await until(() => w.events.length > 0)
+      expect(w.events.map((e) => (e.type === 'moved' ? e.to : e.path))).toEqual([
+        '.gitignore',
+      ])
+    } finally {
+      await w.watcher.close()
+    }
+  })
+
   /* Listed by the tree, so watched like anything else — a dot folder that never reported a
      change would show a note you could open and never see move. */
   it('reports a change inside a dotted folder', async () => {
