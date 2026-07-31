@@ -9,8 +9,8 @@ import { useTreeDrag } from './drag'
 
 export type { TreeCommand }
 
-/** The top of the vault: what the rows leave over, and where anything asked for from the
- *  empty part of the pane lands. */
+/** The top of the vault: the row it is headed by, what the rows leave over, and where
+ *  anything asked for from the empty part of the pane lands. */
 const VAULT_TOP: DocRef = { root: 'vault', path: '' }
 
 /**
@@ -55,7 +55,12 @@ export function FileTree({
    *  way; whether anything moves is the caller's to decide. */
   onRename: (ref: DocRef, name: string | null) => void
 }) {
-  const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  // The vault's own row starts open: it is what the sidebar is for, and a tree that opens
+  // shut has hidden the documents to offer a collapse nobody asked for yet. The projects
+  // start closed, because a repository's files are not what you came to read.
+  const [expanded, setExpanded] = useState<Set<string>>(
+    () => new Set([refKey(VAULT_TOP)]),
+  )
   const [cursor, setCursor] = useState(0)
 
   const rows = flatten(roots, expanded)
@@ -113,8 +118,10 @@ export function FileTree({
       ArrowLeft: () => row.entry.kind === 'dir' && toggle(ref, false),
       Enter: () => activate(row),
       n: () => onCommand('create', ref),
-      r: () => onCommand('rename', ref),
-      d: () => onCommand('delete', ref),
+      // A tree's own row has no path: it is not a document to rename or throw away, and
+      // what can be done to it is in the menu it opens.
+      r: () => ref.path && onCommand('rename', ref),
+      d: () => ref.path && onCommand('delete', ref),
     }
     const handler = keys[event.key]
     if (!handler) return
@@ -155,7 +162,7 @@ export function FileTree({
           tabIndex={0}
           onKeyDown={onKeyDown}
           // Whatever the rows leave over is the vault's root, which is how a file comes back
-          // out of a folder. A project's root is a row of its own, so it is not this.
+          // out of a folder without aiming at the row that heads it.
           data-drop={
             drag.target?.root === 'vault' && drag.target.path === '' ? true : undefined
           }

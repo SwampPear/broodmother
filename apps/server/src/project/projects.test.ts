@@ -5,11 +5,11 @@ import type { Profile } from '@broodmother/shared'
 import { cleanup, git, tempDir } from '../test'
 import {
   ProjectError,
+  createProject,
+  deleteProject,
   findProject,
-  forgetProject,
   listProjects,
   projectCheckouts,
-  registerProject,
 } from './projects'
 
 afterAll(cleanup)
@@ -17,7 +17,7 @@ afterAll(cleanup)
 /** Whoever a repository broodmother makes commits as. */
 const PROFILE: Profile = {
   name: 'tester',
-  path: '/nowhere/tester.json',
+  path: '/nowhere/tester/profile.json',
   color: '#c084fc',
   gitAuthor: { name: 'Tester', email: 'tester@example.com' },
   sshKeyPath: null,
@@ -26,7 +26,8 @@ const PROFILE: Profile = {
   github: null,
 }
 
-async function repo(name = 'api') {
+/** A repository to clone from, standing in for a remote. */
+async function remote(name = 'api') {
   const dir = path.join(await tempDir(), name)
   await mkdir(dir, { recursive: true })
   await git(dir, 'init', '--initial-branch=main')
@@ -36,143 +37,103 @@ async function repo(name = 'api') {
   return dir
 }
 
-describe('registerProject', () => {
-  it('links a folder that already exists and writes it into the vault', async () => {
+const local = (vault: string, name: string) =>
+  path.join(vault, '.projects', name, 'local')
+
+describe('createProject', () => {
+  it('makes the repository inside the vault, with the git it was asked for', async () => {
     const vault = await tempDir()
-    const dir = await repo()
 
-    const linked = await registerProject(vault, { name: 'api', repo: dir })
+    const made = await createProject(vault, { name: 'api', git: 'local' }, PROFILE)
 
-    expect(linked).toEqual({ name: 'api', repo: dir, missing: false })
-    expect(
-      JSON.parse(await readFile(path.join(vault, '.projects', 'projects.json'), 'utf8')),
-    ).toEqual({ api: dir })
+    expect(made).toEqual({ name: 'api', repo: local(vault, 'api') })
+    expect((await stat(path.join(made.repo, '.git'))).isDirectory()).toBe(true)
+    // A branch of a project is a worktree, and git makes none of a repository with no
+    // commits — so the one it starts with is the point of it.
+    const log = await git(made.repo, 'log', '--oneline')
+    expect(log.stdout).toContain('create project api')
   })
 
-  /* Git is optional the same way it is for a vault: a folder of code is a place to work. */
-  it('links a folder with no repository in it', async () => {
+  it('clones a remote into the project', async () => {
     const vault = await tempDir()
-    const dir = await tempDir()
-    await expect(
-      registerProject(vault, { name: 'plain', repo: dir }),
-    ).resolves.toMatchObject({ name: 'plain' })
-  })
+    const source = await remote('origin')
 
-  /* Creating a project and linking one you have are the same gesture: what is missing is
-     made, the way a vault's folder is, and what is there is left alone. */
-  it('makes the folder when there is none, with the git it was asked for', async () => {
-    const vault = await tempDir()
-    const dir = path.join(await tempDir(), 'api')
-
-    const made = await registerProject(
+    const made = await createProject(
       vault,
-      { name: 'api', repo: dir, git: 'local' },
+      { name: 'api', git: 'remote', remoteUrl: source, branch: 'main' },
       PROFILE,
     )
 
-    expect(made).toEqual({ name: 'api', repo: dir, missing: false })
-    expect((await stat(path.join(dir, '.git'))).isDirectory()).toBe(true)
-    // A branch of a project is a worktree, and git makes none of a repository with no
-    // commits — so the one it starts with is the point of it.
-    const log = await git(dir, 'log', '--oneline')
-    expect(log.stdout).toContain('create project api')
+    expect(made.repo).toBe(local(vault, 'api'))
+    expect((await stat(path.join(made.repo, '.git'))).isDirectory()).toBe(true)
+    expect(await readFile(path.join(made.repo, 'main.rs'), 'utf8')).toBe('fn main() {}\n')
   })
 
   it('makes a plain folder when it was asked for no git', async () => {
     const vault = await tempDir()
-    const dir = path.join(await tempDir(), 'plain')
 
-    await registerProject(vault, { name: 'plain', repo: dir, git: 'none' }, PROFILE)
+    const made = await createProject(vault, { name: 'plain', git: 'none' }, PROFILE)
 
-    expect((await stat(dir)).isDirectory()).toBe(true)
-    await expect(stat(path.join(dir, '.git'))).rejects.toThrow()
-  })
-
-  /* Nothing is created for a caller with no profile to commit as. */
-  it('refuses a folder that is not there when there is nobody to make it as', async () => {
-    const vault = await tempDir()
-    await expect(
-      registerProject(vault, { name: 'api', repo: path.join(vault, 'nope') }),
-    ).rejects.toThrow(ProjectError)
+    expect((await stat(made.repo)).isDirectory()).toBe(true)
+    await expect(stat(path.join(made.repo, '.git'))).rejects.toThrow()
   })
 
   it('refuses a name already taken, and one that is not a plain name', async () => {
     const vault = await tempDir()
-    const dir = await repo()
-    await registerProject(vault, { name: 'api', repo: dir })
+    await createProject(vault, { name: 'api' }, PROFILE)
 
-    await expect(registerProject(vault, { name: 'api', repo: dir })).rejects.toThrow(
+    await expect(createProject(vault, { name: 'api' }, PROFILE)).rejects.toThrow(
       ProjectError,
     )
-    await expect(
-      registerProject(vault, { name: '../escape', repo: dir }),
-    ).rejects.toThrow(ProjectError)
+    await expect(createProject(vault, { name: '../escape' }, PROFILE)).rejects.toThrow(
+      ProjectError,
+    )
   })
 })
 
 describe('listProjects', () => {
-  it('is empty in a vault that has linked none', async () => {
+  it('is empty in a vault that has none', async () => {
     expect(await listProjects(await tempDir())).toEqual([])
   })
 
-  it('sorts by name and says which repositories have gone', async () => {
+  it('sorts by name, and picks up a folder dropped in by hand', async () => {
     const vault = await tempDir()
-    await registerProject(vault, { name: 'web', repo: await repo('web') })
-    await registerProject(vault, { name: 'api', repo: await repo('api') })
-    await writeFile(
-      path.join(vault, '.projects', 'projects.json'),
-      JSON.stringify({ web: '/gone/web', api: await findRepo(vault, 'api') }),
-    )
+    await createProject(vault, { name: 'web' }, PROFILE)
+    await createProject(vault, { name: 'api' }, PROFILE)
+    await mkdir(local(vault, 'dropped-in'), { recursive: true })
 
-    const listed = await listProjects(vault)
-    expect(listed.map((one) => one.name)).toEqual(['api', 'web'])
-    expect(listed.map((one) => one.missing)).toEqual([false, true])
-  })
-
-  /* A register nobody can read is a vault with no projects, not a vault that will not open. */
-  it('reads a malformed register as no projects at all', async () => {
-    const vault = await tempDir()
-    await mkdir(path.join(vault, '.projects'), { recursive: true })
-    await writeFile(path.join(vault, '.projects', 'projects.json'), 'not json')
-    expect(await listProjects(vault)).toEqual([])
+    expect((await listProjects(vault)).map((one) => one.name)).toEqual([
+      'api',
+      'dropped-in',
+      'web',
+    ])
+    expect((await findProject(vault, 'api'))?.repo).toBe(local(vault, 'api'))
   })
 })
-
-async function findRepo(vault: string, name: string): Promise<string> {
-  const found = await findProject(vault, name)
-  return found!.repo
-}
 
 describe('projectCheckouts', () => {
-  it('makes the repository the primary and puts worktrees in the vault', () => {
-    const checkouts = projectCheckouts('/home/handbook', {
-      name: 'api',
-      repo: '/dev/api',
-      missing: false,
-    })
-    expect(checkouts).toEqual({
-      primary: '/dev/api',
-      worktrees: path.join('/home/handbook', '.projects', 'api'),
+  it('is shaped like the vault holding it: `local`, and its branches beside it', () => {
+    expect(projectCheckouts('/home/you/handbook', 'api')).toEqual({
+      primary: path.join('/home/you/handbook', '.projects', 'api', 'local'),
+      worktrees: path.join('/home/you/handbook', '.projects', 'api'),
     })
   })
 })
 
-describe('forgetProject', () => {
-  it('drops the link and the checkouts, and leaves the repository where it is', async () => {
+describe('deleteProject', () => {
+  it('takes the repository and every checkout of it', async () => {
     const vault = await tempDir()
-    const dir = await repo()
-    await registerProject(vault, { name: 'api', repo: dir })
-    const worktrees = path.join(vault, '.projects', 'api')
-    await mkdir(path.join(worktrees, 'fix-login'), { recursive: true })
+    const made = await createProject(vault, { name: 'api', git: 'local' }, PROFILE)
+    await mkdir(path.join(vault, '.projects', 'api', 'fix-login'), { recursive: true })
 
-    await forgetProject(vault, 'api')
+    await deleteProject(vault, 'api')
 
     expect(await listProjects(vault)).toEqual([])
-    await expect(stat(worktrees)).rejects.toThrow()
-    expect(await stat(path.join(dir, 'main.rs'))).toBeTruthy()
+    await expect(stat(made.repo)).rejects.toThrow()
+    await expect(stat(path.join(vault, '.projects', 'api'))).rejects.toThrow()
   })
 
   it('refuses one it has never heard of', async () => {
-    await expect(forgetProject(await tempDir(), 'nope')).rejects.toThrow(ProjectError)
+    await expect(deleteProject(await tempDir(), 'nope')).rejects.toThrow(ProjectError)
   })
 })

@@ -42,7 +42,8 @@ export function VaultMenu({
    *  rather than chosen here. */
   activeProject: string | null
   profiles: Profile[]
-  /** Name of the profile the open vault commits as, null until one is picked. */
+  /** Name of the profile you are working as, whose vaults these are. Null until one is
+   *  picked, which is only ever a first run. */
   activeProfile: string | null
   /** Controlled, because ⌘K asks for this menu too — `Switch vault` is this list, not a
    *  second surface that does the same thing. */
@@ -89,10 +90,11 @@ export function VaultMenu({
 
   const vaultSection: MenuSection = {
     heading: 'Vaults',
+    // No profile on the rows: these are the folders in one profile's folder, and the
+    // section below says which profile that is.
     actions: vaults.map((vault) => ({
       id: vault.path,
       label: vault.name,
-      description: vault.profile ?? 'no profile yet',
       selected: vault.path === active?.path,
       onSelect: () => {
         close()
@@ -178,9 +180,9 @@ export function VaultMenu({
           onClose={() => setConfirming(null)}
         >
           A vault is a folder, so this is the folder going away — the git history inside
-          it with everything else. What you pushed is still on the remote, and cloning it
-          again makes the vault again. The profile it worked as is a file of its own and
-          stays where it is, and so does every repository it linked as a project.
+          it with everything else, and every project that was in it. What you pushed is
+          still on the remote, and cloning it again makes the vault again. The profile it
+          worked as is the folder around it and stays where it is.
         </Confirm>
       )}
     </div>

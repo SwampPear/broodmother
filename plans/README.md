@@ -20,6 +20,7 @@ relay, which is a process on a network so that two laptops can reach each other.
 | 07  | [Live collab over a relay](07-p2p-collab.md)   | `packages/collab/`, `apps/relay/`                         | wave 3       |
 | 08  | [Git credentials](08-git-credentials.md)       | ssh, the access check, key generation                     | built        |
 | 09  | [Active scope](09-active-scope.md)             | one root the tabs, terminals and branches all follow      | planned      |
+| 10  | [Agent brief](10-agent-brief.md)               | what claude is told when a terminal opens it              | built        |
 
 ## Rules
 

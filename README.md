@@ -66,33 +66,37 @@ long the vault has to be quiet first. A vault with no repository has nothing to 
 
 ## Vaults, projects, branches and profiles
 
-`~/.broodmother/` is the home: it holds your vaults and the profiles they commit as.
+`~/.broodmother/` is the home, and everything broodmother has is inside it: profiles hold
+vaults, and vaults hold projects. Nothing is stored anywhere else, and no folder is ever
+typed in — a name is all any of them takes.
 
 ```
 ~/.broodmother/
-├── config.json           # this machine: which vault is open, which checkout in it, which
-│                         # project inside it, which profile each commits as, how each syncs
-├── profiles/
-│   ├── personal.json     # who you commit as, and the credentials you do it with
-│   └── work.json
-├── handbook/             # a vault
-│   ├── local/            # the clone, on the default branch
-│   ├── fix-docs/         # a branch you have opened, checked out here
-│   ├── spike-auth/       # another
-│   └── .projects/
-│       ├── projects.json # the repositories these documents are about
-│       └── api/
-│           └── fix-login/  # a branch of ~/dev/api, checked out here
-└── notes/                # a vault
-    └── local/
+├── config.json             # this machine: who you are working as, which vault is open,
+│                           # which checkout in it, which project inside it, how each syncs
+├── personal/               # a profile
+│   ├── profile.json        # who you commit as, and the credentials you do it with
+│   ├── profile.key         # the key broodmother made for it, if it has one
+│   ├── handbook/           # a vault
+│   │   ├── local/          # the clone, on the default branch
+│   │   ├── fix-docs/       # a branch you have opened, checked out here
+│   │   ├── spike-auth/     # another
+│   │   └── .projects/
+│   │       └── api/        # a project
+│   │           ├── local/  # the repository itself
+│   │           └── fix-login/  # a branch of it, checked out here
+│   └── notes/              # another vault
+│       └── local/
+└── work/                   # another profile, with vaults of its own
+    └── profile.json
 ```
 
 ### A vault is where you work
 
-Every folder in the home is a vault — drop one in by hand and it shows up, no registration
-step. The folder name _is_ the name, so renaming a vault is renaming the folder.
-`profiles/` is the one name a vault cannot have, because that is where the profiles live.
-Vaults outside the home still open fine: pass a path or set `BROODMOTHER_VAULT`.
+Every folder in a profile's folder is a vault — drop one in by hand and it shows up, no
+registration step. The folder name _is_ the name, so renaming a vault is renaming the
+folder. Which profile a vault commits as is which folder it is in, so the vaults you can
+open are the ones belonging to the profile you are working as.
 
 Switching between them, and making a new one, is the vault menu at the top of the tree — or
 `Switch or create vault` from ⌘K.
@@ -106,16 +110,16 @@ whose remote you repoint is pointed there.
 
 ### A project is what the documents are about
 
-Notes about a codebase are not the codebase. A **project** is a repository somewhere on disk
-— `~/dev/api` — linked to the vault whose documents cover it. A docs repo usually covers
-several, so a vault has as many projects as it needs; a project belongs to the one vault.
+Notes about a codebase are not the codebase. A **project** is a repository the vault's
+documents are about, and it lives in the vault under `.projects/`. A docs repo usually
+covers several, so a vault has as many projects as it needs; a project belongs to the one
+vault, and goes wherever the vault goes.
 
-`New project…` asks for a folder, a name, the vault it belongs to, and how much git it
-gets — the same three amounts a vault is offered. A folder that is not there yet is made the
-way a vault's is; one that already exists is linked exactly where it is and nothing is
-written into it, because the repository was yours before broodmother heard of it. Unlinking
-leaves it where it is too. Git is optional here as well: a folder of code with no repository
-still opens, and the branch menu simply has nothing to offer.
+`New project…` asks for a name, the vault it belongs to, and how much git it gets — the same
+three amounts a vault is offered. Where it goes is not asked, because there is one answer.
+Git is optional here as well: a folder of code with no repository still opens, and the
+branch menu simply has nothing to offer. Deleting a project deletes the repository with it —
+it is the only copy, so anything not pushed goes with it.
 
 One project is open at a time. It is picked where the vault and the profile are picked —
 the selector at the head of the tree, which is one list because it is one question: where
@@ -137,11 +141,9 @@ the same repository, each on its own branch, each with its own files on disk. Sw
 branch shows that branch's files and that branch's tabs. Nothing is stashed and nothing is
 swapped — the branches are simply in different folders.
 
-Projects work the same way, with one difference: the repository is yours, so it is never
-checked out from under you. `~/dev/api` stays on the branch you left it on and is the
-project's primary checkout; every other branch you open gets a worktree inside the vault,
-under `.projects/<project>/`. Your dev folder is left alone, and unlinking the project takes
-those worktrees with it and nothing else.
+Projects work exactly the same way, one folder deeper: `.projects/<project>/local` is the
+repository, on the default branch, and every other branch you open gets a worktree beside
+it.
 
 Each has its own branch menu, over the thing it changes: the vault's under the vault name at
 the top of the tree, the project's at the end of the tab bar. Both list every branch the
@@ -158,11 +160,11 @@ it is the clone the others point into, and for a project because it is your fold
 
 ### A profile is who you are
 
-Profiles are shared by every vault rather than owned by one, so the identity you set up
-once — git author, colour, and the `CLAUDE_CONFIG_DIR` its terminals run with —
-serves every vault that picks it. Which profile a vault commits as is recorded in
-`config.json` rather than in the vault, because a vault is a git working tree and anything
-written inside one is something the sync loop would offer to commit.
+A profile is a folder in the home, and its vaults are the folders in it — so the identity
+you set up once (git author, colour, and the `CLAUDE_CONFIG_DIR` its terminals run with)
+serves everything filed under it, and which profile a vault commits as is a fact about
+where it sits rather than a note kept somewhere else. Working as someone else moves you to
+their vaults.
 
 The profile belongs to the vault, not to the project: the projects are the vault's, and
 switching between them does not change who you are while you work.
@@ -212,16 +214,22 @@ terminal to answer a prompt on, so a passphrase would make a key that cannot be 
 than one that is safer. It refuses to make a second key over the first, because replacing a
 key silently takes away access to everything the old one opened.
 
-Earlier versions made the vault folder the checkout itself, with no `local/` between them.
-Opening this version on one of those homes moves each vault's checkout down into `local/` —
-once, on the first launch. Everything moves, `.git` included; nothing is rewritten and
-nothing is deleted.
+### Homes from earlier versions
+
+Earlier versions kept profiles as files in `profiles/`, vaults as folders beside it, and
+projects as repositories anywhere on disk that a register in the vault pointed at. Opening
+this version on one of those homes rearranges it — once, on the first launch. Each profile
+becomes the folder it now is, each vault moves into the profile it was bound to, and every
+repository the register named moves into its vault. Everything moves rather than being
+copied, `.git` included, and every checkout is repaired afterwards, because a worktree
+remembers where its repository was. Earlier still, the vault folder was the checkout itself:
+that one moves down into `local/` on the way past.
 
 ## Environment
 
 | Variable                       | Default          | What it does                            |
 | ------------------------------ | ---------------- | --------------------------------------- |
-| `BROODMOTHER_HOME`             | `~/.broodmother` | Where vaults, profiles and config live  |
+| `BROODMOTHER_HOME`             | `~/.broodmother` | Where the profiles and the config live  |
 | `BROODMOTHER_VAULT`            | _unset_          | Open this vault instead of the last one |
 | `BROODMOTHER_GITHUB_CLIENT_ID` | _unset_          | OAuth app id the GitHub connection uses |
 

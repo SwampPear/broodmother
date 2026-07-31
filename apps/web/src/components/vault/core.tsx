@@ -27,7 +27,8 @@ const GIT_CHOICES: Choice<VaultGit>[] = [
 ]
 
 /**
- * Every folder in the broodmother home is a vault, so this both lists them and makes one.
+ * Every folder in the profile's own folder is a vault, so this both lists them and makes
+ * one.
  * It is always dismissable, including on a machine with no vaults at all: an empty app is
  * a state you are allowed to stand in, and making the first vault is the same gesture as
  * making the tenth — the selector at the head of the tree, or ⌘K.
@@ -72,14 +73,18 @@ export function VaultPicker({ onClose }: { onClose: () => void }) {
 
   // The colour picked at setup follows you here: same flow, same button.
   const accent = app.profile?.color
+  /** A vault is a folder in the profile it commits as, so that is the folder it goes in. */
+  const vaultHome = tilde(
+    `${app.home || '~/.broodmother'}/${app.profile?.name ?? 'your profile'}`,
+  )
 
   return (
     <Modal
       title={first ? 'New vault' : 'Vaults'}
       description={
         first
-          ? `A vault is where you work. It is a folder of markdown in ${tilde(app.home || '~/.broodmother')}, with git behind it if you want one.`
-          : `Every folder in ${tilde(app.home || '~/.broodmother')} is a vault.`
+          ? `A vault is where you work. It is a folder of markdown in ${vaultHome}, with git behind it if you want one.`
+          : `Every folder in ${vaultHome} is a vault.`
       }
       onClose={onClose}
       footer={

@@ -85,11 +85,17 @@ export function TabStrip({
                   // opens to ask for it.
                   label: 'Rename',
                   description: 'the file this tab stands for',
+                  icon: 'file-text' as const,
                   onSelect: () => onRename(tab),
                 },
               ]
             : []),
-          { id: 'close', label: 'Close', onSelect: () => onClose(tab) },
+          {
+            id: 'close',
+            label: 'Close',
+            icon: 'x' as const,
+            onSelect: () => onClose(tab),
+          },
         ],
       },
       {
@@ -97,18 +103,21 @@ export function TabStrip({
           {
             id: 'close-right',
             label: 'Close to the right',
+            icon: 'chevrons-right',
             disabled: rightward.length === 0,
             onSelect: () => onCloseMany(rightward),
           },
           {
             id: 'close-others',
             label: 'Close others',
+            icon: 'x',
             disabled: others.length === 0,
             onSelect: () => onCloseMany(others),
           },
           {
             id: 'close-all',
             label: 'Close all',
+            icon: 'x',
             danger: true,
             onSelect: () => onCloseMany(tabs),
           },

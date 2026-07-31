@@ -1,4 +1,4 @@
-import { mkdir, readFile, readdir } from 'node:fs/promises'
+import { mkdir, readFile, readdir, stat } from 'node:fs/promises'
 import { execa } from 'execa'
 import os from 'node:os'
 import path from 'node:path'
@@ -11,9 +11,9 @@ export class ProfileError extends Error {}
 
 const DEFAULT_COLOR = '#8fb8d8'
 
-/** Profiles are files rather than folders, so they live in one of their own beside the
- *  projects instead of being mistaken for one. */
-export const PROFILES_DIR = 'profiles'
+/** A profile is a folder in the broodmother home holding this file and its vaults. The file
+ *  is what tells one from a folder dropped in by hand that is not a profile at all. */
+export const PROFILE_FILE = 'profile.json'
 
 const credential = z.string().min(1).nullable()
 
@@ -51,10 +51,10 @@ export function broodmotherHome(): string {
   return process.env.BROODMOTHER_HOME ?? path.join(os.homedir(), '.broodmother')
 }
 
-const profilesDir = (home = broodmotherHome()) => path.join(home, PROFILES_DIR)
+/** Where a profile's vaults live, which is the folder its own file sits in. */
+export const profileDir = (profile: Profile) => path.dirname(profile.path)
 
-const profileFile = (home: string, name: string) =>
-  path.join(profilesDir(home), `${name}.json`)
+const profileFile = (home: string, name: string) => path.join(home, name, PROFILE_FILE)
 
 function assertProfileName(name: string): void {
   const problem = nameProblem(name)
@@ -81,6 +81,12 @@ export const githubSchema = z.object({
 })
 
 export type GithubAccount = z.infer<typeof githubSchema>
+
+const isFile = (target: string) =>
+  stat(target).then(
+    (info) => info.isFile(),
+    () => false,
+  )
 
 async function rawProfile(file: string): Promise<Record<string, unknown>> {
   const raw = await readFile(file, 'utf8')
@@ -129,30 +135,29 @@ async function identityOf(file: string, name: string): Promise<Identity> {
   return identity
 }
 
-/** Every `.json` in the profiles folder is a profile — drop one in and it is picked up. */
+/** Every folder in the home holding a `profile.json` is a profile — drop one in and it is
+ *  picked up. A folder without one is a vault from the layout before this, and is moved. */
 export async function listProfiles(home = broodmotherHome()): Promise<Profile[]> {
-  const dir = profilesDir(home)
-  await mkdir(dir, { recursive: true })
-  const entries = await readdir(dir, { withFileTypes: true })
-  const profiles = await Promise.all(
+  await mkdir(home, { recursive: true })
+  const entries = await readdir(home, { withFileTypes: true })
+  const found = await Promise.all(
     entries
-      .filter(
-        (entry) =>
-          entry.isFile() && entry.name.endsWith('.json') && !entry.name.startsWith('.'),
-      )
+      .filter((entry) => entry.isDirectory() && !entry.name.startsWith('.'))
       .map(async (entry) => {
-        const file = path.join(dir, entry.name)
-        const name = entry.name.slice(0, -'.json'.length)
+        const file = profileFile(home, entry.name)
+        if (!(await isFile(file))) return null
         const account = githubSchema.safeParse((await rawProfile(file)).github)
         return {
-          name,
+          name: entry.name,
           path: file,
-          ...(await identityOf(file, name)),
+          ...(await identityOf(file, entry.name)),
           github: account.success ? account.data.login : null,
         }
       }),
   )
-  return profiles.sort((a, b) => a.name.localeCompare(b.name))
+  return found
+    .filter((profile) => profile !== null)
+    .sort((a, b) => a.name.localeCompare(b.name))
 }
 
 export async function findProfile(
@@ -221,9 +226,9 @@ export async function createProfile(
   home = broodmotherHome(),
 ): Promise<Profile> {
   assertProfileName(name)
-  await mkdir(profilesDir(home), { recursive: true })
   if (await findProfile(name, home))
     throw new ProfileError(`a profile named "${name}" already exists`)
+  await mkdir(path.join(home, name), { recursive: true })
 
   return writeIdentity(
     { name, path: profileFile(home, name), github: null, ...identity },

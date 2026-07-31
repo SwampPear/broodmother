@@ -90,8 +90,8 @@ export function useTreeDrag({
       claim(event, dragging, { root, path: dropFolder(entry) })
     },
 
-    /** The list behind the rows is the vault's root. A project's is its own row, which is
-     *  a row like any other. */
+    /** The list behind the rows is the vault's root, the same place its own row stands
+     *  for — so a file dropped on the empty pane comes back out to the top. */
     overRoot(event) {
       if (dragging !== null) claim(event, dragging, { root: 'vault', path: '' })
     },

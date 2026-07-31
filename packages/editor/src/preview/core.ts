@@ -213,7 +213,9 @@ export class LivePreview {
 
     // A view zone is given its height, not asked for it, and KaTeX's height is only known
     // once it has been laid out — so each equation is rendered offscreen and measured
-    // before it is handed over.
+    // before it is handed over. A zone is as wide as the text is, and measuring at any
+    // other width measures something the reader is never shown.
+    const width = this.editor.getLayoutInfo().contentWidth
     const rendered = [...wanted.values()].map((piece) => {
       const host = document.createElement('div')
       if (piece.kind === 'math') {
@@ -237,7 +239,7 @@ export class LivePreview {
         this.editor.focus()
         this.pending = null
       })
-      return { host, line: piece.line, height: measure(host) }
+      return { host, line: piece.line, height: measure(host, width) }
     })
 
     this.editor.changeViewZones((accessor) => {
@@ -316,11 +318,12 @@ function setAlign(cell: HTMLTableCellElement, align: Align): void {
   if (align) cell.style.textAlign = align
 }
 
-/** Offscreen but laid out: `display: none` would measure zero. */
-function measure(host: HTMLElement): number {
+/** Offscreen but laid out, and laid out at the width it will be drawn at: `display: none`
+ *  would measure zero, and a stage with room the zone does not have measures a height the
+ *  zone does not get. */
+function measure(host: HTMLElement, width: number): number {
   const stage = document.createElement('div')
-  stage.style.cssText =
-    'position:absolute;visibility:hidden;pointer-events:none;left:-9999px;top:0'
+  stage.style.cssText = `position:absolute;visibility:hidden;pointer-events:none;left:-9999px;top:0;width:${width}px`
   stage.appendChild(host)
   document.body.appendChild(stage)
   const height = host.getBoundingClientRect().height

@@ -1,8 +1,8 @@
 import type { GitAuthor } from './git'
 
 export interface Profile {
-  name: string // the profile's file name
-  path: string // the profile's file, in `~/.broodmother/profiles/`
+  name: string // the profile's folder name
+  path: string // the profile's file, `~/.broodmother/<name>/profile.json`
   color: string // the profile's colour, as #rrggbb
   gitAuthor: GitAuthor
   sshKeyPath: string | null // git SSH key in this profile's vaults, null reverts to default

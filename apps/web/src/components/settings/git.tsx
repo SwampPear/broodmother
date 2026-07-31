@@ -119,19 +119,20 @@ export function GitSettingsSection() {
           Sync this vault
         </label>
 
-        <div className="sub" data-disabled={locked}>
-          {SWITCHES.map((row) => (
-            <label key={row.key} className="check" title={row.hint}>
-              <input
-                type="checkbox"
-                checked={git[row.key]}
-                disabled={locked}
-                onChange={(event) => set(row.key, event.target.checked)}
-              />
-              {row.label}
-            </label>
-          ))}
-        </div>
+        {/* One list with the switch that turns it on, not a group under it: each row says
+            whether it is on and whether it can be touched, so nothing is left for a box
+            around them to say. */}
+        {SWITCHES.map((row) => (
+          <label key={row.key} className="check" title={row.hint}>
+            <input
+              type="checkbox"
+              checked={git[row.key]}
+              disabled={locked}
+              onChange={(event) => set(row.key, event.target.checked)}
+            />
+            {row.label}
+          </label>
+        ))}
 
         {/* Seconds, because seconds is what the sentence under it counts in. */}
         <label>

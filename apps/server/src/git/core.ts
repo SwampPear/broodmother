@@ -143,7 +143,7 @@ export class Git {
     // helper the machine already has, because ours is the one that knows this profile.
     const withCredentials = this.token ? ['-c', `credential.helper=${TOKEN_HELPER}`] : []
     assertNonDestructive(args)
-    return execa('git', [...withCredentials, ...args], {
+    const result = await execa('git', [...withCredentials, ...args], {
       cwd: this.root,
       timeout,
       reject: false,
@@ -154,6 +154,15 @@ export class Git {
         ...(this.token ? { BROODMOTHER_GIT_TOKEN: this.token } : {}),
       },
     })
+
+    // git that never started — a missing working directory, a timeout, no `git` on PATH —
+    // exits with no code and says nothing on stderr. Every caller here reads stderr for the
+    // reason and falls back to a guess when it is empty, so an empty one is how a failure
+    // before the network became "the remote is unreachable". execa knows what went wrong;
+    // this is only where it gets put so the caller can find it.
+    if (result.exitCode !== 0 && !String(result.stderr).trim())
+      return { ...result, stderr: result.shortMessage ?? result.message ?? 'git failed' }
+    return result
   }
 
   /**

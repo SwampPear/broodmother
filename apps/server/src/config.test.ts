@@ -90,7 +90,7 @@ describe('repair', () => {
     const { config, reset } = repair(
       {
         vaultPath: '/elsewhere',
-        profiles: { '/elsewhere': 'ada' },
+        profile: 'ada',
         checkouts: 42,
         git: { '/elsewhere': { enabled: 'yes' } },
       },
@@ -98,9 +98,20 @@ describe('repair', () => {
     )
     expect(reset.sort()).toEqual(['checkouts', 'git'])
     expect(config.vaultPath).toBe('/elsewhere')
-    expect(config.profiles).toEqual({ '/elsewhere': 'ada' })
+    expect(config.profile).toBe('ada')
     expect(config.checkouts).toEqual(defaults.checkouts)
     expect(config.git).toEqual(defaults.git)
+  })
+
+  /* The field is gone from the config, but the migration that moves the folders is the one
+     thing that still needs to know which profile each vault was bound to. */
+  it('hands the old vault-to-profile map over rather than dropping it', () => {
+    const { config, bindings } = repair(
+      { profiles: { '/vaults/handbook': 'ada' } },
+      defaultConfig(null),
+    )
+    expect(bindings).toEqual({ '/vaults/handbook': 'ada' })
+    expect(config.profile).toBeNull()
   })
 
   it('keeps a whole set of sync settings for a project', () => {

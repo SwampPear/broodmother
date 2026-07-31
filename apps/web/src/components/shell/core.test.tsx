@@ -128,26 +128,14 @@ it('lets the vault picker be dismissed even with nothing to open', async () => {
   await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
 })
 
-/* A folder dropped into the home by hand has nobody to commit as, and that is the same
-   question first run asks — with the profiles you already have to pick from. */
-it('asks who you are in a vault that names no profile', async () => {
-  const dropped = {
-    name: 'dropped-in',
-    path: '/Users/you/.broodmother/dropped-in',
-    profile: undefined,
-  }
-  const client = createMockClient({
-    vaults: [dropped],
-    active: dropped,
-    config: { profiles: {} } as never,
-  })
+/* Who you are is the one thing the app cannot invent, and a machine with no profile is
+   asked before anything else — a vault is made working as one. */
+it('asks who you are on a machine with no profile at all', async () => {
+  const client = createMockClient({ profiles: [], vaults: [], active: null })
   show(client)
 
-  await screen.findByRole('dialog', { name: 'Profiles' })
-  await userEvent.click(screen.getByRole('button', { name: /you@example/ }))
-
-  const { active } = await client.request('GET /api/vaults', null)
-  expect(active?.profile).toBe('you')
+  // With none to pick from, the question is the introduction rather than a list.
+  await screen.findByRole('dialog', { name: 'Welcome to broodmother' })
 })
 
 /* Tabs are the record of what you have open, so the thing that opens documents — the
@@ -237,13 +225,15 @@ it('keeps a tab set per branch', async () => {
 it('swaps the tabs when you switch project, from the same menu as the vault', async () => {
   const client = createMockClient({
     projects: [
-      { name: 'api', repo: '/dev/api', missing: false },
-      { name: 'web', repo: '/dev/web', missing: false },
+      { name: 'api', repo: '/h/.projects/api/local' },
+      { name: 'web', repo: '/h/.projects/web/local' },
     ],
     project: 'api',
     projectDocs: { api: { 'main.rs': 'fn main() {}\n' } },
     projectBranches: {
-      api: [{ name: 'main', path: '/dev/api', checkedOut: true, primary: true }],
+      api: [
+        { name: 'main', path: '/h/.projects/api/local', checkedOut: true, primary: true },
+      ],
     },
   })
   const { rerender } = show(client)
@@ -273,11 +263,16 @@ it('swaps the tabs when you switch project, from the same menu as the vault', as
 it('points the branch selector at the repository the scope is in', async () => {
   show(
     createMockClient({
-      projects: [{ name: 'api', repo: '/dev/api', missing: false }],
+      projects: [{ name: 'api', repo: '/h/.projects/api/local' }],
       project: 'api',
       projectBranches: {
         api: [
-          { name: 'main', path: '/dev/api', checkedOut: true, primary: true },
+          {
+            name: 'main',
+            path: '/h/.projects/api/local',
+            checkedOut: true,
+            primary: true,
+          },
           {
             name: 'fix-login',
             path: '/h/.projects/api/fix-login',
@@ -399,6 +394,51 @@ it('numbers the next Untitled rather than colliding with it', async () => {
   await note()
 
   await waitFor(() => expect(push).toHaveBeenCalledWith('/doc/vault/Untitled 2.md'))
+})
+
+/* A deleted file is not a file, so nothing is left standing for it: the tab used to stay in
+   the strip with the pane reading back the error from opening what is no longer there. */
+it('closes the tab of a document that is deleted', async () => {
+  const client = createMockClient()
+  const { rerender } = show(client)
+  pathname = '/doc/vault/README.md'
+  rerender(tree(client))
+  await screen.findByRole('tab', { name: /README/ })
+  await waitFor(() => expect(screen.getByRole('treeitem', { name: 'README.md' })))
+
+  await userEvent.pointer({
+    keys: '[MouseRight]',
+    target: screen.getByRole('treeitem', { name: 'README.md' }),
+  })
+  await userEvent.click(await screen.findByRole('menuitem', { name: /Delete note/ }))
+  await userEvent.click(await screen.findByRole('button', { name: 'delete' }))
+
+  await waitFor(() =>
+    expect(screen.queryByRole('tab', { name: /README/ })).not.toBeInTheDocument(),
+  )
+  expect(push).toHaveBeenCalledWith('/')
+})
+
+/* A folder takes everything in it, and each of those is a document something had open. */
+it('closes the tabs of every document inside a deleted folder', async () => {
+  const client = createMockClient()
+  const { rerender } = show(client)
+  pathname = '/doc/vault/Handbook/Overview.md'
+  rerender(tree(client))
+  await screen.findByRole('tab', { name: /Overview/ })
+  await waitFor(() => expect(screen.getByRole('treeitem', { name: 'Handbook' })))
+
+  await userEvent.pointer({
+    keys: '[MouseRight]',
+    target: screen.getByRole('treeitem', { name: 'Handbook' }),
+  })
+  await userEvent.click(await screen.findByRole('menuitem', { name: /Delete folder/ }))
+  await userEvent.click(await screen.findByRole('button', { name: 'delete' }))
+
+  await waitFor(() =>
+    expect(screen.queryByRole('tab', { name: /Overview/ })).not.toBeInTheDocument(),
+  )
+  expect(push).toHaveBeenCalledWith('/')
 })
 
 it('opens the new-branch modal from the menu', async () => {

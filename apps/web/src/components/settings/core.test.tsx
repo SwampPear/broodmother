@@ -80,12 +80,16 @@ it('offers the project section only while a project is open', async () => {
 
   await show(
     createMockClient({
-      projects: [{ name: 'api', repo: '/Users/you/dev/api', missing: false }],
+      projects: [
+        { name: 'api', repo: '/Users/you/.broodmother/you/handbook/.projects/api/local' },
+      ],
       project: 'api',
     }),
   )
   await open('Project')
-  expect(screen.getByLabelText('Repository')).toHaveValue('/Users/you/dev/api')
+  expect(screen.getByLabelText('Repository')).toHaveValue(
+    '~/.broodmother/you/handbook/.projects/api/local',
+  )
 })
 
 it('saves the sync settings for the open vault', async () => {
@@ -229,7 +233,7 @@ it('opens the palette on the colour the profile already is', async () => {
       profiles: [
         {
           name: 'you',
-          path: '/Users/you/.broodmother/profiles/you.json',
+          path: '/Users/you/.broodmother/you/profile.json',
           color: '#b39051',
           gitAuthor: { name: 'You', email: 'you@example.com' },
           sshKeyPath: null,
@@ -284,7 +288,7 @@ it('empties the home from the danger zone, and only once it is confirmed', async
   const { config } = await client.request('GET /api/config', null)
   expect(config).toEqual({
     vaultPath: null,
-    profiles: {},
+    profile: null,
     checkouts: {},
     git: {},
     project: {},

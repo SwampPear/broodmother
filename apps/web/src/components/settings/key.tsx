@@ -62,8 +62,8 @@ export function ProfileKey() {
       {publicKey ? (
         <>
           <p className="hint">
-            Paste this into your git host and it can push. This is the public half. The
-            private half stays in {tilde(app.home || '~/.broodmother')} and never leaves.
+            The public half. Paste it into your git host and this profile can push. The
+            private half stays in {tilde(app.home || '~/.broodmother')}.
           </p>
           <output className="public-key">{publicKey}</output>
           <div className="row">
@@ -74,10 +74,9 @@ export function ProfileKey() {
       ) : (
         <>
           <p className="hint">
-            broodmother already uses whatever ssh and git have on this machine: your
-            agent, the keys in <code>~/.ssh</code>, and the credential helper git is set
-            up with. Most people need nothing here. Make a key if you have none, or if you
-            want this profile to push with a key of its own.
+            broodmother already uses whatever ssh and git have on this machine — your
+            agent, the keys in <code>~/.ssh</code>, git&rsquo;s credential helper. Make
+            one only if you have none, or want this profile to push with its own.
           </p>
           <div className="row">
             <Button onClick={() => void generate()} disabled={busy}>

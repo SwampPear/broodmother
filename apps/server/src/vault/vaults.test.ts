@@ -10,7 +10,7 @@ afterAll(cleanup)
 
 const profile: Profile = {
   name: 'tester',
-  path: '/nowhere/profiles/tester.json',
+  path: '/nowhere/tester/profile.json',
   color: '#8fb8d8',
   gitAuthor: { name: 'Test', email: 'test@localhost' },
   sshKeyPath: null,
@@ -19,8 +19,17 @@ const profile: Profile = {
   github: null,
 }
 
+/** The profile the vaults are made as, standing in the home the test just made. */
+const owner = (home: string): Profile => ({
+  ...profile,
+  path: path.join(home, profile.name, 'profile.json'),
+})
+
+/** Where that profile's vaults are. */
+const vaults = (home: string) => path.join(home, profile.name)
+
 describe('listVaults', () => {
-  it('picks up every plain directory dropped into the vault', async () => {
+  it('picks up every plain directory dropped into the profile', async () => {
     const home = await tempDir()
     await mkdir(path.join(home, 'notes'))
     await mkdir(path.join(home, 'handbook'))
@@ -79,13 +88,12 @@ describe('createVault', () => {
 
     const vault = await createVault(
       { name: 'docs', git: 'remote', remoteUrl: remote, branch: 'main' },
-      profile,
-      home,
+      owner(home),
     )
 
     expect(vault).toEqual({
       name: 'docs',
-      path: path.join(home, 'docs'),
+      path: path.join(vaults(home), 'docs'),
       profile: profile.name,
     })
     expect(await readFile(path.join(localOf(vault), 'Overview.md'), 'utf8')).toBe(
@@ -102,8 +110,7 @@ describe('createVault', () => {
 
     const vault = await createVault(
       { name: 'fresh', git: 'remote', remoteUrl: remote, branch: 'main' },
-      profile,
-      home,
+      owner(home),
     )
 
     const repo = new Git(localOf(vault))
@@ -121,8 +128,7 @@ describe('createVault', () => {
     const home = await tempDir()
     const vault = await createVault(
       { name: 'solo', git: 'local', branch: 'trunk' },
-      profile,
-      home,
+      owner(home),
     )
 
     const repo = new Git(localOf(vault))
@@ -136,7 +142,7 @@ describe('createVault', () => {
 
   it('makes a plain folder with no git at all', async () => {
     const home = await tempDir()
-    const vault = await createVault({ name: 'plain', git: 'none' }, profile, home)
+    const vault = await createVault({ name: 'plain', git: 'none' }, owner(home))
 
     expect(await new Git(localOf(vault)).isRepo()).toBe(false)
     expect(await readdir(localOf(vault))).toEqual(['README.md'])
@@ -149,16 +155,16 @@ describe('createVault', () => {
     const home = await tempDir()
     // The home is a real directory with nothing reachable anywhere near it.
     await expect(
-      createVault({ name: 'offline', git: 'local' }, profile, home),
+      createVault({ name: 'offline', git: 'local' }, owner(home)),
     ).resolves.toMatchObject({ name: 'offline' })
   })
 
   it('refuses a vault asked to sync with no remote to sync to', async () => {
     const home = await tempDir()
     await expect(
-      createVault({ name: 'nowhere', git: 'remote', remoteUrl: '  ' }, profile, home),
+      createVault({ name: 'nowhere', git: 'remote', remoteUrl: '  ' }, owner(home)),
     ).rejects.toThrow(VaultError)
-    expect(await listVaults(home)).toEqual([])
+    expect(await listVaults(vaults(home))).toEqual([])
   })
 
   it('refuses an unreachable remote instead of leaving an unlinked vault behind', async () => {
@@ -172,24 +178,22 @@ describe('createVault', () => {
           remoteUrl: path.join(home, 'nope.git'),
           branch: 'main',
         },
-        profile,
-        home,
+        owner(home),
       ),
     ).rejects.toThrow(VaultError)
 
-    expect(await listVaults(home)).toEqual([])
+    expect(await listVaults(vaults(home))).toEqual([])
   })
 
   it('refuses a name that is already taken', async () => {
     const home = await tempDir()
     const remote = await bareRemote()
-    await mkdir(path.join(home, 'taken'))
+    await mkdir(path.join(vaults(home), 'taken'), { recursive: true })
 
     await expect(
       createVault(
         { name: 'taken', git: 'remote', remoteUrl: remote, branch: 'main' },
-        profile,
-        home,
+        owner(home),
       ),
     ).rejects.toThrow(/already exists/)
   })

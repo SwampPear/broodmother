@@ -11,6 +11,7 @@ export type IconName =
   | 'layout-dashboard'
   | 'chevron-right'
   | 'chevron-down'
+  | 'chevrons-right'
   | 'chevrons-up-down'
   | 'check'
   | 'plus'
@@ -67,6 +68,12 @@ const GLYPHS: Record<IconName, ReactNode> = {
   ),
   'chevron-right': <path d="m9 18 6-6-6-6" />,
   'chevron-down': <path d="m6 9 6 6 6-6" />,
+  'chevrons-right': (
+    <>
+      <path d="m6 17 5-5-5-5" />
+      <path d="m13 17 5-5-5-5" />
+    </>
+  ),
   'chevrons-up-down': (
     <>
       <path d="m7 15 5 5 5-5" />

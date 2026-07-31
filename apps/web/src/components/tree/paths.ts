@@ -1,7 +1,7 @@
 import type { DocPath, DocRef, DocRoot, TreeEntry } from '@broodmother/shared'
 
-/** One tree the sidebar draws. The project's carries the name to head it with; the vault's
- *  has none, because the vault is the sidebar. */
+/** One tree the sidebar draws, and the name of the row that heads it — the vault's or the
+ *  project's. Without one the entries stand on their own, with nothing to collapse into. */
 export interface TreeRoot {
   root: DocRoot
   entries: TreeEntry[]
@@ -50,8 +50,8 @@ export function movable(from: DocRef, to: DocRef): boolean {
   )
 }
 
-/** The project's own row, which stands for its repository the way a folder stands for
- *  itself. Its path is the tree root, so what is created in it lands at the top. */
+/** A tree's own row, which stands for the whole of it the way a folder stands for itself.
+ *  Its path is the tree root, so what is created in it lands at the top. */
 const rootEntry = (label: string, entries: TreeEntry[]): TreeEntry => ({
   kind: 'dir',
   path: '',

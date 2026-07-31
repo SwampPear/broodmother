@@ -47,12 +47,11 @@ const newVaultBody = z
     'a vault that syncs needs a remote',
   )
 const openVaultBody = z.object({ path: z.string().min(1) })
-/** The same shape a vault is made from, plus where it goes: a project is a repository too,
- *  and one it has to make is made the same way. */
+/** The same shape a vault is made from, plus which vault it goes in: a project is a
+ *  repository too, and it is made the same way. */
 const newProjectBody = z
   .object({
     name: z.string().min(1),
-    repo: z.string(),
     vault: z.string().min(1).nullish(),
     git: z.enum(['none', 'local', 'remote']).optional(),
     remoteUrl: remoteUrlSchema.nullish(),

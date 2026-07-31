@@ -3,7 +3,7 @@ import path from 'node:path'
 import type { Profile, VaultSummary } from '@broodmother/shared'
 import type { Checkouts } from '../branches'
 import { Git, classifyRemoteError } from '../git'
-import { PROFILES_DIR, readAccount } from '../profiles'
+import { profileDir, readAccount } from '../profiles'
 import { nameProblem } from '../fs'
 
 export class VaultError extends Error {}
@@ -47,45 +47,32 @@ const readme = (name: string, git: VaultGit) =>
     git === 'none' ? '' : ', git for history'
   }.\n`
 
-/** Which profile a vault commits as, keyed by the vault's absolute path. */
-export type ProfileBindings = Record<string, string>
-
 /**
- * A vault is any plain directory in the broodmother home — drop one in and it is picked up.
- * The profiles folder is the one exception: it holds files, not vaults.
+ * A vault is any plain directory in a profile's folder — drop one in and it is picked up.
+ * Which profile it commits as is where it sits, so it is read off the folder rather than
+ * remembered anywhere.
  */
-export async function listVaults(
-  home: string,
-  profiles: ProfileBindings = {},
-): Promise<VaultSummary[]> {
-  await mkdir(home, { recursive: true })
-  const entries = await readdir(home, { withFileTypes: true })
+export async function listVaults(dir: string): Promise<VaultSummary[]> {
+  await mkdir(dir, { recursive: true })
+  const entries = await readdir(dir, { withFileTypes: true })
   return entries
-    .filter(
-      (entry) =>
-        entry.isDirectory() && !entry.name.startsWith('.') && entry.name !== PROFILES_DIR,
-    )
-    .map((entry) => {
-      const target = path.join(home, entry.name)
-      return { name: entry.name, path: target, profile: profiles[target] ?? null }
-    })
+    .filter((entry) => entry.isDirectory() && !entry.name.startsWith('.'))
+    .map((entry) => ({
+      name: entry.name,
+      path: path.join(dir, entry.name),
+      profile: path.basename(dir),
+    }))
     .sort((a, b) => a.name.localeCompare(b.name))
 }
 
-export async function findVault(
-  name: string,
-  home: string,
-  profiles: ProfileBindings = {},
-): Promise<VaultSummary | null> {
-  const vaults = await listVaults(home, profiles)
+export async function findVault(name: string, dir: string): Promise<VaultSummary | null> {
+  const vaults = await listVaults(dir)
   return vaults.find((vault) => vault.name === name) ?? null
 }
 
 export function assertVaultName(name: string): void {
   const problem = nameProblem(name)
   if (problem) throw new VaultError(`vault name ${problem}`)
-  if (name === PROFILES_DIR)
-    throw new VaultError(`"${PROFILES_DIR}" holds the profiles, so it cannot be a vault`)
 }
 
 /**
@@ -98,11 +85,11 @@ export function assertVaultName(name: string): void {
 export async function createVault(
   { name, git: kind, remoteUrl, branch }: NewVault,
   profile: Profile,
-  home: string,
 ): Promise<VaultSummary> {
   assertVaultName(name)
   if (kind === 'remote' && !remoteUrl?.trim())
     throw new VaultError('a vault that syncs needs a remote')
+  const home = profileDir(profile)
   await mkdir(home, { recursive: true })
 
   const target = path.join(home, name)
@@ -165,12 +152,11 @@ export async function createVault(
 
 /**
  * The folder and everything in it. The path comes from the listing rather than from the
- * name, so what is removed is always a folder in the home and never whatever a `../` in the
- * name would have reached. The projects it linked go with it; the repositories they pointed
- * at are somewhere else entirely and are not touched.
+ * name, so what is removed is always a folder in the profile and never whatever a `../` in
+ * the name would have reached. The projects live inside it, so they go with it.
  */
-export async function deleteVault(name: string, home: string): Promise<void> {
-  const vault = await findVault(name, home)
+export async function deleteVault(name: string, dir: string): Promise<void> {
+  const vault = await findVault(name, dir)
   if (!vault) throw new VaultError(`no vault named "${name}"`)
   await rm(vault.path, { recursive: true, force: true })
 }

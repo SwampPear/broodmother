@@ -6,7 +6,7 @@ import { RenameRow } from './rename'
 import { dropFolder, sameRef } from './paths'
 import { type TreeDrag } from './drag'
 
-export type TreeCommand = 'create' | 'rename' | 'delete' | 'unlink'
+export type TreeCommand = 'create' | 'rename' | 'delete' | 'delete-project'
 
 // The same commands the keys run, named after what the row is: a menu that says
 // `Delete folder…` over a folder has already answered what it is about to take. Rename opens
@@ -19,6 +19,23 @@ function menuFor(
 ): MenuSection[] {
   const folder = entry.kind === 'dir'
   const what = folder ? 'folder' : 'note'
+  // The project's own row stands for a repository, which has no name of its own to type
+  // here. It lives in the vault, so the one thing this row can do to it is take the whole
+  // thing away. The vault's row has not even that: it goes from the menu at the head of
+  // the tree, which is where it is switched and made.
+  const ofRoot =
+    ref.root === 'vault'
+      ? []
+      : [
+          {
+            id: 'delete-project',
+            label: 'Delete project…',
+            description: 'The repository and all of its history',
+            icon: 'x' as const,
+            danger: true,
+            onSelect: () => onCommand('delete-project', ref),
+          },
+        ]
   return [
     {
       actions: [
@@ -34,20 +51,8 @@ function menuFor(
               },
             ]
           : []),
-        // The project's own row stands for a repository, which has no name of its own to
-        // type here and is not a file to throw away. What it does have is a link to this
-        // vault, and that is the one thing this row can let go of.
         ...(root
-          ? [
-              {
-                id: 'unlink',
-                label: 'Unlink project…',
-                description: 'The repository stays where it is',
-                icon: 'x' as const,
-                danger: true,
-                onSelect: () => onCommand('unlink', ref),
-              },
-            ]
+          ? ofRoot
           : [
               {
                 id: 'rename',
@@ -100,8 +105,8 @@ export function TreeRow({
   onRename: (name: string | null) => void
 }) {
   const ref: DocRef = { root, path: entry.path }
-  // A tree's root has no path, so the one row wearing the empty one is the project itself.
-  // Only a labelled root draws that row, and only a project is labelled.
+  // A tree's root has no path, so the one row wearing the empty one is the tree itself —
+  // the vault, or one of its projects.
   const isRoot = entry.path === ''
 
   return (
@@ -149,10 +154,12 @@ export function TreeRow({
             <span className="name">
               {entry.kind === 'file' ? displayName(entry.name) : entry.name}
             </span>
-            {/* A repository looks like any other folder in a sidebar of them, and clicking
-                this one moves the whole app. The same pill a file wears for its extension
-                says which folders those are. */}
-            {isRoot && <span className="tag">project</span>}
+            {/* A vault and a repository look like any other folder in a sidebar of them,
+                and clicking one moves the whole app. The same pill a file wears for its
+                extension says which folders those are. */}
+            {isRoot && (
+              <span className="tag">{root === 'vault' ? 'vault' : 'project'}</span>
+            )}
             {entry.kind === 'file' && fileTag(entry.name) && (
               <span className="tag">{fileTag(entry.name)}</span>
             )}

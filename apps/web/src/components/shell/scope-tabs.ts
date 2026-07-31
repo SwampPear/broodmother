@@ -183,6 +183,24 @@ export function useScopeTabs({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [event])
 
+  // A deleted document is not a document. Without this its tab stays in the strip wearing
+  // the name of a file that is gone, and the pane behind it reads back the error from
+  // opening one. A folder takes everything under it with it.
+  useEffect(() => {
+    if (event?.event.type !== 'removed') return
+    const { path } = event.event
+    const gone = tabs.filter(
+      (tab) =>
+        tab.kind === 'doc' &&
+        tab.ref.root === event.root &&
+        (tab.ref.path === path || tab.ref.path.startsWith(`${path}/`)),
+    )
+    if (gone.length) closeMany(gone)
+    // `tabs` is read, not depended on: this follows the removal, and closing the tabs it
+    // names is not another one.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [event])
+
   function show(route: string) {
     asked.current = route
     setTerminalTab(null)

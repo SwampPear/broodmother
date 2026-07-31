@@ -26,11 +26,9 @@ const IDENTITY = {
 async function server() {
   const home = await tempDir()
   await createProfile({ name: 'tester', ...IDENTITY }, home)
-  const root = await tempDir()
-  await writeFile(
-    path.join(home, 'config.json'),
-    JSON.stringify({ ...defaultConfig(root), profiles: { [root]: 'tester' } }),
-  )
+  // A vault is a folder in the profile it commits as.
+  const root = path.join(home, 'tester', 'handbook')
+  await mkdir(root, { recursive: true })
   const handle = await startServer({ root, home, port: 0 })
   running.push(handle)
   return handle
@@ -84,7 +82,8 @@ describe('terminals', () => {
   /* The shell opens on the vault, so switching vault has to move where the next one lands. */
   it('follows the vault you switch to', async () => {
     const handle = await server()
-    const other = await tempDir()
+    const other = path.join(handle.context.home, 'tester', 'notes')
+    await mkdir(other, { recursive: true })
     await handle.context.openVault(other)
 
     const shell = await open(handle)
@@ -95,13 +94,11 @@ describe('terminals', () => {
   /* And a project open inside it wins: agents run in the repository the work is in. */
   it('opens in the project when one is open', async () => {
     const handle = await server()
-    const repo = path.join(await tempDir(), 'api')
-    await mkdir(repo, { recursive: true })
-    await handle.context.addProject({ name: 'api', repo })
+    const project = await handle.context.addProject({ name: 'api' })
 
     const shell = await open(handle)
     shell.send({ type: 'input', data: 'pwd\r' })
-    await until(() => shell.output().includes(repo))
+    await until(() => shell.output().includes(project.repo))
   })
 
   /* A profile carries the Claude login its shells run as, or Claude picks its own. */
@@ -114,6 +111,31 @@ describe('terminals', () => {
     await until(() =>
       shell.output().includes(`dir=${path.join(os.homedir(), 'claude-work')}`),
     )
+  })
+
+  /* The brief is what an agent is told about the room it woke up in, and the shell is how
+     it gets there: `--append-system-prompt "$BROODMOTHER_BRIEF"` is all the tab types.
+     Matched inside the shell and answered with something the typed line does not contain,
+     or the pty's echo of the command answers for it. */
+  it('carries the brief in the shell’s environment', async () => {
+    const handle = await server()
+    const project = await handle.context.addProject({ name: 'api' })
+
+    const shell = await open(handle)
+    const holds = (pattern: string, mark: string) =>
+      shell.send({
+        type: 'input',
+        data: `case "$BROODMOTHER_BRIEF" in *"${pattern}"*) echo "${mark}-$((1 + 0))";; esac\r`,
+      })
+
+    holds(`http://127.0.0.1:${handle.port}`, 'api')
+    await until(() => shell.output().includes('api-1\r\n'))
+
+    holds(`project ${project.name}`, 'tree')
+    await until(() => shell.output().includes('tree-1\r\n'))
+
+    holds('# SOUL', 'soul')
+    await until(() => shell.output().includes('soul-1\r\n'))
   })
 
   it('reports the exit and closes the socket when the shell ends', async () => {

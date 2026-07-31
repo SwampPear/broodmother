@@ -119,56 +119,14 @@ it('opens a second shell on the claude tab and runs claude in it', async () => {
 
   act(() => client.emitTerminal({ type: 'output', data: '$ ' }))
 
+  /* The brief is the backend's — it names the vault, the projects and their paths, which
+     the browser holds no copy of — so all that is typed is the variable it arrives in. */
   const run = written.find((data) => data.startsWith('claude'))
-  expect(run).toContain('--dangerously-skip-permissions')
-  expect(run).toContain(
-    "--append-system-prompt 'You are running in a terminal inside broodmother",
+  expect(run).toBe(
+    'claude --dangerously-skip-permissions --append-system-prompt "$BROODMOTHER_BRIEF"\r',
   )
-  expect(run?.endsWith("'\r")).toBe(true)
   expect(disposed).not.toHaveBeenCalled()
   expect(onExit).not.toHaveBeenCalled()
-})
-
-/* The soul is markdown somebody typed into a settings field, so it reaches the shell as
-   whatever they typed — quotes, newlines and all — and still has to arrive as one
-   argument. */
-it('carries the profile’s soul into the system prompt', async () => {
-  const { client } = await show(
-    {},
-    createMockClient({
-      profiles: [
-        {
-          name: 'you',
-          path: '/Users/you/.broodmother/profiles/you.json',
-          color: '#c084fc',
-          gitAuthor: { name: 'You', email: 'you@example.com' },
-          sshKeyPath: null,
-          claudeCfgDir: null,
-          soul: "# Rules\n\nDon't be cheerful.\n",
-          github: null,
-        },
-      ],
-    }),
-  )
-  await userEvent.click(screen.getByRole('button', { name: /claude code/ }))
-  await waitFor(() => expect(bodies()).toHaveLength(2))
-
-  act(() => client.emitTerminal({ type: 'output', data: '$ ' }))
-
-  const run = written.find((data) => data.startsWith('claude'))
-  expect(run).toContain("# Rules Don'\\''t be cheerful.")
-  expect(run?.split('\n')).toHaveLength(1)
-})
-
-it('says nothing extra for a profile with no soul', async () => {
-  const { client } = await show()
-  await userEvent.click(screen.getByRole('button', { name: /claude code/ }))
-  await waitFor(() => expect(bodies()).toHaveLength(2))
-
-  act(() => client.emitTerminal({ type: 'output', data: '$ ' }))
-
-  const run = written.find((data) => data.startsWith('claude'))
-  expect(run).not.toContain('Who you are')
 })
 
 /* Typed before the shell has printed its prompt, the command lands in a tty still echoing

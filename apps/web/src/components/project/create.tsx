@@ -1,13 +1,12 @@
 'use client'
 
 import { useState, type FormEvent } from 'react'
-import { basename, tilde, type NewProject, type ProjectGit } from '@broodmother/shared'
+import type { NewProject, ProjectGit } from '@broodmother/shared'
 import { useApp } from '../../state'
 import { RemoteField } from '../github'
 import { Button, Choices, Modal, Select, type Choice } from '../ui'
 
-/** What each choice gets you when the folder has to be made, in the order of how much git
- *  it is. A folder that is already there is linked as it stands and gets none of it. */
+/** What each choice gets you, in the order of how much git it is. */
 const GIT_CHOICES: Choice<ProjectGit>[] = [
   {
     value: 'none',
@@ -25,16 +24,12 @@ const GIT_CHOICES: Choice<ProjectGit>[] = [
   },
 ]
 
-/** What a project is called when nothing is typed, in the placeholders that say so. */
+/** What a project is called when nothing is typed, in the placeholder that says so. */
 const EXAMPLE = 'silly-little-api'
 
-/** The last segment of a path typed with or without a trailing slash. */
-const nameFrom = (repo: string) => basename(repo.trim().replace(/\/+$/, ''))
-
 /**
- * A project is a repository these documents are about. This makes one where there is nothing
- * yet, with the same three amounts of git a vault is offered, and links a folder you already
- * have exactly as it stands without writing anything into it.
+ * A project is a repository these documents are about. It is made inside the vault, with the
+ * same three amounts of git a vault is offered.
  */
 export function CreateProject({
   onCreate,
@@ -45,7 +40,6 @@ export function CreateProject({
   onClose: () => void
 }) {
   const app = useApp()
-  const [repo, setRepo] = useState('')
   const [name, setName] = useState('')
   const [vault, setVault] = useState(app.vault?.name ?? '')
   const [git, setGit] = useState<ProjectGit>('local')
@@ -54,12 +48,7 @@ export function CreateProject({
   const [busy, setBusy] = useState(false)
   const [failed, setFailed] = useState<string | null>(null)
 
-  // Typed over, or taken from the folder — a repository at `~/dev/api` is called `api`
-  // unless you say otherwise.
-  const called = name.trim() || nameFrom(repo)
-  /** Where a folder nobody names is made, which is what the empty field stands for. */
-  const home = () =>
-    `${tilde(app.home || '~/.broodmother')}/.projects/${called || EXAMPLE}`
+  const called = name.trim()
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
@@ -67,7 +56,6 @@ export function CreateProject({
     setFailed(null)
     const reason = await onCreate({
       name: called,
-      repo: repo.trim(),
       vault: vault || null,
       git,
       remoteUrl: git === 'remote' ? remoteUrl.trim() : null,
@@ -81,7 +69,7 @@ export function CreateProject({
   return (
     <Modal
       title="New project"
-      description="A project is a repository these documents are about. broodmother reads it, opens branches of it in the vault, and runs your terminals in it."
+      description="A project is a repository these documents are about. It is made inside the vault, and broodmother reads it, opens branches of it, and runs your terminals in it."
       onClose={onClose}
       footer={
         <>
@@ -101,23 +89,12 @@ export function CreateProject({
           <input
             value={name}
             autoFocus
-            placeholder={nameFrom(repo) || EXAMPLE}
+            placeholder={EXAMPLE}
             onChange={(event) => {
               setName(event.target.value)
               setFailed(null)
             }}
             required
-          />
-        </label>
-        <label>
-          Folder
-          <input
-            value={repo}
-            placeholder={home()}
-            onChange={(event) => {
-              setRepo(event.target.value)
-              setFailed(null)
-            }}
           />
         </label>
         <label>

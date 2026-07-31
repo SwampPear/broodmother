@@ -6,14 +6,14 @@ import type { Profile, VaultSummary } from '@broodmother/shared'
 import { VaultMenu } from './menu'
 
 const vaults: VaultSummary[] = [
-  { name: 'Work', path: '/Users/you/.broodmother/Work', profile: 'ada' },
-  { name: 'Personal', path: '/Users/you/.broodmother/Personal', profile: undefined },
+  { name: 'Work', path: '/Users/you/.broodmother/ada/Work', profile: 'ada' },
+  { name: 'Personal', path: '/Users/you/.broodmother/ada/Personal', profile: 'ada' },
 ]
 
 const profiles: Profile[] = [
   {
     name: 'ada',
-    path: '/Users/you/.broodmother/profiles/ada.json',
+    path: '/Users/you/.broodmother/ada/profile.json',
     color: '#c084fc',
     gitAuthor: { name: 'Ada Lovelace', email: 'ada@example.com' },
     sshKeyPath: '~/.ssh/id_work',
@@ -23,7 +23,7 @@ const profiles: Profile[] = [
   },
   {
     name: 'grace',
-    path: '/Users/you/.broodmother/profiles/grace.json',
+    path: '/Users/you/.broodmother/grace/profile.json',
     color: '#34d399',
     gitAuthor: { name: 'Grace Hopper', email: 'grace@example.com' },
     sshKeyPath: null,
@@ -34,7 +34,7 @@ const profiles: Profile[] = [
 ]
 
 function show(
-  activePath = '/Users/you/.broodmother/Work',
+  activePath = '/Users/you/.broodmother/ada/Work',
   activeProject: string | null = null,
 ) {
   const onSelect = vi.fn()
@@ -92,12 +92,12 @@ it('names the vault you are in', () => {
   expect(screen.queryByRole('menu')).not.toBeInTheDocument()
 })
 
-it('lists every vault with the profile it commits as', async () => {
+it('lists the vaults the profile has, with the open one checked', async () => {
   show()
   await open()
   const rows = screen.getAllByRole('menuitemradio')
-  expect(rows[0]).toHaveTextContent('ada')
-  expect(rows[1]).toHaveTextContent('no profile yet')
+  expect(rows[0]).toHaveTextContent('Work')
+  expect(rows[1]).toHaveTextContent('Personal')
   expect(rows[0]).toHaveAttribute('aria-checked', 'true')
 })
 
@@ -106,7 +106,7 @@ it('switches on pick, by path rather than by name, and closes', async () => {
   await open()
   await userEvent.click(screen.getByRole('menuitemradio', { name: /Personal/ }))
   await waitFor(() =>
-    expect(onSelect).toHaveBeenCalledWith('/Users/you/.broodmother/Personal'),
+    expect(onSelect).toHaveBeenCalledWith('/Users/you/.broodmother/ada/Personal'),
   )
   expect(screen.queryByRole('menu')).not.toBeInTheDocument()
 })
@@ -139,7 +139,7 @@ it('does not re-apply the profile already in use', async () => {
 /* Where you are working is one question, so the project is picked in the same list as the
    vault it belongs to and the profile you do it as — not from a control of its own. */
 it('names the open project beside the vault, so neither has to be opened to read', () => {
-  show('/Users/you/.broodmother/Work', 'api')
+  show('/Users/you/.broodmother/ada/Work', 'api')
   const anchor = screen.getByRole('button')
   expect(anchor).toHaveTextContent('Work')
   expect(anchor).toHaveTextContent('api')
@@ -216,7 +216,7 @@ it('deletes only after the folder it is about to remove has been named', async (
   await userEvent.click(screen.getByRole('menuitem', { name: /Delete vault/ }))
 
   const dialog = await screen.findByRole('dialog', { name: 'Delete Personal?' })
-  expect(dialog).toHaveTextContent('/Users/you/.broodmother/Personal')
+  expect(dialog).toHaveTextContent('/Users/you/.broodmother/ada/Personal')
   expect(onDelete).not.toHaveBeenCalled()
 
   await userEvent.click(screen.getByRole('button', { name: 'delete vault' }))
@@ -248,7 +248,7 @@ it('moves through the list with the arrow keys and picks with enter', async () =
   await userEvent.keyboard('{ArrowDown}{ArrowDown}{Enter}')
 
   await waitFor(() =>
-    expect(onSelect).toHaveBeenCalledWith('/Users/you/.broodmother/Personal'),
+    expect(onSelect).toHaveBeenCalledWith('/Users/you/.broodmother/ada/Personal'),
   )
 })
 

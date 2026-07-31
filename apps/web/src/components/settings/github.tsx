@@ -66,16 +66,14 @@ export function GithubAccount() {
         <>
           <p className="hint">
             Connected as <strong>{login}</strong>. New vaults and projects can pick from
-            your own repositories instead of asking for a URL, and pushing works without a
-            key because broodmother uses this connection.
+            your repositories instead of asking for a URL, and pushing works without a
+            key.
           </p>
           <Button onClick={() => void app.disconnectGithub()}>disconnect</Button>
         </>
       ) : step ? (
         <>
-          <p className="hint">
-            Type this into GitHub, and this page finishes on its own once you have.
-          </p>
+          <p className="hint">Type this into GitHub. This page finishes on its own.</p>
           <output className="device-code">{step.device.userCode}</output>
           <div className="row">
             <LinkButton href={step.device.verificationUri}>open GitHub</LinkButton>
@@ -90,9 +88,8 @@ export function GithubAccount() {
       ) : (
         <>
           <p className="hint">
-            Connecting lets broodmother make repositories for you and push to them without
-            a key. It asks for nothing else. The connection belongs to this profile, and
-            you can drop it from here at any time.
+            Lets broodmother make repositories for you and push to them without a key. The
+            connection belongs to this profile, and you can drop it here at any time.
           </p>
           <Button onClick={() => void connect()} disabled={busy}>
             {busy ? 'connecting…' : 'connect GitHub'}

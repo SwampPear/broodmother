@@ -50,7 +50,7 @@ export const gitSettingsSchema = z.object({
 
 export const configSchema = z.object({
   vaultPath: z.string().min(1).nullable(),
-  profiles: z.record(z.string().min(1), z.string().min(1)),
+  profile: z.string().min(1).nullable(),
   checkouts: z.record(z.string().min(1), z.string().min(1)),
   git: z.record(z.string().min(1), gitSettingsSchema),
   project: z.record(z.string().min(1), z.string().min(1).nullable()),
@@ -58,15 +58,15 @@ export const configSchema = z.object({
 })
 
 /**
- * Identity is deliberately absent: who you are lives in a profile on disk, and inventing
- * one from the OS user would be a profile nobody chose. So is anything about git: whether a
- * vault has a repository is the vault's business, and how it syncs is filed under the vault
- * it belongs to.
+ * Identity is deliberately thin: who you are lives in a profile on disk and only its name is
+ * here, because a vault sits inside the profile it commits as and the folder is the binding.
+ * So is anything about git: whether a vault has a repository is the vault's business, and
+ * how it syncs is filed under the vault it belongs to.
  */
 export function defaultConfig(vaultPath: string | null): BroodmotherConfig {
   return {
     vaultPath,
-    profiles: {},
+    profile: null,
     checkouts: {},
     git: {},
     project: {},
@@ -122,6 +122,16 @@ export function adoptLegacyVaultPath(
 export interface LoadedConfig {
   config: BroodmotherConfig
   reset: string[]
+  /** The layout before a vault sat inside the profile it commits as, when the binding was a
+   *  map here. Read once, by the migration that moves the folders. */
+  bindings: Record<string, string>
+}
+
+const bindingsSchema = z.record(z.string().min(1), z.string().min(1))
+
+function legacyBindings(source: Record<string, unknown>): Record<string, string> {
+  const parsed = bindingsSchema.safeParse(source.profiles)
+  return parsed.success ? parsed.data : {}
 }
 
 /**
@@ -143,7 +153,11 @@ export function repair(raw: unknown, defaults: BroodmotherConfig): LoadedConfig 
     else if (!reset.includes(key)) reset.push(key)
   }
   const loaded = adoptLegacyVaultPath(source, config as unknown as BroodmotherConfig)
-  return { config: adoptLegacySync(source, loaded), reset }
+  return {
+    config: adoptLegacySync(source, loaded),
+    reset,
+    bindings: legacyBindings(source),
+  }
 }
 
 export class ConfigStore {
@@ -172,7 +186,7 @@ export class ConfigStore {
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
         this.lastReset = []
-        return { config: this.current, reset: [] }
+        return { config: this.current, reset: [], bindings: {} }
       }
       raw = null
     }

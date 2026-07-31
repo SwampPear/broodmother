@@ -16,9 +16,8 @@ export function DangerZone() {
   return (
     <Section title="Danger zone" danger>
       <p className="hint">
-        Every vault, every profile and this machine's config are files in {home}. Deleting
-        them empties that folder and leaves broodmother the way it was before you first
-        opened it.
+        Every vault, profile and setting is a file in {home}. Deleting them leaves
+        broodmother the way it was before you first opened it.
       </p>
       <Button danger onClick={() => setWiping(true)}>
         delete all data…
@@ -32,9 +31,8 @@ export function DangerZone() {
           onConfirm={() => void app.deleteAllData()}
           onClose={() => setWiping(false)}
         >
-          There is no undo, and nothing is kept anywhere else. A vault you pushed is still
-          on its remote, so cloning it makes the vault again. Anything you never pushed
-          goes with the folder.
+          There is no undo. A vault you pushed is still on its remote, so cloning it makes
+          the vault again. Anything you never pushed goes with the folder.
         </Confirm>
       )}
     </Section>

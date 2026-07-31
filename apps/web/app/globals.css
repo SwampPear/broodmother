@@ -289,8 +289,11 @@ textarea:focus-visible {
   left: calc(var(--sidebar, 17rem) - 4px);
 }
 
+/* The seam here is the panel's own top border, and `top` is measured from inside it — so the
+   strip starts 4px back, not 3, and its middle pixel lands on the border rather than the row
+   under it. Three pixels of handle sitting one low reads as off-centre; nine hides it. */
 .resizer[data-axis='panel'] {
-  top: -3px;
+  top: -4px;
   left: 0;
   right: 0;
 }
@@ -1086,8 +1089,9 @@ body[data-resizing='column'] {
    here rather than inherited from a pane. Dressed as the inputs around it: same ground,
    same border, same corner. */
 .broodmother-editor.inline-editor {
-  height: 9.5rem;
+  height: 28.5rem;
   overflow: hidden;
+  padding-inline: 0.8rem;
   background: color-mix(in srgb, var(--white) 4%, var(--ground));
   border: 1px solid var(--line);
   border-radius: var(--field-radius);
@@ -1353,6 +1357,10 @@ body[data-resizing='column'] {
 .md-table {
   border-collapse: collapse;
   font-size: 0.95em;
+  /* A table wider than the note is scrolled, not squeezed: as a flex item it would
+     otherwise shrink to the measure and wrap every cell, growing taller than the zone it
+     was measured for — which is a table with its last rows behind the text below it. */
+  flex-shrink: 0;
 }
 
 .md-table th,
@@ -1840,7 +1848,12 @@ p.palette-label {
 
 .menu-surface[data-state='open'] {
   animation: menu-in 110ms ease-out;
-  transform-origin: var(--radix-dropdown-menu-content-transform-origin);
+  /* The primitive names the variable after itself, so the surface has to ask for both to
+     grow out of its anchor whether it was opened by a control or by the right button. */
+  transform-origin: var(
+    --radix-dropdown-menu-content-transform-origin,
+    var(--radix-context-menu-content-transform-origin)
+  );
 }
 
 @keyframes menu-in {
@@ -2172,14 +2185,16 @@ p.palette-label {
   border-radius: var(--field-radius);
 }
 
-/* Pulled back by exactly the padding that keeps the border off the word, so the name of the
-   box starts on the same line down as the fields inside it. */
-/* Radios are one list rather than a stack of separate fields, so they sit closer together
-   than the gap the box keeps between everything else in it. */
+/* Radios and checkboxes are one list rather than a stack of separate fields, so every row
+   in a run takes the same closer step from the last than the gap the box keeps around
+   everything else. Nothing wraps a run of them: a box inside the box would take its rows
+   out of this count and leave the list unevenly spaced. */
 .field-group .check + .check {
   margin-top: -0.42rem;
 }
 
+/* Pulled back by exactly the padding that keeps the border off the word, so the name of the
+   box starts on the same line down as the fields inside it. */
 .field-group legend {
   margin-inline-start: -0.35rem;
   padding: 0 0.35rem;
@@ -2361,11 +2376,20 @@ p.palette-label {
 }
 
 /* Named, not ruled off: the space above a section is what separates it, and a line under
-   every heading in the app adds up to a page of them. */
+   every heading in the app adds up to a page of them. Set as a field is named, because that
+   is what it names — the page reads as one column of labels rather than a page of titles. */
 .settings-section h3 {
   margin: 0;
-  font-size: 1.05rem;
-  font-weight: 400;
+  color: var(--white);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+/* A section folded into a box is one of its fields rather than a stop of its own on the
+   page, so it keeps the box's spacing. */
+.field-group .settings-section {
+  margin-top: 0.15rem;
+  gap: 0.6rem;
 }
 
 /* A button is as wide as what it says. The column stretches everything in it, so the ones
@@ -2381,11 +2405,14 @@ p.palette-label {
 }
 
 /* The name of a field is part of the form rather than a note beside it, so it is set in the
-   text colour and carries the weight. */
-.settings label {
+   text colour and carries the weight. A field whose control is not one a label can point at
+   — an editor rather than an input — is named the same way and stands in the same column. */
+.settings label,
+.settings .field {
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
+  color: var(--white);
   font-size: 0.8rem;
   font-weight: 600;
 }

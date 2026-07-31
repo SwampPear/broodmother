@@ -29,7 +29,7 @@ export function ProfilePanel() {
   if (!identity) return null
 
   return (
-    <Panel hint="Who you commit and show up as in this vault. It is saved in the profile itself rather than in this machine's config, so changing it here changes it for every vault that uses this profile.">
+    <Panel hint="Who you commit and show up as. It lives in the profile, so changing it here changes every vault that uses it.">
       <label>
         Color
         <Select
@@ -86,9 +86,13 @@ export function ProfilePanel() {
         </label>
 
         <p className="hint">
-          A key named here is used <em>as well as</em> the ones ssh already has, not
-          instead of them. Most people can leave it empty.
+          Used <em>as well as</em> the keys ssh already has, not instead. Most people
+          leave it empty.
         </p>
+
+        {/* The key this profile pushes with is what the SSH key field above points at when
+            broodmother made it, so it belongs in the same box rather than under the form. */}
+        <ProfileKey />
       </fieldset>
 
       <fieldset className="field-group">
@@ -105,23 +109,25 @@ export function ProfilePanel() {
         </label>
 
         <p className="hint">The Claude login this profile&rsquo;s terminals run as.</p>
-
-        {/* Markdown, and edited as markdown: what goes in it is a page about a person,
-            not a line of configuration. */}
-        <div className="field">
-          Soul
-          <InlineEditor
-            label="Soul"
-            markdown={identity.soul ?? ''}
-            onChange={(soul) => setIdentity({ ...identity, soul })}
-          />
-        </div>
-
-        <p className="hint">
-          Appended to the system prompt of every claude shell this profile opens, after
-          what broodmother tells it about the vault. Empty says nothing extra.
-        </p>
       </fieldset>
+
+      {/* Markdown, and edited as markdown: what goes in it is a page about a person, not a
+          line of configuration — so it stands on its own rather than sitting in the box of
+          settings above it. */}
+      <div className="field">
+        Soul
+        <InlineEditor
+          label="Soul"
+          markdown={identity.soul ?? ''}
+          onChange={(soul) => setIdentity({ ...identity, soul })}
+        />
+      </div>
+
+      <p className="hint">
+        Added to the system prompt of every claude shell this profile opens, after what
+        broodmother tells it about the vault. Empty leaves broodmother's own, which asks
+        for precedent over memory and verified claims over confident ones.
+      </p>
 
       {/* A soul of nothing but whitespace is no soul, and it is read that way here rather
           than while it is being typed — trimming a field under the caret takes the space
@@ -135,7 +141,6 @@ export function ProfilePanel() {
       </Button>
 
       <GithubAccount />
-      <ProfileKey />
       <DangerZone />
     </Panel>
   )

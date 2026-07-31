@@ -54,6 +54,12 @@ const withProject: TreeRoot[] = [
   { root: API, entries: projectEntries, label: 'api' },
 ]
 
+/** The sidebar as the app draws it: every tree headed by the row it collapses into. */
+const headed: TreeRoot[] = [
+  { root: 'vault', entries, label: 'handbook' },
+  { root: API, entries: projectEntries, label: 'api' },
+]
+
 function show(renaming: string | null = null, trees: TreeRoot[] = roots) {
   const onOpen = vi.fn()
   const onOpenFolder = vi.fn()
@@ -135,6 +141,34 @@ it('heads the project’s files with its name and opens them from there', async 
   await userEvent.click(head)
   await userEvent.click(screen.getByRole('treeitem', { name: 'main.rs' }))
   expect(onOpen).toHaveBeenCalledWith(project('main.rs'))
+})
+
+/* The vault heads its own documents the way a project does, so the whole sidebar folds
+   away — but it opens open, because the documents are what it is for. */
+it('heads the vault’s documents with its name, and folds them away', async () => {
+  show(null, headed)
+
+  const head = item('handbook')
+  expect(screen.getByRole('treeitem', { name: 'README.md' })).toBeInTheDocument()
+
+  await userEvent.click(head)
+  expect(screen.queryByRole('treeitem', { name: 'README.md' })).not.toBeInTheDocument()
+})
+
+it('says which of the two each heading row is', () => {
+  show(null, headed)
+  expect(within(item('handbook')).getByText('vault')).toBeInTheDocument()
+  expect(within(item('api')).getByText('project')).toBeInTheDocument()
+})
+
+/* Deleting the vault takes everything in it, and that is asked from the menu at the head of
+   the tree rather than from a row you were reading. */
+it('offers nothing destructive on the vault’s own row', async () => {
+  show(null, headed)
+
+  fireEvent.contextMenu(item('handbook'))
+  expect(await screen.findByRole('menuitem', { name: /New note here/ })).toBeVisible()
+  expect(screen.queryByRole('menuitem', { name: /Delete/ })).not.toBeInTheDocument()
 })
 
 /* Carrying a file between a vault and a repository is a copy, and dragging a row is not

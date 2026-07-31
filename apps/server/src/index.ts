@@ -46,13 +46,14 @@ export async function startServer(
     if (!route) return socket.destroy()
     sockets.handleUpgrade(request, socket, head, (ws) => route(ws, url))
   })
-  context.start()
-
   const { port } = server.address() as AddressInfo
+  const url = `http://${HOST}:${port}`
+  context.start(url)
+
   return {
     context,
     port,
-    url: `http://${HOST}:${port}`,
+    url,
     close: async () => {
       await context.close()
       sockets.close()

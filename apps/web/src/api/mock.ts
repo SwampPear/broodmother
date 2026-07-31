@@ -38,11 +38,11 @@ const seedDocs: Record<DocPath, string> = {
     '# Roadmap\n\n1. Write it down\n2. Share it\n3. Keep it current\n',
 }
 
-const HANDBOOK = '/Users/you/.broodmother/handbook'
+const HANDBOOK = '/Users/you/.broodmother/you/handbook'
 
 const seedConfig: BroodmotherConfig = {
   vaultPath: HANDBOOK,
-  profiles: { [HANDBOOK]: 'you' },
+  profile: 'you',
   checkouts: {},
   git: { [HANDBOOK]: { ...defaultGitSettings(), enabled: true } },
   project: {},
@@ -118,25 +118,22 @@ export function createMockClient(
   const home = seed.home ?? '/Users/you/.broodmother'
   const profiles: Profile[] = seed.profiles ?? [seedProfile]
   const vaults: VaultSummary[] = seed.vaults ?? [
-    { name: 'handbook', path: `${home}/handbook`, profile: 'you' },
+    { name: 'handbook', path: `${home}/you/handbook`, profile: 'you' },
   ]
   let active: VaultSummary | null =
     seed.active === undefined ? (vaults[0] ?? null) : seed.active
   const projects: ProjectSummary[] = seed.projects ?? []
-  // Set only while no vault is open: the identity the first vault will be created as, the
-  // way the server holds one before there is anything to bind it to.
-  let pending: string | null = null
-  const profileOf = (vault: VaultSummary | null) => {
-    const name = vault?.profile ?? pending
-    if (name) return profiles.find((profile) => profile.name === name) ?? null
-    return vault ? null : (profiles[0] ?? null)
-  }
-  /** Binding in place: the list and the active vault are the same vault, so both move. */
-  const bind = (vault: VaultSummary, profile: string): VaultSummary => {
-    const bound = { ...vault, profile }
-    const index = vaults.findIndex((one) => one.path === vault.path)
-    if (index >= 0) vaults.splice(index, 1, bound)
-    return bound
+  // Who you are working as. The open vault sits in this profile's folder, so it names one
+  // even before the first vault exists.
+  let working: string | null = vaults[0]?.profile ?? profiles[0]?.name ?? null
+  const profileOf = () =>
+    profiles.find((profile) => profile.name === working) ?? profiles[0] ?? null
+  /** Working as someone else is standing in their folder, so what opens is one of theirs. */
+  const workAs = (name: string): VaultSummary | null => {
+    working = name
+    active = vaults.find((vault) => vault.profile === name) ?? null
+    config = { ...config, profile: name, vaultPath: active?.path ?? null }
+    return active
   }
   const found = (name: string) => projects.find((one) => one.name === name) ?? null
   const githubRepos: GithubRepo[] = seed.githubRepos ?? []
@@ -206,12 +203,10 @@ export function createMockClient(
     {
       'GET /api/tree': async () => ({
         vault: tree(Object.keys(docs)),
-        projects: projects
-          .filter((one) => !one.missing)
-          .map((one) => ({
-            name: one.name,
-            entries: tree(Object.keys(projectDocs[one.name] ?? {})),
-          })),
+        projects: projects.map((one) => ({
+          name: one.name,
+          entries: tree(Object.keys(projectDocs[one.name] ?? {})),
+        })),
       }),
       'GET /api/branches': async ({ root }) => {
         return {
@@ -256,7 +251,7 @@ export function createMockClient(
       },
       'GET /api/profiles': async () => ({
         profiles: [...profiles],
-        active: profileOf(active),
+        active: profileOf(),
         githubReady: seed.githubReady ?? false,
         suggestedAuthor: seed.suggestedAuthor ?? null,
       }),
@@ -265,17 +260,15 @@ export function createMockClient(
           throw new Error(`a profile named "${name}" already exists`)
         const profile: Profile = {
           name,
-          path: `${home}/profiles/${name}.json`,
+          path: `${home}/${name}/profile.json`,
           github: null,
           ...identity,
         }
         profiles.push(profile)
-        if (active) active = bind(active, name)
-        else pending = name
-        return { profile, vault: active }
+        return { profile, vault: workAs(name) }
       },
       'PUT /api/profiles': async (identity: Identity) => {
-        const current = profileOf(active)
+        const current = profileOf()
         if (!current) throw new Error('no profile yet')
         const profile = { ...current, ...identity }
         profiles.splice(profiles.indexOf(current), 1, profile)
@@ -283,7 +276,7 @@ export function createMockClient(
       },
       'GET /api/profiles/key': async () => ({ publicKey }),
       'POST /api/profiles/key': async () => {
-        const current = profileOf(active)
+        const current = profileOf()
         if (!current) throw new Error('no profile yet')
         if (publicKey) throw new Error(`${current.name} already has a key`)
         publicKey = `ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI${current.name} ${current.name}@broodmother`
@@ -298,7 +291,7 @@ export function createMockClient(
         intervalMs: 10,
       }),
       'POST /api/github/connect': async () => {
-        const current = profileOf(active)
+        const current = profileOf()
         if (!current) throw new Error('no profile yet')
         if (!githubAsked) {
           githubAsked = true
@@ -309,7 +302,7 @@ export function createMockClient(
         return { pending: false, profile: connected }
       },
       'DELETE /api/github': async () => {
-        const current = profileOf(active)
+        const current = profileOf()
         if (!current) throw new Error('no profile yet')
         const gone = { ...current, github: null }
         profiles.splice(profiles.indexOf(current), 1, gone)
@@ -326,20 +319,23 @@ export function createMockClient(
         githubRepos.push(repo)
         return { repo }
       },
-      'GET /api/vaults': async () => ({ home, vaults: [...vaults], active }),
+      /* Only the profile you are working as has vaults you can open: they are the folders
+         in its folder. */
+      'GET /api/vaults': async () => ({
+        home,
+        vaults: vaults.filter((vault) => vault.profile === working),
+        active,
+      }),
       'POST /api/vaults': async ({ name, git, remoteUrl, branch: head }) => {
-        if (vaults.some((vault) => vault.name === name))
+        const profile = working
+        if (!profile) throw new Error('no profile yet — pick one for this vault first')
+        if (vaults.some((vault) => vault.name === name && vault.profile === profile))
           throw new Error(`a vault named "${name}" already exists`)
         if (git === 'remote' && !remoteUrl?.trim())
           throw new Error('a vault that syncs needs a remote')
-        const vault = {
-          name,
-          path: `${home}/${name}`,
-          profile: profileOf(active)?.name ?? profiles[0]?.name ?? null,
-        }
+        const vault = { name, path: `${home}/${profile}/${name}`, profile }
         vaults.push(vault)
         active = vault
-        pending = null
         gitSettings = { ...defaultGitSettings(), enabled: git === 'remote' }
         gitState = {
           repo: git !== 'none',
@@ -361,12 +357,7 @@ export function createMockClient(
       'PUT /api/vaults': async ({ profile }) => {
         if (!profiles.some((one) => one.name === profile))
           throw new Error(`no profile named "${profile}"`)
-        if (!active) {
-          pending = profile
-          return { vault: null }
-        }
-        active = bind(active, profile)
-        return { vault: active }
+        return { vault: workAs(profile) }
       },
       'DELETE /api/vaults': async ({ name }) => {
         const index = vaults.findIndex((vault) => vault.name === name)
@@ -379,9 +370,12 @@ export function createMockClient(
         return { active, config }
       },
       'GET /api/projects': async () => ({ projects: [...projects] }),
-      'POST /api/projects': async ({ name, repo, vault }) => {
+      'POST /api/projects': async ({ name, vault }) => {
         if (found(name)) throw new Error(`a project named "${name}" already exists`)
-        const created: ProjectSummary = { name, repo, missing: false }
+        const created: ProjectSummary = {
+          name,
+          repo: `${active?.path ?? HANDBOOK}/.projects/${name}/local`,
+        }
         projects.push(created)
         // Only the vault you are in is somewhere you can go and work.
         if (!vault || vault === active?.name) setScoped(name)
@@ -475,14 +469,14 @@ export function createMockClient(
         for (const name of Object.keys(projectBranches)) delete projectBranches[name]
         for (const name of Object.keys(projectBranch)) delete projectBranch[name]
         active = null
-        pending = null
+        working = null
         setScoped(null)
         branch = null
         gitState = { repo: false, remoteUrl: null, branch: null }
         gitSettings = defaultGitSettings()
         config = {
           vaultPath: null,
-          profiles: {},
+          profile: null,
           checkouts: {},
           git: {},
           project: {},

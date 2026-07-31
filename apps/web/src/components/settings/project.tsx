@@ -1,29 +1,30 @@
 'use client'
 
 import { useState } from 'react'
+import { tilde } from '@broodmother/shared'
 import { useApp } from '../../state'
 import { Button, Confirm } from '../ui'
 import { Panel, Section } from './layout'
 
 /**
- * The project open inside the vault. The repository is yours and is only ever read from
- * here, so what there is to say about it is where it is and what state it is in — and the
- * one thing that can be done to it, which is to stop pointing at it.
+ * The project open inside the vault. Where it sits is settled by the vault holding it, so
+ * what there is to say about it is where that is and which branch you are on — and the one
+ * thing that can be done to it, which is to delete it.
  */
 export function ProjectPanel() {
   const app = useApp()
-  const [unlinking, setUnlinking] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const project = app.project
 
   if (!project) return null
 
   return (
-    <Panel hint="A repository these documents are about. broodmother reads it, opens branches of it in the vault, and runs your terminals in it. The repository stays yours.">
-      {/* Read off the link, and not typed over: a project that has moved is relinked where
-          it went rather than repointed from here. */}
+    <Panel hint="A repository these documents are about. It lives in the vault, and broodmother opens branches of it and runs your terminals in it.">
+      {/* Settled when the project is made: it is a folder in the vault, and retyping it
+          here would point broodmother at one it never made. */}
       <label>
         Repository
-        <input value={project.repo} readOnly />
+        <input value={tilde(project.repo)} readOnly />
       </label>
 
       <label>
@@ -31,32 +32,25 @@ export function ProjectPanel() {
         <input value={app.branch ?? 'not on a branch'} readOnly />
       </label>
 
-      {project.missing && (
-        <p className="field-error" role="alert">
-          The folder is not there any more. Unlink it, or put it back where it was.
-        </p>
-      )}
-
-      <Section title="Unlink" danger>
+      <Section title="Delete" danger>
         <p className="hint">
-          This removes the link and the branch checkouts broodmother made in the vault.
-          The repository itself stays where it is, with every branch inside it untouched.
+          The repository lives in the vault, so this is the last copy of it. Everything in
+          it goes, along with the checkouts its branches were given.
         </p>
-        <Button danger onClick={() => setUnlinking(true)}>
-          unlink project…
+        <Button danger onClick={() => setDeleting(true)}>
+          delete project…
         </Button>
       </Section>
 
-      {unlinking && (
+      {deleting && (
         <Confirm
-          title={`Unlink ${project.name}?`}
-          description={`${project.repo} stays where it is. What goes is the link and the branch checkouts made for it in the vault.`}
-          action="unlink project"
+          title={`Delete ${project.name}?`}
+          description={`${tilde(project.repo)} and everything in it, including every branch and all of its history.`}
+          action="delete project"
           onConfirm={() => void app.removeProject(project.name)}
-          onClose={() => setUnlinking(false)}
+          onClose={() => setDeleting(false)}
         >
-          Adding it again is the same as making it. Name the folder, and the branches you
-          had open here are checked out again when you open them.
+          Anything you have not pushed to a remote is gone for good.
         </Confirm>
       )}
     </Panel>

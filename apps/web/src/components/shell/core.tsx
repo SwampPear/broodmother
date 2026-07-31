@@ -8,7 +8,13 @@ import {
   type CSSProperties,
   type ReactNode,
 } from 'react'
-import { projectOf, projectRoot, type DocRef, type DocRoot } from '@broodmother/shared'
+import {
+  projectOf,
+  projectRoot,
+  tilde,
+  type DocRef,
+  type DocRoot,
+} from '@broodmother/shared'
 import { useApp } from '../../state'
 import {
   fileRefs,
@@ -53,8 +59,8 @@ export function Shell({ children }: { children: ReactNode }) {
   // whether the name arrives or not.
   const [renaming, setRenaming] = useState<DocRef | null>(null)
   const [profiling, setProfiling] = useState(false)
-  // The project whose row asked to be unlinked, held until the confirmation answers.
-  const [unlinking, setUnlinking] = useState<string | null>(null)
+  // The project whose row asked to be deleted, held until the confirmation answers.
+  const [deleting, setDeleting] = useState<string | null>(null)
 
   const navigate = useCallback((route: string) => router.push(route), [router])
   const { tabs, activeId, terminalTab, show, pick, close, closeMany, newTerminal } =
@@ -73,17 +79,15 @@ export function Shell({ children }: { children: ReactNode }) {
      the settings is not asking for the shell to end. */
   const settings = pathname === '/settings'
 
-  /** The vault's documents, and under them the files of every project it links — each its
+  /** The vault's documents, and under them the files of every project inside it — each its
    *  own root, headed by its name, because each is somewhere you can go and work. */
   const roots: TreeRoot[] = [
-    { root: 'vault', entries: app.entries.vault },
-    ...app.projects
-      .filter((project) => !project.missing)
-      .map((project) => ({
-        root: projectRoot(project.name),
-        entries: app.entries.projects[project.name] ?? [],
-        label: project.name,
-      })),
+    { root: 'vault', entries: app.entries.vault, label: app.vault?.name },
+    ...app.projects.map((project) => ({
+      root: projectRoot(project.name),
+      entries: app.entries.projects[project.name] ?? [],
+      label: project.name,
+    })),
   ]
 
   const entriesOf = (root: DocRoot) => {
@@ -187,7 +191,7 @@ export function Shell({ children }: { children: ReactNode }) {
     // Renaming is the row turning into a field, not a dialog over the top of it — the same
     // thing a new note does the moment it exists, so there is one way to name anything.
     if (command === 'rename') return startRename(ref)
-    if (command === 'unlink') return setUnlinking(projectOf(ref.root))
+    if (command === 'delete-project') return setDeleting(projectOf(ref.root))
     setFlow(deleteFlow(ctx, ref, isFolder(entriesOf(ref.root), ref.path)))
   }
 
@@ -316,18 +320,17 @@ export function Shell({ children }: { children: ReactNode }) {
           onClose={needsProfile ? undefined : () => setProfiling(false)}
         />
       )}
-      {unlinking && (
+      {deleting && (
         <Confirm
-          title={`Unlink ${unlinking}?`}
-          description={`${app.projects.find((one) => one.name === unlinking)?.repo ?? unlinking} stays exactly where it is.`}
-          action="unlink project"
-          onConfirm={() => void app.removeProject(unlinking)}
-          onClose={() => setUnlinking(null)}
+          title={`Delete ${deleting}?`}
+          description={`${tilde(app.projects.find((one) => one.name === deleting)?.repo ?? deleting)} and everything in it.`}
+          action="delete project"
+          onConfirm={() => void app.removeProject(deleting)}
+          onClose={() => setDeleting(null)}
         >
-          The repository is yours and broodmother did not make it, so nothing in it is
-          deleted — not the files, not the branches, not the history. What goes is this
-          vault&rsquo;s note of it, and the checkouts broodmother made in the vault for
-          its branches. Linking it again brings it back.
+          The repository lives in this vault, so this is the last copy of it: the files,
+          the branches and the history all go, along with the checkouts broodmother made
+          for them. Anything you have not pushed to a remote is gone for good.
         </Confirm>
       )}
       {picker && <VaultPicker onClose={() => setPicker(false)} />}

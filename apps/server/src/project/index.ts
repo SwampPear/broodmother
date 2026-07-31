@@ -1,9 +1,10 @@
 export {
   PROJECTS_DIR,
   ProjectError,
+  createProject,
+  deleteProject,
   findProject,
-  forgetProject,
   listProjects,
   projectCheckouts,
-  registerProject,
+  projectPath,
 } from './projects'

@@ -269,9 +269,7 @@ function Session({
   onEnd: () => void
 }) {
   const app = useApp()
-  // What this shell woke up to, taken once: a soul rewritten later belongs to the next
-  // shell, not to this one restarted under whoever is typing in it.
-  const run = useRef(command(kind, app.profile?.soul ?? null))
+  const run = useRef(command(kind))
   // Taken once for the same reason the soul is: this shell stands where it was opened, and
   // the scope moving afterwards is not a reason to move a folder out from under it.
   const opened = useRef(root)

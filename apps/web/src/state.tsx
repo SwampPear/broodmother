@@ -473,7 +473,7 @@ export function AppProvider({
         const result = await client.request('DELETE /api/projects', { name })
         setConfig(result.config)
         await loadPlace(result.config)
-        return `unlinked ${name}`
+        return `deleted ${name}`
       }),
 
     deleteAllData: () =>

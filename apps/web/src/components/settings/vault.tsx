@@ -6,9 +6,9 @@ import { GitSettingsSection } from './git'
 import { Panel } from './layout'
 
 /**
- * What the open vault is, and how it syncs. Nothing here is typed: where a vault lives and
- * who it commits as are settled when it is made and changed by making another or by picking
- * a profile, which are both gestures somewhere else. What is left to set is git.
+ * What the open vault is, and how it syncs. Nothing here is typed: a vault is a folder in
+ * the profile it commits as, so both are settled when it is made and changed by making
+ * another somewhere else. What is left to set is git.
  */
 export function VaultPanel() {
   const app = useApp()
@@ -16,7 +16,7 @@ export function VaultPanel() {
   if (!app.config) return null
 
   return (
-    <Panel hint="Where you work. A folder of markdown in your broodmother home, with as much git behind it as you want.">
+    <Panel hint="Where you work. A folder of markdown in your profile's folder, with as much git behind it as you want.">
       <fieldset className="field-group">
         <legend>Where</legend>
 
@@ -33,8 +33,8 @@ export function VaultPanel() {
         </label>
 
         <p className="hint">
-          The folder is settled when the vault is made. To work somewhere else, make
-          another vault. Every folder in your broodmother home is one.
+          The folder is settled when the vault is made, and it is the profile it commits
+          as that holds it. To work somewhere else, make another vault.
         </p>
       </fieldset>
 

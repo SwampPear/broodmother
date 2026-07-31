@@ -119,6 +119,17 @@ describe('sshCommand', () => {
 })
 
 describe('Git against a real repository', () => {
+  /* git that never started says nothing on stderr, and every caller reads stderr for the
+     reason. An empty one is how a failure before the network — a working directory that is
+     not there — was reported as the remote being unreachable. */
+  it('gives a reason when git could not start at all', async () => {
+    const missing = path.join(await tempDir(), 'not', 'a', 'directory')
+    const result = await new Git(missing).run(['ls-remote', '--heads', 'origin'])
+
+    expect(result.exitCode).not.toBe(0)
+    expect(String(result.stderr).trim()).not.toBe('')
+  })
+
   it('reports changed and ignored files', async () => {
     const dir = await tempDir()
     await initRepo(dir)

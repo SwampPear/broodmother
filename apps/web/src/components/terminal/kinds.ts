@@ -8,38 +8,15 @@ import { type IconName } from '../ui'
 export type TerminalKind = 'shell' | 'claude'
 
 /**
- * What claude is told about the room it wakes up in. Without it a shell in a project
- * looks like any other folder of markdown, and the one thing worth knowing — that a file
- * it edits is open in front of someone — is exactly what it cannot see from the
- * filesystem. Kept to a few lines.
- */
-const BRIEF =
-  'You are running in a terminal inside broodmother, a documentation app: a desktop ' +
-  'app that edits a git repo of markdown as a project of linked notes. The working ' +
-  'directory is a checkout of a docs repo, one of the folders a broodmother project ' +
-  'holds. The .md files on disk are the source of truth and git is the history, so ' +
-  'edit the files directly rather than reaching for a database or an API. Someone may ' +
-  'have the same file open in the browser editor while you work: it follows the file ' +
-  'on disk, so prefer small edits over rewriting a document out from under them.'
-
-/** The soul is markdown somebody typed, so it arrives with quotes, dollars and newlines in
- *  it. Single quotes hold all three, and `'\''` is how a shell is handed one of its own. */
-function quoted(text: string): string {
-  return `'${text.replace(/\s+/g, ' ').replace(/'/g, "'\\''")}'`
-}
-
-/**
  * What a tab types into its shell once the shell has spoken, or null where it types
- * nothing. The profile's soul rides in on the same prompt as the brief: where claude is
- * working, then who it is working as.
+ * nothing. The brief itself is the backend's — it describes the vault, the projects and
+ * their paths, which is state the browser holds no copy of — and reaches the shell in its
+ * environment. Double quotes because it arrives with its blank lines in it and still has
+ * to be one argument.
  */
-export function command(kind: TerminalKind, soul: string | null): string | null {
+export function command(kind: TerminalKind): string | null {
   if (kind !== 'claude') return null
-  const written = soul?.trim()
-  const prompt = written
-    ? `${BRIEF} Who you are, in the words of the person you are working with: ${written}`
-    : BRIEF
-  return `claude --dangerously-skip-permissions --append-system-prompt ${quoted(prompt)}\r`
+  return 'claude --dangerously-skip-permissions --append-system-prompt "$BROODMOTHER_BRIEF"\r'
 }
 
 export const TERMINALS: Record<
