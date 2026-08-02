@@ -163,6 +163,9 @@ export function TreeRow({
           onFocus()
           onActivate()
         }}
+        // The second click asks for the name, the way a desktop does. Not on a tree's own
+        // row, which is a vault or a repository and has no name of its own to type here.
+        onDoubleClick={() => !isRoot && !renaming && onCommand('rename', ref)}
         // The pane behind the rows has a menu of its own. A row that has been right-clicked
         // has answered the question, so the event stops here rather than opening both.
         onContextMenu={(event) => {

@@ -269,6 +269,17 @@ it('raises create, rename and delete for the focused entry', async () => {
   expect(onCommand).toHaveBeenCalledWith('delete', vault('README.md'))
 })
 
+it('raises rename on a double click, except for a tree’s own row', async () => {
+  const { onCommand } = show(null, headed)
+  await userEvent.dblClick(item('README.md'))
+  expect(onCommand).toHaveBeenCalledWith('rename', vault('README.md'))
+  await userEvent.dblClick(item('Handbook'))
+  expect(onCommand).toHaveBeenCalledWith('rename', vault('Handbook'))
+  await userEvent.dblClick(item('handbook'))
+  await userEvent.dblClick(item('api'))
+  expect(onCommand).toHaveBeenCalledTimes(2)
+})
+
 it('moves a file into the folder it is dropped on', () => {
   const { onMove } = show()
   dragTo(item('README.md'), item('Handbook'))

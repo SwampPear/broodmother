@@ -259,7 +259,7 @@ textarea:focus-visible {
 }
 
 .tree {
-  grid-row: 1 / 3;
+  grid-row: 1 / -1;
 }
 
 .main {
@@ -1833,12 +1833,9 @@ body[data-resizing='column'] {
 /* ---------- status line ---------- */
 
 .status {
-  grid-column: 1 / -1;
+  grid-column: 2;
   background: var(--ground);
   border-top: 1px solid var(--line);
-  /* Above the resize strip, which spans the shell's full height. */
-  position: relative;
-  z-index: 4;
   font-family: var(--mono);
   font-size: 0.75rem;
 }
