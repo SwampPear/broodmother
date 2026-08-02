@@ -27,6 +27,7 @@ import {
   type Profile,
   type ProjectSummary,
   type SyncStatus,
+  type TreeChanges,
   type TreeEntry,
   type TreeEvent,
   type VaultSummary,
@@ -46,6 +47,9 @@ export interface App {
   client: ApiClient
   /** The vault's documents, and every project's files beside them, by project name. */
   entries: { vault: TreeEntry[]; projects: Record<string, TreeEntry[]> }
+  /** What git says each checkout has touched, the same way around — read with the tree,
+   *  so the rows and the letters they wear are one snapshot. */
+  changes: { vault: TreeChanges; projects: Record<string, TreeChanges> }
   sync: SyncStatus
   /** False until config, vaults and profiles have answered — the shell gates on all three,
    *  and rendering before they land shows the home screen for a frame. */
@@ -70,8 +74,8 @@ export interface App {
   scope: DocRoot
   setScope(root: DocRoot): Promise<Failure>
   /** Every branch of the scope's repository, checked out or not, and which one you are in.
-   *  No other root's branches are fetched: the one control that switches them is about the
-   *  root you are standing in. */
+   *  Every root's branches are held, so moving the scope is one synchronous step — the key,
+   *  the tabs and this menu all turn over in the same paint, with nothing to wait for. */
   branches: Branch[]
   branch: string | null
   /** The project the scope is in, or null when it is the vault — which is where every vault
@@ -87,9 +91,10 @@ export interface App {
    *  root's branch. Anything kept per place is filed under this, and anything read out of
    *  one goes stale the moment it changes — the same document name on another branch is
    *  another document. The vault's branch is deliberately absent from a project's key: they
-   *  are separate repositories, and moving one is not a move of the other. Before the vault
-   *  has answered, its half is empty rather than absent, so the key is always a key and the
-   *  placeholder is one a reader can recognise. */
+   *  are separate repositories, and moving one is not a move of the other. Until the place
+   *  has answered — the config on the way in, or a fresh vault's branches — the key wears a
+   *  leading `#`: still a key, but not yet the name of anywhere, and everything filed per
+   *  place knows not to treat it as one. */
   scopeKey: string
   /** The last change either tree reported, so an open document can follow a write it did
    *  not make itself. */
@@ -154,6 +159,21 @@ const EMPTY_TREES = {
   projects: {} as Record<string, TreeEntry[]>,
 }
 
+const NO_CHANGES = {
+  vault: {} as TreeChanges,
+  projects: {} as Record<string, TreeChanges>,
+}
+
+/** A vault's projects, and the vault they were read out of. A project belongs to the vault
+ *  holding it, so a list is only ever about one — and which one has to be written down, or
+ *  the vault you have just left goes on filling the sidebar until its replacement answers. */
+interface VaultProjects {
+  vault: string | null
+  list: ProjectSummary[]
+}
+
+const NO_PROJECTS: VaultProjects = { vault: null, list: [] }
+
 /** What the app assumes before the server answers: a vault with no repository, which is the
  *  quiet claim. Guessing the other way would flash a git UI at a folder that has none. */
 const noGit: GitState = { repo: false, remoteUrl: null, branch: null }
@@ -164,6 +184,16 @@ function scopeOf(config: BroodmotherConfig | null): DocRoot {
   const name = config?.vaultPath ? config.project[config.vaultPath] : null
   return name ? projectRoot(name) : 'vault'
 }
+
+/** A root's branches and which one its checkout is on. */
+interface RootBranches {
+  branches: Branch[]
+  active: string | null
+}
+
+/** Which repository an entry is about: the root alone is not enough, because another
+ *  vault's `vault` root is another repository. */
+const rootKey = (vaultPath: string | null, root: DocRoot) => `${vaultPath ?? ''}#${root}`
 
 const AppContext = createContext<App | null>(null)
 
@@ -181,6 +211,7 @@ export function AppProvider({
   children: ReactNode
 }) {
   const [entries, setEntries] = useState(EMPTY_TREES)
+  const [changes, setChanges] = useState(NO_CHANGES)
   const [sync, setSync] = useState<SyncStatus>(idleSync)
   const [ready, setReady] = useState(false)
   const [config, setConfig] = useState<BroodmotherConfig | null>(null)
@@ -189,9 +220,8 @@ export function AppProvider({
   const [suggestedAuthor, setSuggestedAuthor] = useState<GitAuthor | null>(null)
   const [vault, setVault] = useState<VaultSummary | null>(null)
   const [vaults, setVaults] = useState<VaultSummary[]>([])
-  const [branches, setBranches] = useState<Branch[]>([])
-  const [branch, setBranch] = useState<string | null>(null)
-  const [projects, setProjects] = useState<ProjectSummary[]>([])
+  const [branchesByRoot, setBranchesByRoot] = useState<Record<string, RootBranches>>({})
+  const [projects, setProjects] = useState<VaultProjects>(NO_PROJECTS)
   const [gitState, setGitState] = useState<GitState>(noGit)
   const [gitSettings, setGitSettings] = useState<GitSettings>(defaultGitSettings)
   const [profile, setProfile] = useState<Profile | null>(null)
@@ -205,15 +235,24 @@ export function AppProvider({
   const loadTree = () =>
     client
       .request('GET /api/tree', null)
-      .then((result) =>
+      .then((result) => {
         setEntries({
           vault: result.vault,
           projects: Object.fromEntries(
             result.projects.map((project) => [project.name, project.entries]),
           ),
-        }),
-      )
-      .catch(() => setEntries(EMPTY_TREES))
+        })
+        setChanges({
+          vault: result.vaultChanges,
+          projects: Object.fromEntries(
+            result.projects.map((project) => [project.name, project.changes]),
+          ),
+        })
+      })
+      .catch(() => {
+        setEntries(EMPTY_TREES)
+        setChanges(NO_CHANGES)
+      })
 
   /**
    * The tree is the whole tree, so it is fetched once for a burst rather than once per file
@@ -235,28 +274,41 @@ export function AppProvider({
       setHome(result.home)
     })
 
-  const loadProjects = () =>
-    client
-      .request('GET /api/projects', null)
-      .then((result) => setProjects(result.projects))
-      // 409s until a vault is open, which is a state and not a failure.
-      .catch(() => setProjects([]))
+  /** The projects of the vault named, filed under it. No vault is no projects: the ones in
+   *  a vault nobody has open are not somewhere you can go and work. */
+  const loadProjects = async (vault: string | null): Promise<ProjectSummary[]> => {
+    if (!vault) {
+      setProjects(NO_PROJECTS)
+      return []
+    }
+    // 409s until a vault is open, which is a state and not a failure.
+    const result = await client.request('GET /api/projects', null).catch(() => null)
+    const list = result?.projects ?? []
+    setProjects({ vault, list })
+    return list
+  }
 
-  /** The scope's branches and no other root's. The root is passed rather than read off the
-   *  state because this runs straight after the answer that moved it, and that answer is
-   *  newer than anything React has rendered. */
-  const loadBranches = (root: DocRoot) =>
+  /** One root's branches, filed under the repository they are about. A failure files an
+   *  empty answer rather than nothing: a vault with no repository has no branches, and that
+   *  is a fact about the place — known, not still on its way. */
+  const loadBranches = (vaultPath: string | null, root: DocRoot) =>
     client
       .request('GET /api/branches', { root })
-      .then((result) => {
-        setBranches(result.branches)
-        setBranch(result.active)
-      })
-      // 409s until a vault is open, which is a state and not a failure.
-      .catch(() => {
-        setBranches([])
-        setBranch(null)
-      })
+      .then((result) =>
+        setBranchesByRoot((all) => ({
+          ...all,
+          [rootKey(vaultPath, root)]: {
+            branches: result.branches,
+            active: result.active,
+          },
+        })),
+      )
+      .catch(() =>
+        setBranchesByRoot((all) => ({
+          ...all,
+          [rootKey(vaultPath, root)]: { branches: [], active: null },
+        })),
+      )
 
   const loadProfiles = () =>
     client.request('GET /api/profiles', null).then((result) => {
@@ -284,44 +336,65 @@ export function AppProvider({
       .catch(() => setGitState(noGit))
 
   /** Everything that is a fact about where you are standing, which is everything that
-   *  changes when you switch vault, scope or branch. The config is the one that says which
-   *  root the branches are about, so it is what the caller hands in. */
-  const loadPlace = (config: BroodmotherConfig | null) =>
-    Promise.all([
+   *  changes when you switch vault, scope or branch. Every root's branches come in, not
+   *  just the scope's: they are what lets a later scope move be one synchronous step, with
+   *  nothing left to fetch between the click and the whole app standing somewhere else. */
+  const loadPlace = (config: BroodmotherConfig | null) => {
+    const vaultPath = config?.vaultPath ?? null
+    return Promise.all([
       loadVaults(),
-      loadProjects(),
-      loadBranches(scopeOf(config)),
       loadTree(),
       loadGit(),
+      loadProjects(vaultPath).then((list) =>
+        vaultPath
+          ? Promise.all(
+              ['vault' as DocRoot, ...list.map((one) => projectRoot(one.name))].map(
+                (root) => loadBranches(vaultPath, root),
+              ),
+            )
+          : [],
+      ),
     ])
+  }
 
   useEffect(() => {
-    void loadTree()
-    void loadGit()
-    void Promise.allSettled([
-      loadVaults(),
-      loadProjects(),
-      loadProfiles(),
-      loadConfig().then((config) => loadBranches(scopeOf(config))),
-    ]).then(() => setReady(true))
+    // The config first, and everything about where you are standing from it: which vault is
+    // open is what the rest of the place is an answer about.
+    void Promise.allSettled([loadProfiles(), loadConfig().then(loadPlace)]).then(() =>
+      setReady(true),
+    )
     void client.request('GET /api/sync', null).then(setSync)
 
-    connection.current = client.connect((message) => {
-      switch (message.type) {
-        case 'tree':
-          // The event goes out at once — an open document follows the file it is showing
-          // without waiting on anything — and the tree catches up a moment later.
-          setTreeEvent({ root: message.root, event: message.event })
-          reloadTree()
-          break
-        case 'sync':
-          setSync(message.status)
-          break
-        case 'error':
-          setNotice(message.message)
-          break
-      }
-    })
+    let dropped = false
+    connection.current = client.connect(
+      (message) => {
+        switch (message.type) {
+          case 'tree':
+            // The event goes out at once — an open document follows the file it is showing
+            // without waiting on anything — and the tree catches up a moment later.
+            setTreeEvent({ root: message.root, event: message.event })
+            reloadTree()
+            break
+          case 'sync':
+            setSync(message.status)
+            break
+          case 'error':
+            setNotice(message.message)
+            break
+        }
+      },
+      /* Everything that happened while the socket was down was sent to a socket that was not
+         there — this connection reports what changes, not what is, and nothing repeats it.
+         So a connection that comes back reads the place again rather than trusting a screen
+         that stopped being told things at some point it cannot name. */
+      (live) => {
+        if (!live) return void (dropped = true)
+        if (!dropped) return
+        dropped = false
+        void loadConfig().then((config) => loadPlace(config))
+        void client.request('GET /api/sync', null).then(setSync)
+      },
+    )
     return () => {
       if (treeTimer.current) clearTimeout(treeTimer.current)
       connection.current?.close()
@@ -349,12 +422,33 @@ export function AppProvider({
     }
   }
 
+  /** A switch the backend has just confirmed, filed ahead of the reload: the key moves in
+   *  this paint, and `loadPlace` catches the rest of the place up behind it. */
+  const branchMoved = (config: BroodmotherConfig, root: DocRoot, branch: Branch) =>
+    setBranchesByRoot((all) => {
+      const key = rootKey(config.vaultPath, root)
+      const known = all[key]?.branches ?? []
+      const branches = known.some((one) => one.name === branch.name)
+        ? known.map((one) => (one.name === branch.name ? branch : one))
+        : [...known, branch]
+      return { ...all, [key]: { branches, active: branch.name } }
+    })
+
   const scope = scopeOf(config)
   const scopedProject = projectOf(scope)
+  const vaultPath = config?.vaultPath ?? null
+  // Only ever the open vault's own. A list read out of another one — the vault you were in a
+  // moment ago, or one whose answer arrived late — names repositories that are not here.
+  const here = projects.vault === vaultPath ? projects.list : []
+  const scopeBranches = branchesByRoot[rootKey(vaultPath, scope)]
+  // The key is a place once the config has said which vault this is and the scope's
+  // repository has answered — a vaultless config has nothing further to wait for.
+  const settled = config !== null && (vaultPath === null || scopeBranches !== undefined)
 
   const value: App = {
     client,
     entries,
+    changes,
     sync,
     ready,
     config,
@@ -367,13 +461,15 @@ export function AppProvider({
     vault,
     vaults,
     scope,
-    branches,
-    branch,
-    project: projects.find((one) => one.name === scopedProject) ?? null,
-    projects,
+    branches: scopeBranches?.branches ?? [],
+    branch: scopeBranches?.active ?? null,
+    project: here.find((one) => one.name === scopedProject) ?? null,
+    projects: here,
     gitState,
     gitSettings,
-    scopeKey: `${config?.vaultPath ?? ''}#${scope}#${branch ?? ''}`,
+    // `-` where a vault would be: an app with none is somewhere you can stand, and its key
+    // has to be tellable from one still waiting for the vault's name to arrive.
+    scopeKey: `${settled ? '' : '#'}${vaultPath ?? '-'}#${scope}#${scopeBranches?.active ?? ''}`,
     treeEvent,
     notice,
     dismissNotice: () => setNotice(null),
@@ -466,13 +562,35 @@ export function AppProvider({
         return `created ${result.project.name}`
       }),
 
-    // Silent: moving the scope is a click in the sidebar, and the whole app changing under
-    // you already says it happened. A line saying so as well is a line about your own hand.
+    /**
+     * Silent: moving the scope is a click in the sidebar, and the whole app changing under
+     * you already says it happened. A line saying so as well is a line about your own hand.
+     *
+     * And synchronous. Where you are working is the client's to say — the click has already
+     * said it — and with every root's branches already in hand there is nothing to fetch:
+     * the config moves, the key moves with it, and the tabs, the branch menu and the panel
+     * all turn over in the same paint. The request is how the backend is told, not how the
+     * app finds out.
+     */
     setScope: (root) =>
       run(async () => {
-        const result = await client.request('POST /api/scope', { root })
-        setConfig(result.config)
-        await loadPlace(result.config)
+        // The tree raises this on every touch of a row, and standing still is not a move.
+        if (root === scope || !config || !vaultPath) return
+        const was = config
+        setConfig({
+          ...config,
+          project: { ...config.project, [vaultPath]: projectOf(root) },
+        })
+        try {
+          const result = await client.request('POST /api/scope', { root })
+          setConfig(result.config)
+        } catch (cause) {
+          // Put back where it was: the app is standing somewhere the backend does not agree
+          // it is, and a sidebar that lies about which project you are in is worse than one
+          // that says the move did not happen.
+          setConfig(was)
+          throw cause
+        }
       }),
 
     removeProject: (name) =>
@@ -496,6 +614,7 @@ export function AppProvider({
       run(async () => {
         const result = await client.request('POST /api/branches', { root, name })
         setConfig(result.config)
+        branchMoved(result.config, root, result.branch)
         await loadPlace(result.config)
         return `created ${result.branch.name}`
       }),
@@ -504,6 +623,7 @@ export function AppProvider({
       run(async () => {
         const result = await client.request('POST /api/branches/open', { root, name })
         setConfig(result.config)
+        branchMoved(result.config, root, result.branch)
         await loadPlace(result.config)
         return `switched to ${name}`
       }),
@@ -516,17 +636,21 @@ export function AppProvider({
         return `removed ${name}`
       }),
 
+    /* Both of these move the vault: working as someone else is standing in their folder, so
+       what opens is one of their vaults — or none, which is where a new profile starts. The
+       config is what says which, and it is read back rather than assumed, or the app goes on
+       drawing the last vault's projects under the name of a vault that is not open. */
     addProfile: (input) =>
       run(async () => {
         const result = await client.request('POST /api/profiles', input)
-        await Promise.all([loadVaults(), loadProfiles()])
+        await Promise.all([loadProfiles(), loadConfig().then(loadPlace)])
         return `created ${result.profile.name}`
       }),
 
     selectProfile: (name) =>
       run(async () => {
         await client.request('PUT /api/vaults', { profile: name })
-        await Promise.all([loadVaults(), loadProfiles()])
+        await Promise.all([loadProfiles(), loadConfig().then(loadPlace)])
         return `working as ${name}`
       }),
 

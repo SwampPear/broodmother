@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import { close, frame, leaf, resize, seams, split, type Layout } from './layout'
+import { close, frame, leaf, resize, seams, seed, split, type Layout } from './layout'
 
 const ids = (layout: Layout) => frame(layout).map((pane) => pane.leaf.id)
 
@@ -125,4 +125,23 @@ it('gives what is left of a nested split the whole side it inherits', () => {
 it('leaves nothing when the last pane closes', () => {
   const one = leaf('shell')
   expect(close(one, one.id)).toBeNull()
+})
+
+/* Ids come back with the arrangement they were part of, but the count that makes them starts
+   again with the page. Without seeding, the first split after a reload hands a new pane the
+   name a restored one is already answering to — and a shell is named after its pane. */
+it('never mints an id a restored arrangement is already using', () => {
+  const restored: Layout = {
+    kind: 'split',
+    id: 'seam:41',
+    axis: 'row',
+    ratio: 0.5,
+    first: { kind: 'leaf', id: 'pane:40', shell: 'shell' },
+    second: { kind: 'leaf', id: 'pane:42', shell: 'claude' },
+  }
+  seed(restored)
+
+  const next = split(restored, 'pane:40', 'column')
+  expect(ids(next).filter((id) => id === 'pane:42')).toHaveLength(1)
+  expect(new Set(ids(next)).size).toBe(3)
 })

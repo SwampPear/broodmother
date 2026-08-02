@@ -82,7 +82,68 @@ it('does not re-open the one already active', async () => {
   expect(onSelect).not.toHaveBeenCalled()
 })
 
+/* A repository with real history has more branches than a menu can be read down. */
+describe('a long list', () => {
+  const many: Branch[] = [
+    branches[0],
+    ...Array.from({ length: 20 }, (_, index) => ({
+      name: `fix/issue-${index}`,
+      path: `/v/Work/fix-issue-${index}`,
+      checkedOut: false,
+      primary: false,
+    })),
+  ]
+
+  it('is typed at rather than read down', async () => {
+    show('main', many)
+    await open()
+    expect(screen.getAllByRole('menuitemradio')).toHaveLength(21)
+
+    await userEvent.keyboard('issue-14')
+
+    const rows = screen.getAllByRole('menuitemradio')
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toHaveTextContent('fix/issue-14')
+  })
+
+  it('switches to the one the query left', async () => {
+    const { onSelect } = show('main', many)
+    await open()
+    await userEvent.keyboard('issue-7{Enter}')
+    await waitFor(() => expect(onSelect).toHaveBeenCalledWith('fix/issue-7'))
+  })
+
+  /* The field narrows branches; cutting a new one is still on offer under them. */
+  it('keeps the new branch row through a query', async () => {
+    show('main', many)
+    await open()
+    await userEvent.keyboard('nothing-like-this')
+
+    expect(screen.getByRole('menuitem', { name: /New branch/ })).toBeInTheDocument()
+    expect(screen.queryAllByRole('menuitemradio')).toHaveLength(0)
+  })
+})
+
+/* Three branches are all on the surface already, and a field over them is chrome. */
+it('offers no field over a list short enough to read', async () => {
+  show()
+  await open()
+  expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+})
+
 describe('a new branch', () => {
+  /* Where it is cut from is the one thing the name does not say, and it is the branch you
+     are on rather than the repository's own checkout. */
+  it('names the branch it will be cut off', async () => {
+    show('fix-login')
+    await open()
+    await userEvent.click(screen.getByRole('menuitem', { name: /New branch/ }))
+
+    expect(await screen.findByRole('dialog', { name: 'New branch' })).toHaveTextContent(
+      'Cut from fix-login',
+    )
+  })
+
   it('asks for one name and creates it', async () => {
     const { onCreate } = show()
     await open()

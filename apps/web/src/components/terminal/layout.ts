@@ -47,6 +47,20 @@ export function leaf(shell: TerminalKind): Leaf {
   return { kind: 'leaf', id: `pane:${++made}`, shell }
 }
 
+/**
+ * Raises the count past every id in a layout that came back from a previous window. The
+ * count starts again with the page, and a pane's id is what its shell is named after — so
+ * without this the first split after a reload would mint a name a restored pane is already
+ * answering to, and two panes would be handed one shell.
+ */
+export function seed(layout: Layout): void {
+  made = Math.max(made, Number(layout.id.split(':')[1]) || 0)
+  if (layout.kind === 'split') {
+    seed(layout.first)
+    seed(layout.second)
+  }
+}
+
 /** A pane splits into itself and a new one running the same shell, as iTerm2's does. */
 export function split(layout: Layout, at: string, axis: Axis): Layout {
   if (layout.kind === 'leaf') {

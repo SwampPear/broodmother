@@ -638,6 +638,65 @@ body[data-resizing='column'] {
   letter-spacing: 0.05em;
 }
 
+/* What became of the file, where the extension pill would be — git's own letter, in the
+   colours the diff beside it is painted in. */
+.tree > ul .change {
+  flex: none;
+  margin-left: auto;
+  padding: 0.1rem 0.34rem;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  line-height: 1.2;
+}
+
+.tree > ul li[data-change='added'] .change,
+.tree > ul li[data-change='added'] .name {
+  color: var(--opal-mint);
+}
+
+.tree > ul li[data-change='removed'] .change,
+.tree > ul li[data-change='removed'] .name {
+  color: var(--danger);
+}
+
+.tree > ul li[data-change='renamed'] .change,
+.tree > ul li[data-change='renamed'] .name {
+  color: var(--opal-cyan);
+}
+
+.tree > ul li[data-change='modified'] .change,
+.tree > ul li[data-change='modified'] .name {
+  color: var(--opal-gold);
+}
+
+.tree > ul li[data-change='conflicted'] .change,
+.tree > ul li[data-change='conflicted'] .name {
+  color: var(--danger);
+}
+
+/* A folder with changes somewhere inside it: the name warms and a dot sits where a letter
+   would, which is how VS Code says the same thing. */
+.tree > ul li[data-holds] .name {
+  color: color-mix(in srgb, var(--opal-gold) 45%, var(--white));
+}
+
+.tree > ul .change-dot {
+  color: var(--opal-gold);
+}
+
+/* How many paths a tree's checkout has touched, in the pill its tag already wears. */
+.tree > ul .change-count {
+  flex: none;
+  padding: 0.1rem 0.34rem;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--opal-gold) 16%, transparent);
+  color: var(--opal-gold);
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  line-height: 1.2;
+}
+
 .tree > ul li:hover {
   background: var(--raised);
   color: var(--white);
@@ -812,12 +871,21 @@ body[data-resizing='column'] {
   padding: 0 0.45rem 0 0.35rem;
 }
 
-.branch-anchor {
+/* The branch selector and the compare toggle beside it are one box written once: what the
+   toggle turns on is a second selector, so it reads as part of that control rather than as
+   a tool of its own. The height is stated rather than left to the padding because the two
+   hold different things — a name and a glyph — and a row of controls that disagree by a
+   pixel is the kind of thing you see without being able to say what is wrong. `align-self`
+   is for the toggle, which hangs directly off the bar and would otherwise stretch to it. */
+.branch-anchor,
+.diff-toggle {
   display: flex;
   align-items: center;
+  align-self: center;
+  flex: none;
   gap: 0.35rem;
-  max-width: 14rem;
-  padding: 0.2rem 0.45rem;
+  height: 1.5rem;
+  padding: 0 0.45rem;
   border: 1px solid var(--line);
   border-radius: var(--row-radius);
   background: transparent;
@@ -827,8 +895,17 @@ body[data-resizing='column'] {
   -webkit-app-region: no-drag;
 }
 
+.branch-anchor {
+  max-width: 14rem;
+}
+
+.diff-toggle {
+  margin-right: 0.45rem;
+}
+
 .branch-anchor:hover,
-.branch-anchor[data-state='open'] {
+.branch-anchor[data-state='open'],
+.diff-toggle:hover {
   border-color: var(--line-hover);
   background: var(--raised);
   color: var(--white);
@@ -840,11 +917,96 @@ body[data-resizing='column'] {
   white-space: nowrap;
 }
 
-.branch-anchor .icon {
+.branch-anchor .icon,
+.diff-toggle .icon {
   flex: none;
   width: 0.85rem;
   height: 0.85rem;
   opacity: 0.75;
+}
+
+.diff-toggle[aria-pressed='true'] {
+  border-color: var(--line-hover);
+  background: var(--active);
+  color: var(--white);
+}
+
+/* A row of its own under the strip: two branch selectors side by side would ask you to
+   work out which is which, so the sentence between them says it instead. */
+.diff-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: none;
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+}
+
+.diff-copy {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.diff-copy strong {
+  color: var(--white);
+  font-family: var(--mono);
+  font-weight: 400;
+}
+
+.diff-count {
+  margin-left: auto;
+  color: var(--faint);
+  font-size: 0.7rem;
+}
+
+/* The end of the sentence and the way out of it: one says what you are looking at and the
+   other stops looking. The height is stated rather than left to the padding because one
+   holds a glyph and the other a word, and two controls in a row that disagree by a pixel
+   are the kind of thing you see without being able to say what is wrong. */
+.diff-basis,
+.diff-done {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  height: 1.5rem;
+  padding: 0 0.55rem;
+  border: 1px solid var(--line);
+  border-radius: var(--row-radius);
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.7rem;
+}
+
+/* A glyph rather than a phrase — the words are the tooltip — so it is as wide as it is
+   tall, and the icon takes the button's own colour so that hovering and being on the
+   narrower reading are both visible in it. */
+.diff-basis {
+  width: 1.5rem;
+  padding: 0;
+}
+
+.diff-basis .icon {
+  width: 0.85rem;
+  height: 0.85rem;
+  color: currentcolor;
+}
+
+.diff-basis:hover,
+.diff-done:hover {
+  border-color: var(--line-hover);
+  background: var(--raised);
+  color: var(--white);
+}
+
+/* The narrower of the two readings. It is filled the way the compare toggle is when it is
+   on, because both are the same statement: what you are seeing is not everything. */
+.diff-basis[aria-pressed='true'] {
+  border-color: var(--line-hover);
+  background: var(--active);
+  color: var(--white);
 }
 
 .tab,
@@ -1196,6 +1358,32 @@ body[data-resizing='column'] {
    note are not a different colour from the note. */
 .doc-body:has(.monaco-host) {
   background: var(--editor-ground);
+}
+
+/* What the diff says in its margin. Monaco marks a changed line with a codicon, and the
+   codicon font is not one this app loads — `editor.api` is the editor without the bundle
+   that pulls the font in, and every one of those glyphs comes out a tofu box. The two the
+   diff needs are a plus and a minus, which every font has: they are written here as text
+   rather than by loading a font for two characters. */
+.monaco-editor .insert-sign,
+.monaco-diff-editor .insert-sign,
+.monaco-editor .delete-sign,
+.monaco-diff-editor .delete-sign {
+  justify-content: center;
+  font-family: var(--mono) !important;
+  /* Over the coloured margin, which is where the change is now said loudest. */
+  color: var(--white);
+  opacity: 1 !important;
+}
+
+.monaco-editor .insert-sign::before,
+.monaco-diff-editor .insert-sign::before {
+  content: '+';
+}
+
+.monaco-editor .delete-sign::before,
+.monaco-diff-editor .delete-sign::before {
+  content: '−';
 }
 
 /* ---------- markdown, drawn as what it means ---------- */
@@ -1919,6 +2107,29 @@ p.palette-label {
    than by a rule drawn across the surface. */
 .menu-section + .menu-section {
   margin-top: 0.35rem;
+}
+
+/* A list too long to read is typed at instead: the field stays where it is and the rows
+   scroll under it, so what you typed is never carried off the top of the surface. */
+.menu-search {
+  width: 100%;
+  margin-bottom: 0.25rem;
+  padding: 0.25rem 0.45rem;
+  border-radius: var(--row-radius);
+  font-size: 0.72rem;
+}
+
+.menu-list {
+  max-height: 14rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.menu-empty {
+  margin: 0;
+  padding: 0.35rem 0.45rem;
+  color: var(--faint);
+  font-size: 0.75rem;
 }
 
 .menu-item {

@@ -1,4 +1,4 @@
-import type { DocPath, DocRef, DocRoot, TreeEntry } from '@broodmother/shared'
+import type { DocPath, DocRef, DocRoot, GitChange, TreeEntry } from '@broodmother/shared'
 
 /** One tree the sidebar draws, and the name of the row that heads it — the vault's or the
  *  project's. Without one the entries stand on their own, with nothing to collapse into. */
@@ -6,14 +6,22 @@ export interface TreeRoot {
   root: DocRoot
   entries: TreeEntry[]
   label?: string
+  /** What became of each path: what the working tree has touched, or — while this tree is
+   *  a comparison between two branches — what the two disagree about. */
+  changes?: Record<DocPath, GitChange>
 }
 
-/** One visible line of the tree: an entry, which tree it is in, and how deep the folders
- *  got to it. */
+/** One visible line of the tree: an entry, which tree it is in, how deep the folders got to
+ *  it, and what git has to say about it — its own change, or the ones it is holding. */
 export interface Row {
   entry: TreeEntry
   root: DocRoot
   depth: number
+  change: GitChange | null
+  /** A folder with changes somewhere inside it, the way VS Code marks one with a dot. */
+  holds: boolean
+  /** On a tree's own row: how many paths its checkout has touched. */
+  count: number
 }
 
 /** A path alone stopped being an address the moment there were two trees, so anything
@@ -59,11 +67,32 @@ const rootEntry = (label: string, entries: TreeEntry[]): TreeEntry => ({
   children: entries,
 })
 
+/** Every folder standing over a change, the tree's own row included — the empty path is
+ *  every top-level change's parent, which is what puts the count on the root. */
+function holders(changes: Record<DocPath, GitChange>): Set<DocPath> {
+  const over = new Set<DocPath>()
+  for (const path of Object.keys(changes)) {
+    over.add('')
+    let prefix = ''
+    for (const segment of path.split('/').slice(0, -1)) {
+      prefix = prefix ? `${prefix}/${segment}` : segment
+      over.add(prefix)
+    }
+  }
+  return over
+}
+
 export function flatten(roots: TreeRoot[], expanded: Set<string>): Row[] {
-  return roots.flatMap(({ root, entries, label }) =>
-    label === undefined
-      ? walk(entries, root, expanded, 0)
-      : walk([rootEntry(label, entries)], root, expanded, 0),
+  return roots.flatMap(({ root, entries, label, changes = {} }) =>
+    walk(
+      label === undefined ? entries : [rootEntry(label, entries)],
+      root,
+      expanded,
+      0,
+      changes,
+      holders(changes),
+      Object.keys(changes).length,
+    ),
   )
 }
 
@@ -72,12 +101,23 @@ function walk(
   root: DocRoot,
   expanded: Set<string>,
   depth: number,
+  changes: Record<DocPath, GitChange>,
+  holding: Set<DocPath>,
+  count: number,
 ): Row[] {
-  return entries.flatMap((entry) =>
-    entry.kind === 'dir' && expanded.has(refKey({ root, path: entry.path }))
-      ? [{ entry, root, depth }, ...walk(entry.children, root, expanded, depth + 1)]
-      : [{ entry, root, depth }],
-  )
+  return entries.flatMap((entry) => {
+    const row: Row = {
+      entry,
+      root,
+      depth,
+      change: changes[entry.path] ?? null,
+      holds: entry.kind === 'dir' && holding.has(entry.path),
+      count: entry.path === '' ? count : 0,
+    }
+    return entry.kind === 'dir' && expanded.has(refKey({ root, path: entry.path }))
+      ? [row, ...walk(entry.children, root, expanded, depth + 1, changes, holding, count)]
+      : [row]
+  })
 }
 
 /** Every file in every tree, as the addresses that name them. */

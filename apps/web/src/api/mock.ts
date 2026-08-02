@@ -6,6 +6,8 @@ import {
   type ApiRoute,
   type Branch,
   type BroodmotherConfig,
+  type DiffBasis,
+  type DiffFile,
   type DocPath,
   type DocRoot,
   type GitSettings,
@@ -18,6 +20,7 @@ import {
   type ServerMessage,
   type SyncStatus,
   type TerminalServerMessage,
+  type TreeChanges,
   type TreeEntry,
   type VaultSummary,
 } from '@broodmother/shared'
@@ -27,6 +30,14 @@ export interface MockClient extends ApiClient {
   emit(message: ServerMessage): void
   /** Stands in for the pty: whatever is typed comes straight back. */
   emitTerminal(message: TerminalServerMessage): void
+  /** The socket under a terminal dropping, which is what a machine going to sleep is. */
+  dropTerminal(): void
+  /** And coming back — to the same shell, or to a new one when that shell is gone. */
+  resumeTerminal(resumed?: boolean): void
+  /** Every name a shell has been asked for by, which is what survives a reload. */
+  terminalNames(): string[]
+  /** And the ones something has said it is finished with, which is what ends one. */
+  finishedTerminals(): string[]
 }
 
 const seedDocs: Record<DocPath, string> = {
@@ -107,6 +118,21 @@ export function createMockClient(
     project?: string | null
     branches?: Branch[]
     branch?: string | null
+    /** What git says the vault's checkout has touched, for the rows to wear. */
+    changes?: TreeChanges
+    /** The same per project, by name. */
+    projectChanges?: Record<string, TreeChanges>
+    /** What differs from the branch you are on, by the branch being compared against. */
+    diff?: Record<string, DiffFile[]>
+    /** The same, held against where the two parted rather than against the branch as it
+     *  stands. Unseeded, both bases answer with `diff` — most tests are not about which. */
+    diffAtSplit?: Record<string, DiffFile[]>
+    /** How that branch has those files, so a side-by-side has a left-hand side. */
+    diffDocs?: Record<string, Record<DocPath, string>>
+
+    /** Routes that never answer, for asking what the app does while it is waiting. */
+    stall?: ApiRoute[]
+
     projectBranches?: Record<string, Branch[]>
     projectBranch?: Record<string, string | null>
     gitState?: GitState
@@ -126,7 +152,13 @@ export function createMockClient(
   ]
   let active: VaultSummary | null =
     seed.active === undefined ? (vaults[0] ?? null) : seed.active
-  const projects: ProjectSummary[] = seed.projects ?? []
+  /** A project lives inside its vault, so the seeded ones are the open vault's and nobody
+   *  else's — switching vault is switching which of these lists is the answer. */
+  const byVault: Record<string, ProjectSummary[]> = {
+    [active?.path ?? '']: seed.projects ?? [],
+  }
+  const projectsIn = (vault: string | null) => (byVault[vault ?? ''] ??= [])
+  const projects = () => projectsIn(active?.path ?? null)
   // Who you are working as. The open vault sits in this profile's folder, so it names one
   // even before the first vault exists.
   let working: string | null = vaults[0]?.profile ?? profiles[0]?.name ?? null
@@ -139,7 +171,7 @@ export function createMockClient(
     config = { ...config, profile: name, vaultPath: active?.path ?? null }
     return active
   }
-  const found = (name: string) => projects.find((one) => one.name === name) ?? null
+  const found = (name: string) => projects().find((one) => one.name === name) ?? null
   const githubRepos: GithubRepo[] = seed.githubRepos ?? []
   // The browser half of the device flow, stood in for: the first ask is always pending.
   let githubAsked = false
@@ -180,6 +212,12 @@ export function createMockClient(
   }
   let listener: ((message: ServerMessage) => void) | null = null
   let shell: ((message: TerminalServerMessage) => void) | null = null
+  let shellLive: ((live: boolean) => void) | null = null
+  /** What the last connection asked for, and every name asked for so far. */
+  let named = ''
+  const sessions = new Set<string>()
+  /** The shells something has said it is finished with, which is what ends one. */
+  const finished: string[] = []
   const emit = (message: ServerMessage) => listener?.(message)
   const emitTerminal = (message: TerminalServerMessage) => shell?.(message)
 
@@ -199,6 +237,12 @@ export function createMockClient(
     const name = projectOf(root)
     return name ? (projectBranch[name] ?? null) : branch
   }
+  /** What differs, on the basis asked for. A seed that says nothing about the split says
+   *  the same thing on both, which is what a repository nobody has committed to since. */
+  const differing = (against: string, basis?: DiffBasis): DiffFile[] =>
+    (basis === 'split' ? seed.diffAtSplit?.[against] : undefined) ??
+    seed.diff?.[against] ??
+    []
   const moveOnto = (root: DocRoot, name: string | null) => {
     const project = projectOf(root)
     if (project) projectBranch[project] = name
@@ -209,14 +253,29 @@ export function createMockClient(
     {
       'GET /api/tree': async () => ({
         vault: tree(Object.keys(docs), dirs.vault),
-        projects: projects.map((one) => ({
+        vaultChanges: seed.changes ?? {},
+        projects: projects().map((one) => ({
           name: one.name,
           entries: tree(
             Object.keys(projectDocs[one.name] ?? {}),
             dirsIn(`project:${one.name}`),
           ),
+          changes: seed.projectChanges?.[one.name] ?? {},
         })),
       }),
+      /* The branch being compared against is the key, and the basis chooses between two
+         seeds: a diff here is between two branches, and which files those are is seeded
+         rather than worked out. */
+      'GET /api/diff': async ({ against, basis }) => ({
+        files: differing(against, basis),
+      }),
+      'GET /api/diff/file': async ({ root, against, path, basis }) => {
+        const source = differing(against, basis).find((one) => one.path === path)
+        return {
+          against: seed.diffDocs?.[against]?.[source?.from ?? path] ?? null,
+          current: filesIn(root)[path] ?? null,
+        }
+      },
       'GET /api/branches': async ({ root }) => {
         return {
           branches: [...branchesIn(root)],
@@ -378,22 +437,29 @@ export function createMockClient(
         }
         return { active, config }
       },
-      'GET /api/projects': async () => ({ projects: [...projects] }),
+      'GET /api/projects': async () => {
+        if (!active) throw new Error('no vault is open — create or choose one first')
+        return { projects: [...projects()] }
+      },
       'POST /api/projects': async ({ name, vault }) => {
-        if (found(name)) throw new Error(`a project named "${name}" already exists`)
+        const target = vault ? (vaults.find((one) => one.name === vault) ?? null) : active
+        if (!target) throw new Error(`no vault named "${vault}"`)
         const created: ProjectSummary = {
           name,
-          repo: `${active?.path ?? HANDBOOK}/.projects/${name}/local`,
+          repo: `${target.path}/.projects/${name}/local`,
         }
-        projects.push(created)
+        const inside = projectsIn(target.path)
+        if (inside.some((one) => one.name === name))
+          throw new Error(`a project named "${name}" already exists`)
+        inside.push(created)
         // Only the vault you are in is somewhere you can go and work.
-        if (!vault || vault === active?.name) setScoped(name)
+        if (target.path === active?.path) setScoped(name)
         return { project: created, config }
       },
       'DELETE /api/projects': async ({ name }) => {
-        const index = projects.findIndex((one) => one.name === name)
+        const index = projects().findIndex((one) => one.name === name)
         if (index < 0) throw new Error(`no project named "${name}"`)
-        projects.splice(index, 1)
+        projects().splice(index, 1)
         delete projectDocs[name]
         delete projectBranches[name]
         if (scoped() === name) setScoped(null)
@@ -432,6 +498,12 @@ export function createMockClient(
         delete files[from]
         emit({ type: 'tree', root, event: { type: 'moved', from, to } })
         return { to, linksRewritten: 3 }
+      },
+      /* Nothing here is running a shell, so what is under test at this end is that closing a
+         tab says it is finished with one — the names it says it about are kept. */
+      'DELETE /api/terminal': async ({ session }) => {
+        finished.push(session)
+        return { closed: 1 }
       },
       'DELETE /api/doc': async ({ root, path }) => {
         delete filesIn(root)[path]
@@ -477,7 +549,7 @@ export function createMockClient(
         vaults.length = 0
         profiles.length = 0
         branches.length = 0
-        projects.length = 0
+        for (const path of Object.keys(byVault)) delete byVault[path]
         for (const path of Object.keys(docs)) delete docs[path]
         for (const name of Object.keys(projectDocs)) delete projectDocs[name]
         for (const name of Object.keys(projectBranches)) delete projectBranches[name]
@@ -519,6 +591,9 @@ export function createMockClient(
 
   return {
     request<R extends ApiRoute>(route: R, body: ApiRequest<R>) {
+      // A backend that has not answered yet, which every backend is for a moment. What a
+      // test written against this asks is what is on screen during that moment.
+      if (seed.stall?.includes(route)) return new Promise<never>(() => {})
       const handler = handlers[route] as (b: ApiRequest<R>) => Promise<ApiResponse<R>>
       return handler(body)
     },
@@ -533,8 +608,15 @@ export function createMockClient(
       }
     },
 
-    terminal(_root, onMessage, _onClose) {
+    terminal({ session }, onMessage, onLive) {
       shell = onMessage
+      shellLive = onLive ?? null
+      named = session
+      sessions.add(session)
+      // The server answers with the name before it says anything else, and a socket delivers
+      // it a turn later — sending it inside this call would reach a caller that does not have
+      // the connection back yet. Nothing here survives a reload, so nothing is ever resumed.
+      queueMicrotask(() => onMessage({ type: 'ready', session, resumed: false }))
       return {
         send(message) {
           if (message.type === 'input')
@@ -542,11 +624,19 @@ export function createMockClient(
         },
         close() {
           shell = null
+          shellLive = null
         },
       }
     },
 
     emit,
     emitTerminal,
+    dropTerminal: () => shellLive?.(false),
+    resumeTerminal(resumed = true) {
+      shellLive?.(true)
+      shell?.({ type: 'ready', session: named, resumed })
+    },
+    terminalNames: () => [...sessions],
+    finishedTerminals: () => [...finished],
   }
 }

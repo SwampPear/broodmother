@@ -90,6 +90,74 @@ it('steps the arrow keys over a disabled row', async () => {
   expect(pick).toHaveBeenCalled()
 })
 
+/* A section long enough to be searched gets a field, and the field is where the menu opens
+   — nothing is narrowed by keys the surface swallowed as type-ahead. */
+it('narrows a searchable section to what is typed, and leaves the rest alone', async () => {
+  await show([
+    {
+      search: 'search people',
+      actions: [
+        { id: 'a', label: 'Ada', onSelect: run },
+        { id: 'g', label: 'Grace', onSelect: run },
+      ],
+    },
+    { actions: [{ id: 'new', label: 'Add one', onSelect: run }] },
+  ])
+
+  const field = screen.getByRole('textbox')
+  expect(field).toHaveFocus()
+  await userEvent.keyboard('grac')
+
+  expect(field).toHaveValue('grac')
+  expect(screen.queryByRole('menuitem', { name: 'Ada' })).not.toBeInTheDocument()
+  expect(screen.getByRole('menuitem', { name: 'Grace' })).toBeInTheDocument()
+  expect(screen.getByRole('menuitem', { name: 'Add one' })).toBeInTheDocument()
+})
+
+it('says so when a query matches nothing', async () => {
+  await show([
+    { search: 'search people', actions: [{ id: 'a', label: 'Ada', onSelect: run }] },
+  ])
+  await userEvent.keyboard('zzz')
+
+  expect(screen.queryByRole('menuitem')).not.toBeInTheDocument()
+  expect(screen.getByText('nothing by that name')).toBeInTheDocument()
+})
+
+it('takes the top match on enter', async () => {
+  const pick = vi.fn()
+  await show([
+    {
+      search: 'search people',
+      actions: [
+        { id: 'a', label: 'Ada', onSelect: run },
+        { id: 'g', label: 'Grace', onSelect: pick },
+      ],
+    },
+  ])
+
+  await userEvent.keyboard('grace{Enter}')
+
+  expect(pick).toHaveBeenCalled()
+})
+
+it('steps from the field into the list', async () => {
+  const pick = vi.fn()
+  await show([
+    {
+      search: 'search people',
+      actions: [
+        { id: 'a', label: 'Ada', onSelect: run },
+        { id: 'g', label: 'Grace', onSelect: pick },
+      ],
+    },
+  ])
+
+  await userEvent.keyboard('{ArrowDown}{ArrowDown}{Enter}')
+
+  expect(pick).toHaveBeenCalled()
+})
+
 it('marks a destructive row so it can be styled apart', async () => {
   await show([{ actions: [{ id: 'x', label: 'Delete', danger: true, onSelect: run }] }])
   expect(screen.getByRole('menuitem')).toHaveAttribute('data-danger', 'true')

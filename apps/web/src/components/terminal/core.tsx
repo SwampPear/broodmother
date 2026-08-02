@@ -7,12 +7,14 @@ import { opal } from '../../colors'
 import { useApp } from '../../state'
 import { Icon, Resizer } from '../ui'
 import { command, KINDS, type TerminalKind, TERMINALS } from './kinds'
+import { arranged, arrangement, closed, expected, opened, panelShell } from './known'
 import {
   close,
   frame,
   leaf,
   resize,
   seams,
+  seed,
   split,
   type Layout,
   type Seam,
@@ -47,6 +49,7 @@ const THEME = {
 
 export function TerminalPanel({
   root,
+  scope,
   height,
   onHeight,
   visible,
@@ -57,6 +60,12 @@ export function TerminalPanel({
    *  typing in is not somewhere to send a `cd`, so moving the scope moves the next shell
    *  rather than the ones already running. */
   root: DocRoot
+  /**
+   * The place these shells belong to — vault, root and branch. The panel is remounted per
+   * place, so this is fixed for as long as it is on screen, and it is what the shells are
+   * named after: the panel of the project you come back to is the one you left there.
+   */
+  scope: string
   height: number
   onHeight: (height: number) => void
   visible: boolean
@@ -67,6 +76,21 @@ export function TerminalPanel({
   // A tab is spawned the first time it is opened, not when the panel is: nobody wants
   // claude started behind their back because they wanted a shell.
   const [live, setLive] = useState<TerminalKind[]>(['shell'])
+  // And not before it has been seen: a shell attaches the first time its tab is up in a
+  // visible panel, so what it replays lands in a terminal that is drawn and measured and
+  // wraps at the width it will be read at. Once attached it stays attached, on screen
+  // or behind another tab or with the whole panel in the background.
+  const shown = useRef(new Set<TerminalKind>())
+  if (visible) shown.current.add(tab)
+
+  /* Which of them were already running here. The shells are the backend's and outlast both
+     the panel and the page, so coming back to a place puts its tabs back up rather than
+     showing a bare shell with a claude session running behind a tab nobody drew. Read after
+     mount, because the server rendering this page has no store to read. */
+  useEffect(() => {
+    const kinds = KINDS.filter((kind) => expected(panelShell(scope, kind)))
+    if (kinds.length) setLive((open) => [...new Set([...open, ...kinds])])
+  }, [scope])
   const exit = useRef(onExit)
   exit.current = onExit
 
@@ -115,16 +139,19 @@ export function TerminalPanel({
           ✕
         </button>
       </header>
-      {KINDS.filter((kind) => live.includes(kind)).map((kind) => (
-        <Session
-          key={kind}
-          kind={kind}
-          root={root}
-          active={visible && tab === kind}
-          focused={visible && tab === kind}
-          onEnd={() => ended(kind)}
-        />
-      ))}
+      {KINDS.filter((kind) => live.includes(kind) && shown.current.has(kind)).map(
+        (kind) => (
+          <Session
+            key={kind}
+            kind={kind}
+            name={panelShell(scope, kind)}
+            root={root}
+            active={visible && tab === kind}
+            focused={visible && tab === kind}
+            onEnd={() => ended(kind)}
+          />
+        ),
+      )}
     </section>
   )
 }
@@ -140,18 +167,36 @@ const SEAM = '1px solid var(--line)'
  */
 export function TerminalTab({
   kind,
+  name,
   root,
   active,
   onExit,
 }: {
   kind: TerminalKind
+  /**
+   * What the tab is called, which is what its first shell is called. The tab outlives the
+   * page — it is written down and comes back — so the shell it names can be asked for again
+   * after a reload. The panes a split adds are named under it and do not: a split is a way
+   * of looking at a tab, and it is not what comes back.
+   */
+  name: string
   /** Where its shells open — the scope the tab was made in, kept for the panes a split
    *  adds later, so one tab's shells all stand in the same folder. */
   root: DocRoot
   active: boolean
   onExit: () => void
 }) {
-  const [layout, setLayout] = useState<Layout>(() => leaf(kind))
+  /* However this tab's panes were last arranged. Read while the state is being made rather
+     than in an effect, because a pane that was drawn first and replaced a moment later would
+     have opened a shell of its own on the way past — one nothing would ever ask for again.
+     The ids come back with the arrangement, which is the point: a pane's shell is named
+     after the pane, so restoring the splits is what restores the shells behind them. */
+  const [layout, setLayout] = useState<Layout>(() => {
+    const back = arrangement(name) as Layout | null
+    if (!back) return leaf(kind)
+    seed(back)
+    return back
+  })
   // Null until a shell takes the cursor, which the first one does as it opens.
   const [focus, setFocus] = useState<string | null>(null)
   // A seam is dragged in pixels, so the tab has to say how many it is wide and tall.
@@ -167,6 +212,10 @@ export function TerminalTab({
     observer.observe(node)
     return () => observer.disconnect()
   }, [])
+
+  // Written on every change rather than on the way out, because the window can be closed or
+  // reloaded between the two, and the arrangement on screen is the thing being remembered.
+  useEffect(() => arranged(name, layout), [name, layout])
 
   const panes = frame(layout)
   const here = focus ?? panes[0]?.leaf.id
@@ -215,6 +264,10 @@ export function TerminalTab({
         >
           <Session
             kind={pane.shell}
+            // Every pane under the tab, the first one included: which pane came first stops
+            // being visible as soon as it is closed, and a name that has to be worked out
+            // from the arrangement is one that changes when the arrangement does.
+            name={`${name}/${pane.id}`}
             root={root}
             active
             focused={active && here === pane.id}
@@ -254,12 +307,18 @@ export function TerminalTab({
 /** One pty, kept alive behind whichever tab is on top. */
 function Session({
   kind,
+  name,
   root,
   active,
   focused,
   onEnd,
 }: {
   kind: TerminalKind
+  /**
+   * What this shell is called, which is the tab's name rather than this connection's: it is
+   * the same after a reload, so asking for it again is how the shell comes back.
+   */
+  name: string
   /** The root this pty stands in, taken once when it is spawned. */
   root: DocRoot
   /** Shown, which every pane of a tab on top is. */
@@ -272,7 +331,7 @@ function Session({
   const run = useRef(command(kind))
   // Taken once for the same reason the soul is: this shell stands where it was opened, and
   // the scope moving afterwards is not a reason to move a folder out from under it.
-  const opened = useRef(root)
+  const where = useRef(root)
   const host = useRef<HTMLDivElement>(null)
   const shell = useRef<{ fit: () => void; focus: () => void } | null>(null)
   const [lost, setLost] = useState(false)
@@ -297,7 +356,12 @@ function Session({
         // Resolved, not `var(--mono)`: a renderer measuring on canvas can't read the var.
         fontFamily: getComputedStyle(document.documentElement).getPropertyValue('--mono'),
         fontSize: 12,
-        lineHeight: 1.3,
+        /* One, because a terminal's rows are not paragraphs of prose. Half of what a shell
+           draws is made of characters that are meant to join up between rows — the box that
+           frames a prompt, a bar in a progress meter, the blocks an agent draws its logo out
+           of — and any air between the lines cuts every one of them into stripes. Reading
+           room comes from the font and the space around the panel instead. */
+        lineHeight: 1,
         cursorBlink: true,
       })
       const fit = new FitAddon()
@@ -305,10 +369,38 @@ function Session({
       terminal.open(node)
 
       let started = false
+      /* Whether a shell under this name was expected to be there. True from the first ask
+         when the tab came back from a previous session, and true of every ask after one has
+         answered. A `ready` that says `resumed: false` against it is a shell that did not
+         survive — reaped, exited while nobody was watching, or taken down with the backend —
+         and whatever is on screen above belongs to something that is gone. */
+      let expecting = expected(name)
+      opened(name)
+      // Assigned below; the connection is made first because the resize is sent over it.
+      let resize = () => {}
+
       const connection = app.client.terminal(
-        opened.current,
+        { root: where.current, session: name },
         (message) => {
-          if (message.type !== 'output') return end.current()
+          if (message.type === 'exit') {
+            // Gone of its own accord, so there is nothing here to come back to and nothing
+            // to say about it having gone next time this name is asked for.
+            closed(name)
+            return end.current()
+          }
+          if (message.type === 'ready') {
+            if (expecting && !message.resumed)
+              terminal.write(
+                '\r\n\x1b[2m— the shell this was attached to is gone; this is a new one —\x1b[0m\r\n',
+              )
+            expecting = true
+            // It ran on the shell that was there before, whatever the socket has done since.
+            if (message.resumed) started = true
+            // The panel may have been resized while this was away, and a pty that was not
+            // told is one drawing to a width the terminal no longer has.
+            resize()
+            return
+          }
           terminal.write(message.data)
           // The command waits for the shell to say something first. Typed before the prompt
           // it lands in a tty that is still echoing raw, and then the line editor starts,
@@ -319,12 +411,12 @@ function Session({
             connection.send({ type: 'input', data: run.current })
           }
         },
-        () => setLost(true),
+        (live) => setLost(!live),
       )
       terminal.onData((data) => connection.send({ type: 'input', data }))
 
       // A hidden panel measures zero, which xterm reads as a one-column terminal.
-      const resize = () => {
+      resize = () => {
         if (!node.clientHeight) return
         fit.fit()
         connection.send({ type: 'resize', cols: terminal.cols, rows: terminal.rows })
@@ -337,7 +429,16 @@ function Session({
       terminal.focus()
       setLost(false)
 
+      /* Nothing is done when the page goes away. It used to be killed there, back when a
+         reload could not bring a terminal back and a shell left running was one nothing
+         would ever reach again — now the tab comes back and asks for it by name, and a
+         reload that killed the shell first would be the one thing standing in the way. */
+
       shell.current = { fit: resize, focus: () => terminal.focus() }
+      /* Unmounting lets go of the shell rather than ending it. This pane goes when its tab
+         is closed — and equally when you move to another project, when the panel is put
+         away, when the window is reloaded — and only the first of those is anybody saying
+         they are finished. The tab close says so itself, in so many words. */
       stop = () => {
         observer.disconnect()
         connection.close()
@@ -366,9 +467,12 @@ function Session({
         ref={host}
         onMouseDown={() => shell.current?.focus()}
       />
+      {/* Said rather than left to be worked out from a shell that has stopped answering.
+          The shell itself is still running at the other end — this is the way back to it,
+          being looked for. */}
       {active && lost && (
         <p className="terminal-lost" role="status">
-          disconnected from the backend — is <code>broodmother</code> still running?
+          reconnecting to the shell…
         </p>
       )}
     </>

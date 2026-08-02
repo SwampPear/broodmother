@@ -19,6 +19,7 @@ export {
   type Identity,
   type Profile,
 } from './config'
+export type { DiffBasis, DiffChange, DiffFile, GitChange, TreeChanges } from './diff'
 export {
   SCHEMA_SPEC,
   isInlineMath,

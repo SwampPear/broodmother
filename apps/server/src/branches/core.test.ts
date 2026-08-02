@@ -190,6 +190,22 @@ describe('createBranch', () => {
     expect(await names(checkouts)).toEqual(['main', 'fix-login'])
   })
 
+  /* A branch continues the work you are in, so it starts where that work is — not at
+     whatever the repository's own checkout happens to be sitting on. */
+  it('cuts off the branch it is given rather than off the primary', async () => {
+    const { checkouts } = await vault()
+    const first = await createBranch(checkouts, 'fix-login')
+    await writeFile(path.join(first.path, 'note.md'), '# note\n')
+    await git(first.path, 'add', '-A')
+    await git(first.path, 'commit', '-m', 'work')
+
+    const second = await createBranch(checkouts, 'fix-login-2', 'fix-login')
+
+    expect(await stat(path.join(second.path, 'note.md'))).toBeTruthy()
+    // The primary is where it was; nothing was checked out under anybody.
+    await expect(stat(path.join(checkouts.primary, 'note.md'))).rejects.toThrow()
+  })
+
   it('refuses a name that is already a branch', async () => {
     const { checkouts } = await vault()
     await createBranch(checkouts, 'taken')

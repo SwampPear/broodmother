@@ -7,6 +7,9 @@ import { Button, Confirm, Icon, Menu, type MenuSection, Modal } from '../ui'
 /** A branch name git will take: no spaces, no `..`, and not ending in `.lock`. */
 const NAME = /^(?!\/|.*(\.\.|@\{|\/\/|\.lock$|\/$))[\w./-]+$/
 
+/** Under this the whole list is on the surface already, and a field over it is chrome. */
+const SEARCHABLE = 8
+
 /**
  * Which branch you are working on, of the one repository you are working in. It sits at the
  * end of the tab bar because switching it is what changes the tabs beside it, and a control
@@ -46,6 +49,7 @@ export function BranchMenu({
   const sections: MenuSection[] = [
     {
       heading: label,
+      search: branches.length > SEARCHABLE ? 'search branches' : undefined,
       actions: branches.map((branch) => ({
         id: branch.name,
         label: branch.name,
@@ -95,6 +99,7 @@ export function BranchMenu({
       {adding && (
         <NewBranch
           label={label}
+          from={active}
           branches={branches}
           onCreate={onCreate}
           onClose={() => setAdding(false)}
@@ -121,11 +126,14 @@ export function BranchMenu({
 /** One field, because a branch is one name: where it lives on disk follows from it. */
 function NewBranch({
   label,
+  from,
   branches,
   onCreate,
   onClose,
 }: {
   label: string
+  /** The branch it is cut off, which is the one you are on. */
+  from: string | null
   branches: Branch[]
   onCreate: (name: string) => Promise<string | null>
   onClose: () => void
@@ -153,7 +161,11 @@ function NewBranch({
   return (
     <Modal
       title="New branch"
-      description={`Cut from where ${label}'s own checkout is now, with a folder of its own.`}
+      description={
+        from
+          ? `Cut from ${from}, the branch you are on, with a folder of its own.`
+          : `Cut from where ${label}'s own checkout is now, with a folder of its own.`
+      }
       onClose={onClose}
       footer={
         <>

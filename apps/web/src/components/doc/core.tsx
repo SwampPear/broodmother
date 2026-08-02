@@ -33,18 +33,19 @@ export function DocView({ root, path }: DocRef) {
       .catch((cause: Error) => setError(cause.message))
   }, [app.client, root, path, picture])
 
-  // Which scope this was read out of. A path does not say everything about a document:
+  // Which place this was read out of. A path does not say everything about a document:
   // the same name on another branch is another file, and moving between two scopes that
   // both had this one open leaves the route alone — so nothing else here would go and
-  // look again, and the old branch's contents would stay on screen.
-  const readFrom = useRef(app.scopeKey)
+  // look again, and the old branch's contents would stay on screen. Keys still resolving
+  // are not places and are not recorded: the first real one to arrive is the place the
+  // read already in flight was always about, and only a move from one real place to
+  // another is a reason to look again.
+  const readFrom = useRef<string | null>(null)
   useEffect(() => {
+    if (app.scopeKey.startsWith('#')) return
     const was = readFrom.current
     readFrom.current = app.scopeKey
-    // Which vault is open lands a request after the first paint, so a document opened in
-    // the meantime was read under a key that names no vault. Learning the name is not a
-    // switch — the read already in flight was always this scope's.
-    if (was === app.scopeKey || was.startsWith('#')) return
+    if (was === app.scopeKey || was === null) return
     // A picture is refetched by the browser, and it caches by src — which is the path, and
     // the path has not changed. The revision is what makes it ask again.
     if (picture) return setRevision((was) => was + 1)

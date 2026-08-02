@@ -1,6 +1,6 @@
 'use client'
 
-import type { DocRef, DocRoot, TreeEntry } from '@broodmother/shared'
+import type { DocRef, DocRoot, GitChange, TreeEntry } from '@broodmother/shared'
 import {
   ContextMenu,
   displayName,
@@ -87,11 +87,23 @@ function menuFor(
   ]
 }
 
+/** The letter VS Code puts at the end of a row, and git puts in front of a path. */
+const LETTER: Record<GitChange, string> = {
+  added: 'A',
+  modified: 'M',
+  removed: 'D',
+  renamed: 'R',
+  conflicted: 'C',
+}
+
 export function TreeRow({
   entry,
   root,
   scoped,
   depth,
+  change,
+  holds,
+  count,
   expanded,
   selected,
   cursor,
@@ -108,6 +120,13 @@ export function TreeRow({
    *  about. */
   scoped: boolean
   depth: number
+  /** What git says about this path: what the checkout has done to it, or — while the tree
+   *  is a comparison between two branches — what the two disagree about. */
+  change: GitChange | null
+  /** A folder with changes somewhere inside it, marked the way VS Code marks one. */
+  holds: boolean
+  /** On a tree's own row: how many paths its checkout has touched. */
+  count: number
   expanded: boolean
   selected: boolean
   cursor: boolean
@@ -135,6 +154,8 @@ export function TreeRow({
         data-root={isRoot || undefined}
         data-scoped={scoped || undefined}
         data-tint={depth % 6}
+        data-change={change ?? undefined}
+        data-holds={holds || undefined}
         data-dragging={sameRef(ref, drag.dragging) || undefined}
         data-drop={sameRef(ref, drag.target) || undefined}
         draggable={!renaming && !isRoot}
@@ -174,8 +195,24 @@ export function TreeRow({
             {isRoot && (
               <span className="tag">{root === 'vault' ? 'vault' : 'project'}</span>
             )}
-            {entry.kind === 'file' && fileTag(entry.name) && (
-              <span className="tag">{fileTag(entry.name)}</span>
+            {/* The tree's own row counts its changes, the way VS Code's SCM badge does;
+                the folders under it wear a dot for the same fact. */}
+            {isRoot && count > 0 && (
+              <span className="change-count" title={`${count} changed`}>
+                {count}
+              </span>
+            )}
+            {change ? (
+              <span className="change" title={change}>
+                {LETTER[change]}
+              </span>
+            ) : holds && !isRoot ? (
+              <span className="change change-dot" title="changes inside" aria-hidden>
+                •
+              </span>
+            ) : (
+              entry.kind === 'file' &&
+              fileTag(entry.name) && <span className="tag">{fileTag(entry.name)}</span>
             )}
           </>
         )}

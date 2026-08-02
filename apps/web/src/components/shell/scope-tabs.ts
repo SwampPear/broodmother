@@ -7,6 +7,10 @@ import { docTab, type Tab } from './tabs'
 import { type TerminalKind } from '../terminal'
 
 const ROUTES_KEY = 'broodmother.routes'
+const TABS_KEY = 'broodmother.tabs'
+
+/** The count out of a `terminal:4`, so the next one made is not a name already taken. */
+const numberOf = (id: string) => Number(id.split(':')[1]) || 0
 
 // One array, so a scope with nothing open does not get a new one every render.
 const EMPTY: Tab[] = []
@@ -37,6 +41,10 @@ function after(path: DocPath, from: DocPath, to: DocPath): DocPath | null {
 
 export interface ScopeTabs {
   tabs: Tab[]
+  /** Every scope's terminal tabs, the current one's included. A shell keeps running while
+   *  you work somewhere else, so the panes that hold them stay mounted in the background —
+   *  the strip above only ever shows `tabs`, but these are what the panes render from. */
+  terminals: Tab[]
   /** A terminal if one is up, otherwise whatever the route names. */
   activeId: string | null
   /** Set only while a terminal tab is up, which is when the document pane is hidden. */
@@ -67,6 +75,8 @@ export function useScopeTabs({
   navigate: (route: string) => void
 }): ScopeTabs {
   const nextTerminal = useRef(1)
+  /** Whether the strip written down by whoever was here last has been read back yet. */
+  const hydrated = useRef(false)
   const [byScope, setByScope] = useState<Record<string, Tab[]>>({})
   const [terminalTab, setTerminalTab] = useState<string | null>(null)
 
@@ -86,12 +96,16 @@ export function useScopeTabs({
   const lastRoute = useRef<Record<string, string>>({})
 
   // Which vault is open arrives a request after the first paint, so a tab opened from the
-  // URL in the meantime is filed under a key that names no vault. When the real one turns
-  // up, those tabs are its: they were always its, the app just could not say so yet.
+  // URL in the meantime is filed under a key that is not a place yet. When the real one
+  // turns up, those tabs are its: they were always its, the app just could not say so yet.
   const filedUnder = useRef(scopeKey)
   // What the sidebar just asked to show, held until it is on screen or until the scope
   // change it triggered has honoured it.
   const asked = useRef<string | null>(null)
+  // A move that left a real place for a key still resolving — a vault switch, mid-answer.
+  // The navigation waits for the real key, so there is one move rather than a stop on the
+  // way.
+  const pendingMove = useRef(false)
 
   // Recorded only while the scope has not changed yet. Filing the route under the key it
   // is moving to would record where you are as where you were going, and the effect below
@@ -108,19 +122,31 @@ export function useScopeTabs({
     filedUnder.current = scopeKey
 
     if (from.startsWith('#')) {
+      // A key resolving into the place it always was. The tabs move over, and nothing
+      // navigates unless a real move was already waiting on this answer.
       setByScope((all) => {
         const carried = all[from]
         if (!carried?.length || all[scopeKey]?.length) return all
         const { [from]: _dropped, ...rest } = all
         return { ...rest, [scopeKey]: carried }
       })
-      return
+      if (scopeKey.startsWith('#') || !pendingMove.current) return
+    } else {
+      setTerminalTab(null)
+      // Leaving a real place for a key still resolving: where to land is not known yet,
+      // so the move waits rather than stopping somewhere on the way.
+      if (scopeKey.startsWith('#')) {
+        pendingMove.current = true
+        return
+      }
     }
 
-    // A real move between scopes. Go back to whatever was open here, or to the home
-    // screen when nothing was — the document from the scope you left is not this one’s.
-    const going = lastRoute.current[scopeKey] ?? '/'
-    setTerminalTab(null)
+    // A real move between scopes. The click that made it may have already said where it
+    // wants to be; failing that, back to whatever was open here, or to the home screen
+    // when nothing was — the document from the scope you left is not this one's.
+    pendingMove.current = false
+    const going = asked.current ?? lastRoute.current[scopeKey] ?? '/'
+    asked.current = null
     if (going !== pathname) navigate(going)
     // `pathname` is deliberately absent: this runs when the scope changes, and reading the
     // route it changed away from is the whole point.
@@ -149,6 +175,46 @@ export function useScopeTabs({
     const keep = Object.entries(lastRoute.current).filter(([key]) => !key.startsWith('#'))
     localStorage.setItem(ROUTES_KEY, JSON.stringify(Object.fromEntries(keep)))
   }, [scopeKey, pathname])
+
+  /**
+   * The terminals, read back the same way. A shell outlives the page it was opened from —
+   * the backend is what is running it — so what a reload loses is not the shell but the tab
+   * that knew its name, and that is the thing written down here.
+   *
+   * Documents are not: a document tab is a place in a tree, the route above already comes
+   * back, and reopening the strip around a file that has since been deleted is a worse
+   * answer than not reopening it.
+   */
+  useEffect(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem(TABS_KEY) ?? '{}') as Record<
+        string,
+        Tab[]
+      >
+      const restored = Object.entries(stored).filter(([, open]) => open.length > 0)
+      // Past every id that came back, so the next terminal made cannot be handed the name
+      // of one that is already running.
+      for (const [, open] of restored)
+        for (const tab of open)
+          nextTerminal.current = Math.max(nextTerminal.current, numberOf(tab.id) + 1)
+      if (restored.length)
+        setByScope((all) => ({ ...Object.fromEntries(restored), ...all }))
+    } catch {
+      // A strip that cannot be read is an empty one.
+    }
+    hydrated.current = true
+  }, [])
+
+  // Not before the read above: the state this writes starts empty, and writing that first
+  // would be the window emptying the strip it is on its way to restoring.
+  useEffect(() => {
+    if (!hydrated.current) return
+    const keep = Object.entries(byScope)
+      .filter(([key]) => !key.startsWith('#'))
+      .map(([key, open]) => [key, open.filter((tab) => tab.kind === 'terminal')] as const)
+      .filter(([, open]) => open.length > 0)
+    localStorage.setItem(TABS_KEY, JSON.stringify(Object.fromEntries(keep)))
+  }, [byScope])
 
   const doc = currentDoc(pathname)
   const activeId = terminalTab ?? (doc ? docTab(doc).id : null)
@@ -217,10 +283,23 @@ export function useScopeTabs({
     show('/')
   }
 
+  /** Out of whichever scope holds it: a shell keeps running in the background, so the one
+   *  that exits there is filed under a key that is not the current one. */
+  function drop(doomed: Set<string>) {
+    setByScope((all) =>
+      Object.fromEntries(
+        Object.entries(all).map(([key, open]) => [
+          key,
+          open.filter((one) => !doomed.has(one.id)),
+        ]),
+      ),
+    )
+  }
+
   function close(tab: Tab) {
     const index = tabs.findIndex((one) => one.id === tab.id)
     const rest = tabs.filter((one) => one.id !== tab.id)
-    setTabs(rest)
+    drop(new Set([tab.id]))
     if (tab.id !== activeId) return
     settle(rest[index] ?? rest[index - 1])
   }
@@ -228,7 +307,7 @@ export function useScopeTabs({
   function closeMany(going: Tab[]) {
     const doomed = new Set(going.map((one) => one.id))
     const rest = tabs.filter((one) => !doomed.has(one.id))
-    setTabs(rest)
+    drop(doomed)
     if (!activeId || !doomed.has(activeId)) return
     settle(rest[rest.length - 1])
   }
@@ -239,5 +318,19 @@ export function useScopeTabs({
     setTerminalTab(id)
   }
 
-  return { tabs, activeId, terminalTab, show, pick, close, closeMany, newTerminal }
+  const terminals = Object.values(byScope)
+    .flat()
+    .filter((tab) => tab.kind === 'terminal')
+
+  return {
+    tabs,
+    terminals,
+    activeId,
+    terminalTab,
+    show,
+    pick,
+    close,
+    closeMany,
+    newTerminal,
+  }
 }

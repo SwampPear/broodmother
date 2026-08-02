@@ -73,14 +73,40 @@ describe('brief', () => {
   it('offers the routes the filesystem cannot replace and no others', () => {
     const text = brief(STATE)
 
-    expect(text).toContain('POST /api/doc/move')
-    expect(text).toContain('GET  /api/links')
+    expect(text).toContain('POST   /api/doc/move')
+    expect(text).toContain('GET    /api/links')
     expect(text).toContain('GET /api/config')
     expect(text).toContain("curl -s 'http://127.0.0.1:3001/api/links?path=notes/sync.md'")
 
     expect(text).not.toContain('/api/data')
     expect(text).not.toContain('/api/profiles')
     expect(text).not.toContain('/api/github')
+  })
+
+  /* Branching is the app's rather than git's — a worktree an agent adds itself is a folder
+     nothing was ever moved into — so the whole of it is offered, not just the reading. */
+  it('hands over the branch routes, not only the ones that read', () => {
+    const text = brief(STATE)
+
+    expect(text).toContain('POST   /api/branches ')
+    expect(text).toContain('POST   /api/branches/open')
+    expect(text).toContain('DELETE /api/branches ')
+    expect(text).toContain('GET /api/branches')
+  })
+
+  /* An agent has git in the same terminal, so which of the two does a piece of git work is
+     the thing to say outright: the routes where there is one, git where there is not. */
+  it('sends git work at the routes that do it, and the rest to git', () => {
+    const text = brief(STATE)
+
+    expect(text).toContain('run it rather than git')
+    expect(text).toContain('/api/sync/now')
+    expect(text).toContain('POST /api/sync/clear-conflict')
+    expect(text).toContain('POST   /api/git/check')
+    expect(text).toContain('GET /api/git ')
+    // Nothing syncs a project, so committing in one is git's, and saying so keeps the rule
+    // above from reading as "never touch git".
+    expect(text).toContain("A project's repository is yours")
   })
 
   it('says in one word whether the vault syncs', () => {

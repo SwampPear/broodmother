@@ -5,6 +5,8 @@ export type {
   PostBranches,
 } from './branches'
 export type { DeleteData } from './data'
+export type { GetDiff, GetDiffFile } from './diff'
+export type { DeleteTerminal } from './terminal'
 export type {
   Backlink,
   DeleteDoc,

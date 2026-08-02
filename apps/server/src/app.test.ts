@@ -1,4 +1,4 @@
-import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { execa } from 'execa'
@@ -109,6 +109,31 @@ describe('document routes', () => {
     const tree = body as ApiResponse<'GET /api/tree'>
     expect(tree.vault.map((e) => e.path).sort()).toEqual(['Risks.md', 'index.md'])
     expect(tree.projects).toEqual([])
+    // A vault with no repository has touched nothing, which is an answer rather than an
+    // error.
+    expect(tree.vaultChanges).toEqual({})
+  })
+
+  it('GET /api/tree wears what git says the checkout has touched', async () => {
+    const { root, call } = await server()
+    await git(root, 'init')
+    await git(root, 'add', '-A')
+    await git(
+      root,
+      '-c',
+      'user.name=t',
+      '-c',
+      'user.email=t@localhost',
+      'commit',
+      '-m',
+      'init',
+    )
+    await writeFile(path.join(root, 'Risks.md'), '# Risks\n\nmore\n')
+    await writeFile(path.join(root, 'new.md'), '# new\n')
+
+    const { body } = await call('GET', '/api/tree')
+    const tree = body as ApiResponse<'GET /api/tree'>
+    expect(tree.vaultChanges).toEqual({ 'Risks.md': 'modified', 'new.md': 'added' })
   })
 
   it('GET /api/doc reads a document and 404s on a missing one', async () => {
@@ -729,6 +754,27 @@ describe('projects', () => {
     expect(listed.active).toBe('fix-login')
   })
 
+  /* Cutting a branch continues the work you are standing in, so the app has to cut it off
+     the branch the root is open on rather than off the repository's own checkout. */
+  it('cuts a new branch off the one the root is already on', async () => {
+    const { call, root } = await server()
+    await git(root, 'init', '--initial-branch=main')
+    await git(root, 'add', '-A')
+    await git(root, 'commit', '-m', 'init')
+
+    const first = await call('POST', '/api/branches', { root: 'vault', name: 'draft' })
+    const drafted = (first.body as ApiResponse<'POST /api/branches'>).branch
+    await writeFile(path.join(drafted.path, 'note.md'), '# note\n')
+    await git(drafted.path, 'add', '-A')
+    await git(drafted.path, 'commit', '-m', 'work')
+
+    const second = await call('POST', '/api/branches', { root: 'vault', name: 'draft-2' })
+
+    const made = (second.body as ApiResponse<'POST /api/branches'>).branch
+    expect(await stat(path.join(made.path, 'note.md'))).toBeTruthy()
+    expect(await readdir(root)).not.toContain('note.md')
+  })
+
   /* The vault's branches and the project's are two lists, and switching one is not the
      other. */
   it('keeps the two branch lists apart', async () => {
@@ -996,5 +1042,128 @@ describe('branch routes', () => {
     })
     expect(missing.status).toBe(400)
     expect(missing.body).toHaveProperty('error')
+  })
+})
+
+describe('diff routes', () => {
+  /** A vault on `feat`, with `main` beside it holding a different set of files. */
+  async function compared() {
+    const made = await server()
+    await git(made.root, 'init', '--initial-branch=main')
+    await git(made.root, 'add', '-A')
+    await git(made.root, 'commit', '-m', 'init')
+    await git(made.root, 'branch', 'feat')
+
+    const opened = await made.call('POST', '/api/branches/open', {
+      root: 'vault',
+      name: 'feat',
+    })
+    const at = (opened.body as ApiResponse<'POST /api/branches/open'>).branch.path
+    await writeFile(path.join(at, 'index.md'), '# index\n\nrewritten\n')
+    await writeFile(path.join(at, 'new.md'), '# new\n')
+    await rm(path.join(at, 'Risks.md'))
+    await git(at, 'add', '-A')
+    await git(at, 'commit', '-m', 'work')
+    return made
+  }
+
+  it('GET /api/diff reports every path the two branches disagree about', async () => {
+    const { call } = await compared()
+
+    const { body } = await call('GET', '/api/diff?root=vault&against=main')
+    const files = (body as ApiResponse<'GET /api/diff'>).files
+    expect(new Map(files.map((one) => [one.path, one.change]))).toEqual(
+      new Map([
+        ['index.md', 'modified'],
+        ['new.md', 'added'],
+        ['Risks.md', 'removed'],
+      ]),
+    )
+  })
+
+  it('GET /api/diff/file gives the file as each branch has it', async () => {
+    const { call } = await compared()
+
+    const { body } = await call(
+      'GET',
+      '/api/diff/file?root=vault&against=main&path=index.md',
+    )
+    const sides = body as ApiResponse<'GET /api/diff/file'>
+    expect(sides.against).toBe('# index\n\nsee [[Risks]]\n')
+    expect(sides.current).toBe('# index\n\nrewritten\n')
+  })
+
+  /* An added file is on one branch and nowhere on the other, and that is what the pane
+     has to be told rather than left to guess from an empty string. */
+  it('GET /api/diff/file is null on the side a file is not on', async () => {
+    const { call } = await compared()
+
+    const added = (
+      await call('GET', '/api/diff/file?root=vault&against=main&path=new.md')
+    ).body as ApiResponse<'GET /api/diff/file'>
+    expect(added.against).toBeNull()
+    expect(added.current).toBe('# new\n')
+
+    const gone = (
+      await call('GET', '/api/diff/file?root=vault&against=main&path=Risks.md')
+    ).body as ApiResponse<'GET /api/diff/file'>
+    expect(gone.against).toBe('# Risks\n')
+    expect(gone.current).toBeNull()
+  })
+
+  /* The branch you are held against does not stand still. Work that landed on it after the
+     two parted is a difference between them, and it is not something this branch did — the
+     basis is which of those two questions is being asked. */
+  it('GET /api/diff leaves out what the other branch did after the split', async () => {
+    const { root, call } = await compared()
+    await writeFile(path.join(root, 'Later.md'), '# later\n')
+    await git(root, 'add', '-A')
+    await git(root, 'commit', '-m', 'main moves on')
+
+    const paths = async (basis: string) => {
+      const { body } = await call('GET', `/api/diff?root=vault&against=main${basis}`)
+      return (body as ApiResponse<'GET /api/diff'>).files.map((one) => one.path)
+    }
+
+    expect(await paths('')).toContain('Later.md')
+    expect((await paths('&basis=split')).sort()).toEqual([
+      'Risks.md',
+      'index.md',
+      'new.md',
+    ])
+  })
+
+  it('GET /api/diff/file reads the other side from where the two parted', async () => {
+    const { root, call } = await compared()
+    await writeFile(path.join(root, 'index.md'), '# index\n\nmoved on\n')
+    await git(root, 'commit', '-am', 'main moves on')
+
+    const sideOf = async (basis: string) => {
+      const { body } = await call(
+        'GET',
+        `/api/diff/file?root=vault&against=main&path=index.md${basis}`,
+      )
+      return (body as ApiResponse<'GET /api/diff/file'>).against
+    }
+
+    expect(await sideOf('')).toBe('# index\n\nmoved on\n')
+    expect(await sideOf('&basis=split')).toBe('# index\n\nsee [[Risks]]\n')
+  })
+
+  it('GET /api/diff refuses a branch the repository does not have', async () => {
+    const { call } = await compared()
+
+    const { status, body } = await call('GET', '/api/diff?root=vault&against=nowhere')
+    expect(status).toBe(400)
+    expect((body as { error: string }).error).toMatch(/no branch named/)
+  })
+
+  /* A branch held against itself is nothing, not an error: it is what asking about the
+     branch you are already standing on means. */
+  it('GET /api/diff is empty for the branch you are on', async () => {
+    const { call } = await compared()
+
+    const { body } = await call('GET', '/api/diff?root=vault&against=feat')
+    expect((body as ApiResponse<'GET /api/diff'>).files).toEqual([])
   })
 })

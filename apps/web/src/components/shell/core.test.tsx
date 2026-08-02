@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, it, vi } from 'vitest'
+import type { Profile } from '@broodmother/shared'
 import { createMockClient, type MockClient } from '../../api/mock'
 import { AppProvider } from '../../state'
 import { Shell } from './core'
@@ -16,7 +17,9 @@ vi.mock('next/navigation', () => ({
 }))
 
 vi.mock('../terminal/core', () => ({
-  TerminalPanel: () => null,
+  TerminalPanel: ({ scope, visible }: { scope: string; visible: boolean }) => (
+    <div data-testid="panel" data-scope={scope} hidden={!visible} />
+  ),
   TerminalTab: ({ active }: { active: boolean }) => (
     <div hidden={!active}>a running shell</div>
   ),
@@ -39,6 +42,17 @@ const tree = (client: MockClient) => (
 )
 
 const show = (client: MockClient) => render(tree(client))
+
+const profile = (name: string): Profile => ({
+  name,
+  path: `/Users/you/.broodmother/${name}/profile.json`,
+  color: '#c084fc',
+  gitAuthor: { name, email: `${name}@example.com` },
+  sshKeyPath: null,
+  claudeCfgDir: null,
+  soul: null,
+  github: null,
+})
 
 it('opens on an empty home with the setup over it, not on a screen of its own', async () => {
   show(createMockClient({ profiles: [], vaults: [], active: null }))
@@ -193,6 +207,139 @@ it('gives a terminal tab the whole pane, and hands it back on the way out', asyn
   expect(screen.getByText('the vault')).toBeVisible()
 })
 
+/* A shell runs in the backend, which a reload does not touch. What a reload loses is the tab
+   that knew its name — so the strip is written down, and the tab that comes back asks for the
+   shell it had. Documents are not written down: the route already brings back the one you
+   were reading, and a strip rebuilt around a file since deleted is worse than no strip. */
+it('brings its terminals back when the window is loaded again', async () => {
+  const client = createMockClient()
+  const first = show(client)
+  await screen.findByText('the vault')
+  await userEvent.click(screen.getByRole('button', { name: 'New tab' }))
+  await userEvent.click(await screen.findByRole('menuitem', { name: /Terminal/ }))
+  await screen.findByRole('tab', { name: /terminal/ })
+
+  // The window going away, which runs no cleanup that a shell would notice.
+  first.unmount()
+  show(createMockClient())
+
+  expect(await screen.findByRole('tab', { name: /terminal/ })).toBeInTheDocument()
+})
+
+/* Closing a tab is the one thing that ends a shell — said out loud, because every other way
+   a terminal leaves the screen is somebody meaning to come back to it. */
+it('says it is finished with the shell when a terminal tab is closed', async () => {
+  const client = createMockClient()
+  show(client)
+  await screen.findByText('the vault')
+  await userEvent.click(screen.getByRole('button', { name: 'New tab' }))
+  await userEvent.click(await screen.findByRole('menuitem', { name: /Terminal/ }))
+  await screen.findByRole('tab', { name: /terminal/ })
+
+  await userEvent.click(screen.getByRole('button', { name: 'Close terminal' }))
+
+  await waitFor(() => expect(client.finishedTerminals()).toEqual(['terminal:1']))
+})
+
+/* A place has its own terminals, and leaving it is not closing them: the tabs are filed
+   under the place, and the shells behind them go on running until something says otherwise. */
+it('keeps each place’s terminals, and says nothing is finished on the way out', async () => {
+  const client = createMockClient({
+    branches: [
+      { name: 'main', path: '/v/local', checkedOut: true, primary: true },
+      { name: 'fix', path: '/v/fix', checkedOut: true, primary: false },
+    ],
+  })
+  show(client)
+  await screen.findByText('the vault')
+  await userEvent.click(screen.getByRole('button', { name: 'New tab' }))
+  await userEvent.click(await screen.findByRole('menuitem', { name: /Terminal/ }))
+  await screen.findByRole('tab', { name: /terminal/ })
+
+  // Somewhere else in the same window: another branch is another place.
+  await userEvent.click(screen.getByRole('button', { name: 'Branch' }))
+  await userEvent.click(await screen.findByRole('menuitemradio', { name: /fix/ }))
+  // The pick lands a double-click window later — a droppable checkout's row holds its
+  // select in case a second click is coming — so the switch is waited for, not assumed.
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: 'Branch' })).toHaveTextContent('fix'),
+  )
+
+  expect(screen.queryByRole('tab', { name: /terminal/ })).not.toBeInTheDocument()
+  expect(client.finishedTerminals()).toEqual([])
+  // The pane itself is still mounted behind the new place, its shell still attached — the
+  // strip stops naming it, the way iTerm keeps a window you are not looking at.
+  expect(screen.getByText('a running shell')).toBeInTheDocument()
+  expect(screen.getByText('a running shell')).not.toBeVisible()
+})
+
+/* The bottom panel is per place too, and leaving a place does not tear its panel down: the
+   shells stay attached in the background, and coming back finds them as they were rather
+   than reattaching and replaying. */
+it('keeps a panel per place, the background ones mounted and hidden', async () => {
+  const client = createMockClient({
+    branches: [
+      { name: 'main', path: '/v/local', checkedOut: true, primary: true },
+      { name: 'fix', path: '/v/fix', checkedOut: true, primary: false },
+    ],
+  })
+  show(client)
+  await screen.findByText('the vault')
+
+  await userEvent.keyboard('{Meta>}j{/Meta}')
+  await waitFor(() => expect(screen.getAllByTestId('panel')).toHaveLength(1))
+
+  await userEvent.click(screen.getByRole('button', { name: 'Branch' }))
+  await userEvent.click(await screen.findByRole('menuitemradio', { name: /fix/ }))
+
+  await waitFor(() => expect(screen.getAllByTestId('panel')).toHaveLength(2))
+  const up = screen.getAllByTestId('panel').filter((panel) => !panel.hidden)
+  expect(up).toHaveLength(1)
+  expect(up[0]!.dataset.scope?.endsWith('#fix')).toBe(true)
+})
+
+/* A click that also moves the scope has already said where it wants to be: the file you
+   touched. Restoring where that scope was last left, on top of it, would navigate away from
+   the very thing you clicked. */
+it('opens the document you clicked when the click also moves the scope', async () => {
+  const client = createMockClient({
+    projects: [{ name: 'api', repo: '/h/.projects/api/local' }],
+    project: 'api',
+  })
+  show(client)
+  await screen.findByText('the vault')
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: /handbook/ })).toHaveTextContent('api'),
+  )
+  await waitFor(() => expect(screen.getByRole('treeitem', { name: 'README.md' })))
+  push.mockClear()
+
+  await userEvent.click(screen.getByRole('treeitem', { name: 'README.md' }))
+
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: /handbook/ })).not.toHaveTextContent('api'),
+  )
+  // Every navigation the click caused went to the file — no stop at the home screen or
+  // wherever the vault was last left on the way there.
+  expect(push).toHaveBeenCalledWith('/doc/vault/README.md')
+  expect(push.mock.calls.every(([route]) => route === '/doc/vault/README.md')).toBe(true)
+})
+
+it('forgets a terminal that was closed rather than left running', async () => {
+  const client = createMockClient()
+  const first = show(client)
+  await screen.findByText('the vault')
+  await userEvent.click(screen.getByRole('button', { name: 'New tab' }))
+  await userEvent.click(await screen.findByRole('menuitem', { name: /Terminal/ }))
+  await userEvent.click(screen.getByRole('button', { name: 'Close terminal' }))
+
+  first.unmount()
+  show(createMockClient())
+
+  await screen.findByText('the vault')
+  expect(screen.queryByRole('tab', { name: /terminal/ })).not.toBeInTheDocument()
+})
+
 /* A file open on two branches is two files. Switching between them keeps each set where it
    was rather than carrying one into the other. */
 it('keeps a tab set per branch', async () => {
@@ -217,6 +364,59 @@ it('keeps a tab set per branch', async () => {
   await waitFor(() =>
     expect(screen.queryByRole('tab', { name: /Overview/ })).not.toBeInTheDocument(),
   )
+})
+
+/* A project lives inside its vault, so the sidebar draws the open vault's and nobody
+   else's. Working as someone else opens one of their vaults — or none — and the projects of
+   the vault you left used to stay in the tree, listed under the name of a vault they are
+   not in and scoped to as though you could go and work in one. */
+it('lists the open vault’s projects, and drops them with the vault', async () => {
+  const home = '/Users/you/.broodmother'
+  const client = createMockClient({
+    home,
+    profiles: [profile('you'), profile('ada')],
+    vaults: [
+      { name: 'handbook', path: `${home}/you/handbook`, profile: 'you' },
+      { name: 'notes', path: `${home}/ada/notes`, profile: 'ada' },
+    ],
+    projects: [{ name: 'api', repo: `${home}/you/handbook/.projects/api/local` }],
+    project: 'api',
+  })
+  show(client)
+  await screen.findByRole('treeitem', { name: 'api' })
+
+  await userEvent.click(screen.getByRole('button', { name: /handbook/ }))
+  await userEvent.click(await screen.findByRole('menuitemradio', { name: /ada/ }))
+
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: /notes/ })).toBeInTheDocument(),
+  )
+  expect(screen.queryByRole('treeitem', { name: 'api' })).not.toBeInTheDocument()
+  // And the scope came with it: a project of a vault nobody has open is nowhere to stand.
+  expect(screen.getByRole('button', { name: /notes/ })).not.toHaveTextContent('api')
+})
+
+/* A new profile has no vaults yet, so making one closes the one you were in. */
+it('empties the tree of projects when the new profile has no vault', async () => {
+  const home = '/Users/you/.broodmother'
+  const client = createMockClient({
+    home,
+    projects: [{ name: 'api', repo: `${home}/you/handbook/.projects/api/local` }],
+    project: 'api',
+  })
+  show(client)
+  await screen.findByRole('treeitem', { name: 'api' })
+
+  await userEvent.click(screen.getByRole('button', { name: /handbook/ }))
+  await userEvent.click(await screen.findByRole('menuitem', { name: /New profile/ }))
+  await userEvent.type(screen.getByLabelText('Profile name'), 'ada')
+  await userEvent.type(screen.getByLabelText('Author email'), 'ada@example.com')
+  await userEvent.click(screen.getByRole('button', { name: 'add profile' }))
+
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: /No vault/ })).toBeInTheDocument(),
+  )
+  expect(screen.queryByRole('treeitem', { name: 'api' })).not.toBeInTheDocument()
 })
 
 /* Switching project is the same kind of move as switching branch: the tabs are the ones
@@ -256,6 +456,32 @@ it('swaps the tabs when you switch project, from the same menu as the vault', as
   )
   // The tab belonged to the checkout you were in, and that is where it stayed.
   expect(screen.queryByRole('tab', { name: /Overview/ })).not.toBeInTheDocument()
+})
+
+/* Where you are working is the click's to say, not the backend's. Waited on, the move was a
+   round trip of the project you had just left still on screen, and then everything arriving
+   at once — which is the flicker. The request still goes; it is how the backend is told. */
+it('moves to the project you clicked before the backend has answered', async () => {
+  const client = createMockClient({
+    projects: [
+      { name: 'api', repo: '/h/.projects/api/local' },
+      { name: 'web', repo: '/h/.projects/web/local' },
+    ],
+    project: 'api',
+    stall: ['POST /api/scope'],
+  })
+  show(client)
+  await screen.findByText('the vault')
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: /handbook/ })).toHaveTextContent('api'),
+  )
+
+  await userEvent.click(await screen.findByRole('treeitem', { name: 'web' }))
+
+  // The backend has said nothing and will not, and the app is in `web` regardless.
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: /handbook/ })).toHaveTextContent('web'),
+  )
 })
 
 /* One branch selector, not one per repository: it belongs to the tabs beside it, and the
@@ -552,4 +778,104 @@ it('remembers the page a checkout was left on across a relaunch', async () => {
   await waitFor(() =>
     expect(push).toHaveBeenCalledWith('/doc/vault/Handbook/Overview.md'),
   )
+})
+
+/* The letters come with the tree rather than with a comparison: the sidebar wears what
+   git says the moment it loads, and every reload of the tree refreshes it. */
+it('decorates the tree with the checkout’s changes as it loads', async () => {
+  show(createMockClient({ changes: { 'README.md': 'modified' } }))
+
+  const row = await screen.findByRole('treeitem', { name: 'README.md' })
+  await waitFor(() => expect(row).toHaveAttribute('data-change', 'modified'))
+})
+
+/* Two branches held against each other. The tree stops being the vault and becomes what
+   the comparison found, because a sidebar of everything is not what you opened one for. */
+it('narrows the tree to what differs while two branches are being compared', async () => {
+  const client = createMockClient({
+    branches: [
+      { name: 'main', path: '/v/local', checkedOut: true, primary: true },
+      { name: 'feat', path: '/v/feat', checkedOut: true, primary: false },
+    ],
+    branch: 'feat',
+    diff: {
+      main: [
+        { path: 'README.md', change: 'modified', from: null },
+        { path: 'Business/Plan.md', change: 'removed', from: null },
+      ],
+    },
+  })
+  show(client)
+  await screen.findByRole('treeitem', { name: 'Handbook' })
+
+  await userEvent.click(screen.getByRole('button', { name: 'Compare branches' }))
+
+  await waitFor(() =>
+    expect(screen.queryByRole('treeitem', { name: 'Handbook' })).not.toBeInTheDocument(),
+  )
+  expect(screen.getByRole('treeitem', { name: 'README.md' })).toBeInTheDocument()
+  // On no branch here, so it is nowhere on disk to be filtered down to — it is in the
+  // tree because the comparison put it there.
+  await userEvent.click(screen.getByRole('treeitem', { name: 'Business' }))
+  expect(screen.getByRole('treeitem', { name: 'Plan.md' })).toBeInTheDocument()
+  expect(screen.getByText(/the branch selected above/)).toHaveTextContent(
+    'Comparing feat, the branch selected above, against',
+  )
+})
+
+/* The other branch has been worked on too, and a file it changed while you were away is a
+   difference between the two without being anything this branch did. The basis is which of
+   those questions the tree is answering, so flipping it has to reach the tree. */
+it('asks again from the split when the basis is flipped', async () => {
+  const client = createMockClient({
+    branches: [
+      { name: 'main', path: '/v/local', checkedOut: true, primary: true },
+      { name: 'feat', path: '/v/feat', checkedOut: true, primary: false },
+    ],
+    branch: 'feat',
+    diff: {
+      main: [
+        { path: 'README.md', change: 'modified', from: null },
+        { path: 'Later.md', change: 'removed', from: null },
+      ],
+    },
+    diffAtSplit: { main: [{ path: 'README.md', change: 'modified', from: null }] },
+  })
+  show(client)
+  await screen.findByRole('treeitem', { name: 'Handbook' })
+  await userEvent.click(screen.getByRole('button', { name: 'Compare branches' }))
+  await screen.findByRole('treeitem', { name: 'Later.md' })
+
+  await userEvent.click(screen.getByRole('button', { name: 'as they stand' }))
+
+  await waitFor(() =>
+    expect(screen.queryByRole('treeitem', { name: 'Later.md' })).not.toBeInTheDocument(),
+  )
+  expect(screen.getByRole('treeitem', { name: 'README.md' })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'since they parted' })).toBeInTheDocument()
+})
+
+/* Switching branch is arriving somewhere else, and the branch you were holding this one
+   against is not a fact about where you have arrived. */
+it('stops comparing when the branch moves under it', async () => {
+  const client = createMockClient({
+    branches: [
+      { name: 'main', path: '/v/local', checkedOut: true, primary: true },
+      { name: 'feat', path: '/v/feat', checkedOut: true, primary: false },
+    ],
+    branch: 'feat',
+    diff: { main: [{ path: 'README.md', change: 'modified', from: null }] },
+  })
+  show(client)
+  await screen.findByRole('treeitem', { name: 'Handbook' })
+  await userEvent.click(screen.getByRole('button', { name: 'Compare branches' }))
+  await screen.findByText(/the branch selected above/)
+
+  await userEvent.click(screen.getByRole('button', { name: 'Branch' }))
+  await userEvent.click(await screen.findByRole('menuitemradio', { name: /main/ }))
+
+  await waitFor(() =>
+    expect(screen.queryByText(/the branch selected above/)).not.toBeInTheDocument(),
+  )
+  await screen.findByRole('treeitem', { name: 'Handbook' })
 })

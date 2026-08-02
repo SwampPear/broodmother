@@ -32,6 +32,25 @@ const GROUNDED: Record<string, string> = {
   'scrollbar.shadow': '#00000000',
 }
 
+/**
+ * Where a difference is said. Monaco paints a changed line end to end, which on a file that
+ * differs everywhere — the ordinary case for a branch you have been working on — is a page
+ * of red with the writing still to be read through it. The colour goes in the margin
+ * instead, a bar beside the line numbers where the `+` and the `−` already are, and the
+ * line keeps a wash faint enough to read through so that a word changed mid-line still has
+ * somewhere to show.
+ *
+ * The app's own `--danger` and `--opal-mint`, because a diff is not a different palette.
+ */
+const DIFF: Record<string, string> = {
+  'diffEditor.insertedLineBackground': '#00000000',
+  'diffEditor.removedLineBackground': '#00000000',
+  'diffEditor.insertedTextBackground': '#34D3991F',
+  'diffEditor.removedTextBackground': '#F851491F',
+  'diffEditorGutter.insertedLineBackground': '#34D399B3',
+  'diffEditorGutter.removedLineBackground': '#F85149B3',
+}
+
 /** Loaded up front because they are what a vault holds, and what a code fence usually is. */
 const SEED = ['markdown', 'json', 'typescript', 'javascript', 'bash', 'python']
 
@@ -93,6 +112,6 @@ function paintGround(monaco: MonacoApi, shiki: Highlighter): void {
   ) as unknown as Monaco.editor.IStandaloneThemeData
   monaco.editor.defineTheme(DARK, {
     ...theme,
-    colors: { ...theme.colors, ...GROUNDED },
+    colors: { ...theme.colors, ...GROUNDED, ...DIFF },
   })
 }

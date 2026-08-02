@@ -3,7 +3,12 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import type { Context } from 'hono'
 import { z } from 'zod'
-import { imageTypeOf, type BroodmotherConfig, type DocRoot } from '@broodmother/shared'
+import {
+  imageTypeOf,
+  type BroodmotherConfig,
+  type DiffBasis,
+  type DocRoot,
+} from '@broodmother/shared'
 import { BranchError } from './branches'
 import { configSchema, gitSettingsSchema, remoteUrlSchema } from './config'
 import { NoProfileError, NoProjectError, NoVaultError, type AppContext } from './context'
@@ -85,6 +90,12 @@ function query(c: Context, name: string): string {
   const value = c.req.query(name)
   if (!value) throw new BadRequest(`missing ${name}`)
   return value
+}
+
+/** Which two points a comparison is between. Unsaid is the branches as they stand, which is
+ *  what the app opens on and what every caller before this one meant. */
+function basis(c: Context): DiffBasis {
+  return c.req.query('basis') === 'split' ? 'split' : 'now'
 }
 
 /** Which tree a GET is asking about. Every read names one, the same way every write does. */
@@ -206,6 +217,23 @@ export function createApp(ctx: AppContext): Hono {
     const branches = await ctx.removeBranch(root(c), query(c, 'name'))
     return c.json({ branches, config: ctx.config })
   })
+
+  /** Two branches compared whole. Nothing here is about a commit: what is reported is the
+   *  difference between the branch you are on and the branch you named — as the two stand,
+   *  or against where they parted, which is what the basis says. */
+  app.get('/api/diff', async (c) =>
+    c.json({ files: await ctx.diff(root(c), query(c, 'against'), basis(c)) }),
+  )
+
+  app.get('/api/diff/file', async (c) =>
+    c.json(await ctx.diffFile(root(c), query(c, 'against'), query(c, 'path'), basis(c))),
+  )
+
+  /** Finished with a shell. Sockets do not end one — every way a socket has of closing is
+   *  somebody meaning to come back — so this is where a tab says it is done. */
+  app.delete('/api/terminal', async (c) =>
+    c.json({ closed: ctx.terminals.finish(query(c, 'session')) }),
+  )
 
   /**
    * The bytes of a file, for the things in a tree that are not text. `/api/doc` reads as

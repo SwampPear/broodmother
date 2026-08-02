@@ -1,6 +1,12 @@
 import { realpath } from 'node:fs/promises'
 import { execa } from 'execa'
-import type { AccessCheck, GitAuthor, DocPath } from '@broodmother/shared'
+import type {
+  AccessCheck,
+  DocPath,
+  GitAuthor,
+  GitChange,
+  TreeChanges,
+} from '@broodmother/shared'
 import { expandHome } from '../profiles'
 
 /** Compared through the link so `/tmp` and `/private/tmp` are not two different folders. */
@@ -79,6 +85,38 @@ function fieldsAfter(record: string, spaces: number): string {
   return record.slice(index + 1)
 }
 
+/** The one letter a row can wear, out of the two git reports. Staged and unstaged are one
+ *  question to a sidebar with no staging of its own: gone anywhere is gone, new anywhere is
+ *  new, and anything else it has touched is modified. */
+function changeOf(xy: string): GitChange {
+  if (xy.includes('D')) return 'removed'
+  if (xy.includes('A')) return 'added'
+  return 'modified'
+}
+
+/** The same records `parseStatus` walks, keeping what became of each path instead of
+ *  flattening every kind into one list. */
+export function parseChanges(stdout: string): TreeChanges {
+  const records = stdout.split('\0').filter((r) => r.length > 0)
+  const changes: TreeChanges = {}
+
+  for (let i = 0; i < records.length; i++) {
+    const record = records[i]!
+    const kind = record[0]
+    if (kind === '1') {
+      changes[fieldsAfter(record, 8)] = changeOf(record.slice(2, 4))
+    } else if (kind === '2') {
+      changes[fieldsAfter(record, 9)] = 'renamed'
+      i++ // the original path of a rename is its own NUL-separated field
+    } else if (kind === 'u') {
+      changes[fieldsAfter(record, 10)] = 'conflicted'
+    } else if (kind === '?') {
+      changes[fieldsAfter(record, 1)] = 'added'
+    }
+  }
+  return changes
+}
+
 export function parseStatus(stdout: string): GitStatus {
   const records = stdout.split('\0').filter((r) => r.length > 0)
   const status: GitStatus = { changed: [], conflicted: [], ahead: 0, behind: 0 }
@@ -147,6 +185,10 @@ export class Git {
       cwd: this.root,
       timeout,
       reject: false,
+      // Every other caller here trims or splits, but a file read out of a branch is its
+      // bytes: a diff whose two sides differ only in the last newline is a difference, and
+      // eating it would report the file as unchanged.
+      stripFinalNewline: false,
       env: {
         GIT_TERMINAL_PROMPT: '0',
         GIT_ASKPASS: 'true',
@@ -196,6 +238,14 @@ export class Git {
     return String(result.stdout).trim() || null
   }
 
+  /** Where git keeps this checkout's state — the worktree's own folder, not the clone's,
+   *  which is what a worktree's `.git` file points at. Null where there is no repository. */
+  async gitDir(): Promise<string | null> {
+    const result = await this.run(['rev-parse', '--absolute-git-dir'])
+    if (result.exitCode !== 0) return null
+    return String(result.stdout).trim() || null
+  }
+
   async ignored(): Promise<Set<string>> {
     const result = await this.run([
       'ls-files',
@@ -212,6 +262,20 @@ export class Git {
         .filter(Boolean)
         .map((p) => (p.endsWith('/') ? p.slice(0, -1) : p)),
     )
+  }
+
+  /** What the working tree has done to each path, for the sidebar to say so. A folder
+   *  that is not a repository has touched nothing, which is an answer rather than an
+   *  error — nothing here is worth failing to draw a tree over. */
+  async changes(): Promise<TreeChanges> {
+    const result = await this.run([
+      'status',
+      '--porcelain=v2',
+      '--untracked-files=all',
+      '-z',
+    ])
+    if (result.exitCode !== 0) return {}
+    return parseChanges(String(result.stdout))
   }
 
   async status(): Promise<GitStatus> {

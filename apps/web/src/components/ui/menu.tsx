@@ -1,7 +1,16 @@
 'use client'
 
 import * as Dropdown from '@radix-ui/react-dropdown-menu'
-import { useEffect, useRef, type MouseEvent, type ReactNode } from 'react'
+import fuzzysort from 'fuzzysort'
+import {
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type MouseEvent,
+  type ReactNode,
+  type RefObject,
+} from 'react'
 import { Icon, type IconName } from './icons'
 
 /**
@@ -36,6 +45,9 @@ export interface MenuAction {
 
 export interface MenuSection {
   heading?: string
+  /** Placeholder for a field over these rows, where there are more of them than anyone
+   *  reads. The rows scroll under it and narrow to what you type. */
+  search?: string
   actions: MenuAction[]
 }
 
@@ -120,6 +132,78 @@ function Item({ action, radio }: { action: MenuAction; radio: boolean }) {
   )
 }
 
+/** What a query leaves, best match first — the palette's matcher, so a list narrows the
+ *  same way wherever you type at one. */
+function matching(actions: MenuAction[], query: string) {
+  return fuzzysort
+    .go(query, actions, { key: 'label', all: true })
+    .map((found) => found.obj)
+}
+
+/** A section, and where it has a field the query that narrows it: the surface is thrown
+ *  away when the menu closes, so what was typed goes with it. */
+function Section({
+  section,
+  field,
+}: {
+  section: MenuSection
+  field: RefObject<HTMLInputElement | null>
+}) {
+  const [query, setQuery] = useState('')
+  const list = useRef<HTMLDivElement>(null)
+
+  const searching = section.search !== undefined
+  const actions = searching ? matching(section.actions, query) : section.actions
+  const single = section.actions.some((action) => action.selected !== undefined)
+  const chosen = section.actions.find((action) => action.selected)?.id
+  const rows = actions.map((action) => (
+    <Item key={action.id} action={action} radio={single} />
+  ))
+  const body = single ? (
+    <Dropdown.RadioGroup value={chosen}>{rows}</Dropdown.RadioGroup>
+  ) : (
+    rows
+  )
+
+  const top = () => list.current?.querySelector<HTMLElement>('[role^="menuitem"]')
+
+  // The surface only moves the focus for keys pressed on itself, so the field opens the
+  // list its own way; every other key stays here, since the surface would otherwise read it
+  // as type-ahead over the rows and take the focus off the field as you typed.
+  const onKeyDown = (event: KeyboardEvent) => {
+    if (event.key === 'Enter' || event.key === 'ArrowDown') {
+      event.preventDefault()
+      if (event.key === 'Enter') top()?.click()
+      else top()?.focus()
+    } else if (event.key.length === 1) event.stopPropagation()
+  }
+
+  return (
+    <div className="menu-section">
+      {section.heading && (
+        <Dropdown.Label className="menu-heading">{section.heading}</Dropdown.Label>
+      )}
+      {searching && (
+        <input
+          ref={field}
+          className="menu-search"
+          value={query}
+          placeholder={section.search}
+          onChange={(event) => setQuery(event.target.value)}
+          onKeyDown={onKeyDown}
+        />
+      )}
+      {searching ? (
+        <div className="menu-list" ref={list}>
+          {rows.length ? body : <p className="menu-empty">nothing by that name</p>}
+        </div>
+      ) : (
+        body
+      )}
+    </div>
+  )
+}
+
 export function Menu({
   label,
   sections,
@@ -141,6 +225,9 @@ export function Menu({
   onOpenChange?: (open: boolean) => void
   children: ReactNode
 }) {
+  const field = useRef<HTMLInputElement>(null)
+  const searching = sections.some((section) => section.search !== undefined)
+
   return (
     <Dropdown.Root open={open} onOpenChange={onOpenChange}>
       <Dropdown.Trigger asChild>
@@ -164,30 +251,17 @@ export function Menu({
           align={align}
           sideOffset={4}
           collisionPadding={8}
+          // The surface takes the focus onto itself when it opens and again whenever the
+          // pointer leaves a row. Where there is a field, that is where the focus belongs:
+          // you can type the moment it is up, and the query is what the keys reach.
+          onFocus={(event) => {
+            if (searching && event.target === event.currentTarget) field.current?.focus()
+          }}
           loop
         >
-          {sections.map((section, index) => {
-            const chosen = section.actions.find((action) => action.selected)?.id
-            const single = section.actions.some((action) => action.selected !== undefined)
-            const rows = section.actions.map((action) => (
-              <Item key={action.id} action={action} radio={single} />
-            ))
-
-            return (
-              <div className="menu-section" key={section.heading ?? index}>
-                {section.heading && (
-                  <Dropdown.Label className="menu-heading">
-                    {section.heading}
-                  </Dropdown.Label>
-                )}
-                {single ? (
-                  <Dropdown.RadioGroup value={chosen}>{rows}</Dropdown.RadioGroup>
-                ) : (
-                  rows
-                )}
-              </div>
-            )
-          })}
+          {sections.map((section, index) => (
+            <Section key={section.heading ?? index} section={section} field={field} />
+          ))}
         </Dropdown.Content>
       </Dropdown.Portal>
     </Dropdown.Root>

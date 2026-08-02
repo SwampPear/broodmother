@@ -7,6 +7,9 @@ import {
   type AccessCheck,
   type Branch,
   type BroodmotherConfig,
+  type DiffBasis,
+  type DiffFile,
+  type DocPath,
   type DocRoot,
   type GitSettings,
   type GithubDevice,
@@ -17,6 +20,7 @@ import {
   type Profile,
   type ProjectSummary,
   type ServerMessage,
+  type TreeChanges,
   type TreeEntry,
   type TreeEvent,
   type VaultSummary,
@@ -32,6 +36,7 @@ import {
   type Checkouts,
 } from './branches'
 import { ConfigStore, defaultConfig } from './config'
+import { diffFiles, mergeBase, readBlob, resolveRef } from './diff'
 import {
   GithubError,
   createRepo as createGithubRepo,
@@ -40,7 +45,7 @@ import {
   repos as githubRepos,
   startDevice,
 } from './github'
-import { Git, SyncLoop } from './git'
+import { Git, GitWatcher, SyncLoop } from './git'
 import { migrate } from './migrate'
 import {
   ProjectError,
@@ -95,6 +100,8 @@ export interface OpenVault {
   git: Git
   links: LinkIndex
   watcher: TreeWatcher
+  /** On the repository's own state, so a commit made in a shell reaches the sidebar. */
+  gitWatcher: GitWatcher
 }
 
 /**
@@ -109,6 +116,9 @@ export interface OpenProject {
   tree: Tree
   git: Git
   watcher: TreeWatcher | null
+  /** Open with the tree watcher and closed with it: only the project you are in is worth
+   *  a watch, and its repository's state is part of what is being watched. */
+  gitWatcher: GitWatcher | null
 }
 
 /** Everything that touches disk, and the one place any root can be swapped. */
@@ -278,17 +288,21 @@ export class AppContext {
     return project
   }
 
-  /** The vault's documents and every project's files, which is the whole sidebar. */
+  /** The vault's documents and every project's files, which is the whole sidebar — each
+   *  with what git says its checkout has touched, so the rows can wear it. */
   async trees(): Promise<{
     vault: TreeEntry[]
-    projects: { name: string; entries: TreeEntry[] }[]
+    vaultChanges: TreeChanges
+    projects: { name: string; entries: TreeEntry[]; changes: TreeChanges }[]
   }> {
     return {
       vault: await this.open.tree.list(),
+      vaultChanges: await this.open.git.changes(),
       projects: await Promise.all(
         [...this.projectsOpen.values()].map(async (project) => ({
           name: project.name,
           entries: await project.tree.list(),
+          changes: await project.git.changes(),
         })),
       ),
     }
@@ -641,7 +655,11 @@ export class AppContext {
     this.relay.close()
     this.terminals.close()
     await this.vaultOpen?.watcher.close()
-    for (const project of this.projectsOpen.values()) await project.watcher?.close()
+    await this.vaultOpen?.gitWatcher.close()
+    for (const project of this.projectsOpen.values()) {
+      await project.watcher?.close()
+      await project.gitWatcher?.close()
+    }
   }
 
   /**
@@ -688,10 +706,12 @@ export class AppContext {
     return branches.find((one) => one.path === open)?.name ?? null
   }
 
+  /** Cut off the branch this root is open on: a new branch continues the work you are in. */
   async addBranch(root: DocRoot, name: string): Promise<Branch> {
     const branch = await createBranch(
       await this.checkoutsFor(root),
       name,
+      await this.activeBranch(root),
       this.activeProfile?.sshKeyPath,
     )
     await this.moveInto(root, branch)
@@ -710,6 +730,63 @@ export class AppContext {
     )
     await this.moveInto(root, branch)
     return branch
+  }
+
+  /**
+   * Every path that differs between the branch this root is standing on and the branch
+   * named. Both refs are read out of the repository itself: a worktree shares its object
+   * database with the checkout it came from, so neither branch has to have a folder.
+   */
+  async diff(root: DocRoot, against: string, basis?: DiffBasis): Promise<DiffFile[]> {
+    const sides = await this.sidesOf(root, against, basis)
+    if (!sides) return []
+    return diffFiles(sides.git, sides.against, sides.current)
+  }
+
+  /** One of those files, as each branch has it. */
+  async diffFile(
+    root: DocRoot,
+    against: string,
+    path: DocPath,
+    basis?: DiffBasis,
+  ): Promise<{ against: string | null; current: string | null }> {
+    const sides = await this.sidesOf(root, against, basis)
+    if (!sides) return { against: null, current: null }
+    // A rename is one file under two names, so the other branch is asked for the name it
+    // has rather than the one this branch gave it.
+    const files = await diffFiles(sides.git, sides.against, sides.current)
+    const source = files.find((one) => one.path === path)?.from ?? path
+    return {
+      against: await readBlob(sides.git, sides.against, source),
+      current: await readBlob(sides.git, sides.current, path),
+    }
+  }
+
+  /**
+   * The repository and the two refs to read out of it, or null when there is nothing to
+   * compare — no repository, or a branch asked to be compared with itself.
+   *
+   * The basis is the whole of what `split` changes: `git diff A...B` is defined as the diff
+   * from the merge base of the two to B, so resolving the far side to that commit is all it
+   * takes — the file list and the two sides of each file both come out of the same pair of
+   * refs, and neither has to know which basis produced them.
+   */
+  private async sidesOf(
+    root: DocRoot,
+    against: string,
+    basis: DiffBasis = 'now',
+  ): Promise<{ git: Git; against: string; current: string } | null> {
+    const current = await this.activeBranch(root)
+    if (!current || current === against) return null
+    const git = new Git((await this.checkoutsFor(root)).primary)
+    const from = await resolveRef(git, against)
+    if (!from) throw new BranchError(`no branch named "${against}"`)
+    const here = await resolveRef(git, current)
+    if (!here) return null
+    // Two branches with nothing in common have no split to compare from. The far side stays
+    // the branch itself, which is a comparison rather than an error.
+    const far = basis === 'split' ? ((await mergeBase(git, from, here)) ?? from) : from
+    return { git, against: far, current: here }
   }
 
   /** Removing the checkout you are in falls back to the repository's own. */
@@ -770,12 +847,14 @@ export class AppContext {
       tree: new Tree(target),
       git: new Git(target, this.activeProfile?.sshKeyPath ?? null, this.hostToken),
       watcher: null,
+      gitWatcher: null,
     })
     await this.watchScope()
   }
 
   private async useVault(vaultPath: string | null): Promise<void> {
     await this.vaultOpen?.watcher.close()
+    await this.vaultOpen?.gitWatcher.close()
     if (!vaultPath) {
       this.vaultOpen = null
       await this.useProjects()
@@ -793,7 +872,10 @@ export class AppContext {
       tree,
       links,
       git: new Git(target, this.activeProfile?.sshKeyPath ?? null, this.hostToken),
-      watcher: new TreeWatcher(target, (event) => this.onTreeEvent('vault', event)),
+      watcher: new TreeWatcher(target, (event) => this.onTreeEvent('vault', event), {
+        skipped: await this.ignoredIn(target),
+      }),
+      gitWatcher: new GitWatcher(target, () => this.onGitEvent('vault')),
     }
     // The vault underneath changed, so what the status line says about syncing has to. A
     // clone and a plain folder do not report the same thing.
@@ -820,6 +902,7 @@ export class AppContext {
         tree: new Tree(target),
         git: new Git(target, this.activeProfile?.sshKeyPath ?? null, this.hostToken),
         watcher: null,
+        gitWatcher: null,
       })
     }
     await this.watchScope()
@@ -836,18 +919,38 @@ export class AppContext {
     return (await exists(target)) ? target : null
   }
 
+  /**
+   * What a watch on this folder should not descend into: what the repository ignores, which
+   * is what the tree already leaves out of the sidebar. A folder that is not a repository
+   * ignores nothing and is watched whole.
+   *
+   * It is asked of git rather than kept as a list of names here — the dependency folder of
+   * whatever this repository is written in is already named in its `.gitignore`, and a list
+   * of `node_modules`, `.venv`, `target`, `vendor` is a list nobody can keep up to date.
+   */
+  private ignoredIn(folder: string): Promise<Set<string>> {
+    return new Git(folder).ignored()
+  }
+
   /** One project watcher, on the one you are in. The others' trees can go stale: nothing is
    *  looking at them, and the scope landing on one refetches it. */
   private async watchScope(): Promise<void> {
     const here = projectOf(this.scope)
     for (const project of this.projectsOpen.values()) {
       if (project.name === here && !project.watcher) {
-        project.watcher = new TreeWatcher(project.path, (event) =>
-          this.onTreeEvent(projectRoot(project.name), event),
+        project.watcher = new TreeWatcher(
+          project.path,
+          (event) => this.onTreeEvent(projectRoot(project.name), event),
+          { skipped: await this.ignoredIn(project.path) },
+        )
+        project.gitWatcher = new GitWatcher(project.path, () =>
+          this.onGitEvent(projectRoot(project.name)),
         )
       } else if (project.name !== here && project.watcher) {
         await project.watcher.close()
+        await project.gitWatcher?.close()
         project.watcher = null
+        project.gitWatcher = null
       }
     }
   }
@@ -856,7 +959,17 @@ export class AppContext {
     const project = this.projectsOpen.get(name)
     if (!project) return
     await project.watcher?.close()
+    await project.gitWatcher?.close()
     this.projectsOpen.delete(name)
+  }
+
+  /** The repository moved under a root — a commit, a stage, a checkout — without a file
+   *  event to say so. The empty path names the whole tree: no document has it, so nothing
+   *  follows it anywhere, and the client reads the place again the way it does for any
+   *  tree event. Not `onTreeEvent`: there is no edit here for the sync to wait on, and no
+   *  link to reindex. */
+  private onGitEvent(root: DocRoot): void {
+    this.broadcast({ type: 'tree', root, event: { type: 'changed', path: '' } })
   }
 
   private onTreeEvent(root: DocRoot, event: TreeEvent): void {

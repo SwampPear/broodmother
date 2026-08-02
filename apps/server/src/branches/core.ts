@@ -210,17 +210,24 @@ async function add(
   return { name, path: target, checkedOut: true, primary: false }
 }
 
-/** Cut fresh off the primary's HEAD. */
+/**
+ * Cut off the branch you are on, which is the work the new one continues. Without one —
+ * a checkout sitting on no branch at all — it comes off the primary's HEAD instead.
+ *
+ * A branch is only a starting point here, so git is content for it to be checked out
+ * somewhere else; that is only refused when two checkouts would sit on the same branch.
+ */
 export async function createBranch(
   checkouts: Checkouts,
   name: string,
+  from: string | null = null,
   sshKeyPath: string | null = null,
 ): Promise<Branch> {
   if (await findBranch(checkouts, name)) throw new BranchError(`"${name}" already exists`)
   return add(
     checkouts,
     name,
-    (target) => ['worktree', 'add', '-b', name, target],
+    (target) => ['worktree', 'add', '-b', name, target, ...(from ? [from] : [])],
     sshKeyPath,
   )
 }

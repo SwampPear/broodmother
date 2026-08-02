@@ -177,7 +177,8 @@ export function FileTree({
           onDrop={(event) => drag.drop(event, VAULT_TOP)}
           onDragLeave={drag.leaveList}
         >
-          {rows.map(({ entry, root, depth }, index) => {
+          {rows.map((row, index) => {
+            const { entry, root, depth, change, holds, count } = row
             const ref: DocRef = { root, path: entry.path }
             return (
               <TreeRow
@@ -186,12 +187,15 @@ export function FileTree({
                 root={root}
                 scoped={root === scope}
                 depth={depth}
+                change={change}
+                holds={holds}
+                count={count}
                 expanded={expanded.has(refKey(ref))}
                 selected={sameRef(ref, current)}
                 cursor={index === at}
                 renaming={sameRef(ref, renaming)}
                 drag={drag}
-                onActivate={() => activate({ entry, root, depth })}
+                onActivate={() => activate(row)}
                 onFocus={() => setCursor(index)}
                 onCommand={onCommand}
                 onRename={(name) => onRename(ref, name)}

@@ -1,4 +1,4 @@
-export { atomicWrite } from './atomic'
+export { TEMP_SUFFIX, atomicWrite } from './atomic'
 export {
   PathError,
   RESERVED,

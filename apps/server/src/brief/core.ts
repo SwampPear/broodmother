@@ -89,13 +89,30 @@ comes back as {"error": "..."}. A route naming a tree takes a root: 'vault' or
 'project:<name>'.
 
 Read and write documents on disk; the app is watching and the browser follows. Reach for
-the API for the four things the filesystem cannot do.
+the API for the things the filesystem cannot do.
 
-  POST /api/doc/move      {root, from, to}  moves a document and rewrites every wikilink
-                                            pointing at it, which mv leaves broken
-  GET  /api/links         ?path=            a document's backlinks and outbound links
-  POST /api/branches/open {root, name}      opens a branch, making its checkout if new
-  POST /api/sync/now      {}                commits, pulls and pushes the open vault now
+  POST   /api/doc/move      {root, from, to}  moves a document and rewrites every wikilink
+                                              pointing at it, which mv leaves broken
+  GET    /api/links         ?path=            a document's backlinks and outbound links
+  POST   /api/branches      {root, name}      cuts a branch off the one the root is on,
+                                              into a checkout of its own
+  POST   /api/branches/open {root, name}      opens a branch, making its checkout if new
+  DELETE /api/branches      ?root=&name=      takes a branch's checkout off disk; the
+                                              branch itself stays
+  POST   /api/sync/now      {}                commits, pulls and pushes the open vault now
+  POST   /api/git/check     {root}            whether the remote answers, and what is
+                                              wrong when it does not
+
+Where a route above does the git work, run it rather than git. Branches are the whole of
+it: making one, opening one and dropping a checkout go through those, because every branch
+has a checkout of its own and which one a root is open on is the app's to record. A
+worktree you add yourself is a folder nothing was ever moved into. The vault's commits are
+the app's the same way — it commits and pushes on its own timer, and /api/sync/now is how
+that happens sooner. A vault that hit a conflict syncs nothing until
+POST /api/sync/clear-conflict, which is for once the files really are resolved.
+
+A project's repository is yours, and git is how you commit in one. Reading is git's as
+well: log, diff, status, blame, and anything else no route covers.
 
 And for state, once what you were told above has gone stale under you.
 
@@ -104,6 +121,7 @@ And for state, once what you were told above has gone stale under you.
   GET /api/projects   the open vault's projects
   GET /api/tree       the vault's tree and every project's, as the sidebar draws them
   GET /api/branches   ?root=   a root's branches, and which of them is checked out
+  GET /api/git        the vault checkout as git reports it: repo, remote, branch
   GET /api/sync       whether sync is on, when it last ran, what is conflicted
 
   curl -s '${api}/api/links?path=notes/sync.md'`

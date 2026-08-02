@@ -183,6 +183,36 @@ it('refuses a drag from one tree into the other', async () => {
   expect(onMove).not.toHaveBeenCalled()
 })
 
+/* What git says about the checkout is worn on the rows, the way VS Code's explorer wears
+   it: a changed file its letter and colour, the folders on the way to it a dot, and the
+   tree's own row the count — which is how a deleted file, having no row, still shows. */
+it('wears the checkout’s changes: letters, folder dots and a count on the root', async () => {
+  show(null, [
+    {
+      root: 'vault',
+      entries,
+      label: 'handbook',
+      changes: {
+        'Handbook/Overview.md': 'modified',
+        'README.md': 'conflicted',
+        'gone.md': 'removed',
+      },
+    },
+  ])
+
+  expect(within(item('handbook')).getByTitle('3 changed')).toHaveTextContent('3')
+  expect(item('Handbook')).toHaveAttribute('data-holds')
+  expect(within(item('Handbook')).getByTitle('changes inside')).toBeInTheDocument()
+  expect(item('README.md')).toHaveAttribute('data-change', 'conflicted')
+  expect(within(item('README.md')).getByText('C')).toBeInTheDocument()
+
+  await userEvent.click(item('Handbook'))
+  expect(item('Overview.md')).toHaveAttribute('data-change', 'modified')
+  expect(within(item('Overview.md')).getByText('M')).toBeInTheDocument()
+  // A folder with nothing touched under it says nothing.
+  expect(item('Archive')).not.toHaveAttribute('data-holds')
+})
+
 it('marks the open document', () => {
   show()
   expect(screen.getByRole('treeitem', { name: 'README.md' })).toHaveAttribute(

@@ -7,6 +7,7 @@ import {
   Git,
   assertNonDestructive,
   classifyRemoteError,
+  parseChanges,
   parseStatus,
   authAdvice,
   sshCommand,
@@ -83,6 +84,42 @@ describe('parseStatus', () => {
     )
     expect(status.changed).toEqual(['after.md', 'to.md'])
     expect(status.conflicted).toEqual(['conflicted note.md'])
+  })
+})
+
+describe('parseChanges', () => {
+  it('keeps what became of each path, staged or not', () => {
+    const changes = parseChanges(
+      [
+        '# branch.ab +2 -1',
+        '1 .M N... 100644 100644 100644 aaa bbb touched.md',
+        '1 M. N... 100644 100644 100644 aaa bbb staged.md',
+        '1 A. N... 000000 100644 100644 aaa bbb staged new.md',
+        '1 .D N... 100644 100644 000000 aaa bbb gone.md',
+        '? brand new.md',
+      ].join('\0') + '\0',
+    )
+    expect(changes).toEqual({
+      'touched.md': 'modified',
+      'staged.md': 'modified',
+      'staged new.md': 'added',
+      'gone.md': 'removed',
+      'brand new.md': 'added',
+    })
+  })
+
+  it('reads a rename and a conflict as their own kinds', () => {
+    const changes = parseChanges(
+      [
+        '2 R. N... 100644 100644 100644 aaa bbb R100 to.md',
+        'from.md',
+        'u UU N... 100644 100644 100644 100644 aaa bbb ccc conflicted note.md',
+      ].join('\0') + '\0',
+    )
+    expect(changes).toEqual({
+      'to.md': 'renamed',
+      'conflicted note.md': 'conflicted',
+    })
   })
 })
 

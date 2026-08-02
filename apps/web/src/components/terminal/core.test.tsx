@@ -67,6 +67,7 @@ async function show(
     <AppProvider client={client}>
       <TerminalPanel
         root="vault"
+        scope="/v#vault#main"
         height={288}
         onHeight={vi.fn()}
         visible
@@ -85,6 +86,10 @@ beforeEach(() => {
   typed = null
   disposed.mockClear()
   focused.mockClear()
+  // The window remembers which shells it believes are running, and one test's shells are
+  // not the next one's — left behind, they are a pane that expects a shell back and says so
+  // on screen when it does not get one.
+  localStorage.clear()
 })
 
 it('sizes the shell to the panel and writes what it sends back', async () => {
@@ -99,6 +104,67 @@ it('sends what is typed to the shell', async () => {
   await show()
   act(() => typed?.('ls\r'))
   expect(written).toEqual(['ls\r']) // the mock client echoes input back as output
+})
+
+/* A machine that slept, a tab the browser froze. The shell is still running at the other
+   end — this says so, and says nothing about the backend, which never went anywhere. */
+it('says it is reconnecting while the socket is down', async () => {
+  const { client } = await show()
+  expect(screen.queryByRole('status')).toBeNull()
+
+  act(() => client.dropTerminal())
+  expect(screen.getByRole('status')).toHaveTextContent('reconnecting to the shell')
+
+  act(() => client.resumeTerminal())
+  await waitFor(() => expect(screen.queryByRole('status')).toBeNull())
+})
+
+/* The shell it was attached to went on running, so what is on screen above is still its
+   own — nothing is said, and nothing is started over. */
+it('says nothing when the shell it comes back to is the one it left', async () => {
+  const { client } = await show()
+  await userEvent.click(screen.getByRole('button', { name: /claude code/ }))
+  await waitFor(() => expect(bodies()).toHaveLength(2))
+  act(() => client.emitTerminal({ type: 'output', data: '$ ' }))
+  expect(written.filter((data) => data.startsWith('claude'))).toHaveLength(1)
+
+  act(() => client.dropTerminal())
+  act(() => client.resumeTerminal())
+  act(() => client.emitTerminal({ type: 'output', data: '$ ' }))
+
+  expect(written.filter((data) => data.startsWith('claude'))).toHaveLength(1)
+  expect(written.join('')).not.toContain('is gone')
+})
+
+/* Reaped, or exited while nobody was watching. What is on screen above belongs to something
+   that no longer exists, and a terminal that let you go on typing under it as though nothing
+   had happened would be lying about where the keystrokes were going. */
+it('says so when the shell it comes back to is not the one it left', async () => {
+  const { client } = await show()
+  act(() => client.dropTerminal())
+  act(() => client.resumeTerminal(false))
+
+  expect(written.join('')).toContain('the shell this was attached to is gone')
+})
+
+/* A shell belongs to the place it was opened in. The panel is one strip per place, and the
+   names its shells go by say which — so the same panel in another project is another set of
+   shells, and coming back finds the ones left here. */
+it('names the panel’s shells after the place they were opened in', async () => {
+  const client = createMockClient()
+  await show({ scope: '/v#project:api#main' }, client)
+
+  expect(client.terminalNames()).toEqual(['panel:/v#project:api#main:shell'])
+})
+
+it('leaves a shell running when its pane goes off screen', async () => {
+  const client = createMockClient()
+  const { view } = await show({}, client)
+
+  // The panel being remounted somewhere else, which is what moving project does to it.
+  view.unmount()
+
+  expect(client.finishedTerminals()).toEqual([])
 })
 
 it('reports a shell that exited', async () => {
@@ -178,11 +244,68 @@ it('hides on the close button without killing the shell', async () => {
 })
 
 it('stays mounted but hidden when the panel is put away', async () => {
-  const { view } = await show({ visible: false })
+  const client = createMockClient()
+  const { view } = await show({}, client)
+
+  view.rerender(
+    <AppProvider client={client}>
+      <TerminalPanel
+        root="vault"
+        scope="/v#vault#main"
+        height={288}
+        onHeight={vi.fn()}
+        visible={false}
+        onHide={vi.fn()}
+        onExit={vi.fn()}
+      />
+    </AppProvider>,
+  )
+
   expect(document.querySelector('.terminal')).toHaveAttribute('hidden')
   expect(disposed).not.toHaveBeenCalled()
   view.unmount()
   expect(disposed).toHaveBeenCalled()
+})
+
+/* A shell that reattaches replays what it missed, and the replay wraps at whatever width
+   the terminal has when it lands — which, for a panel that has never been on screen, is no
+   width at all. So nothing attaches until its tab has been up in a visible panel, and once
+   attached it stays, however far into the background the panel goes. */
+it('attaches nothing until the panel has been seen', async () => {
+  const client = createMockClient()
+  const view = render(
+    <AppProvider client={client}>
+      <TerminalPanel
+        root="vault"
+        scope="/v#vault#main"
+        height={288}
+        onHeight={vi.fn()}
+        visible={false}
+        onHide={vi.fn()}
+        onExit={vi.fn()}
+      />
+    </AppProvider>,
+  )
+  await act(async () => {})
+  expect(bodies()).toHaveLength(0)
+  expect(typed).toBeNull()
+
+  view.rerender(
+    <AppProvider client={client}>
+      <TerminalPanel
+        root="vault"
+        scope="/v#vault#main"
+        height={288}
+        onHeight={vi.fn()}
+        visible
+        onHide={vi.fn()}
+        onExit={vi.fn()}
+      />
+    </AppProvider>,
+  )
+
+  await waitFor(() => expect(typed).not.toBeNull())
+  expect(bodies()).toHaveLength(1)
 })
 
 /* ---------- the tab, which splits ---------- */
@@ -194,7 +317,7 @@ async function tab() {
   const onExit = vi.fn()
   render(
     <AppProvider client={client}>
-      <TerminalTab kind="shell" root="vault" active onExit={onExit} />
+      <TerminalTab kind="shell" name="terminal:1" root="vault" active onExit={onExit} />
     </AppProvider>,
   )
   await waitFor(() => expect(bodies()).toHaveLength(1))
@@ -281,6 +404,46 @@ it('keeps a pane on both sides of a seam dragged to the end', async () => {
 
   // 96px of 800 is the narrowest a pane goes, whatever the pointer asks for.
   await waitFor(() => expect(box(0).width).toBe('12%'))
+})
+
+/* A split is an arrangement of panes, and each pane's shell is named after the pane — so
+   writing the arrangement down is what brings the shells back with it. Four panes that came
+   back asking for four new shells would be four sessions abandoned in the backend. */
+it('comes back split, with each pane on the shell it was running', async () => {
+  // What the last window left behind: two panes side by side, each with a shell named after
+  // it. Written here rather than split into being, so that what is under test is the coming
+  // back rather than the going away.
+  localStorage.setItem(
+    'broodmother.panes',
+    JSON.stringify({
+      'terminal:7': {
+        kind: 'split',
+        id: 'seam:81',
+        axis: 'row',
+        ratio: 0.4,
+        first: { kind: 'leaf', id: 'pane:80', shell: 'shell' },
+        second: { kind: 'leaf', id: 'pane:82', shell: 'claude' },
+      },
+    }),
+  )
+  const client = createMockClient()
+  render(
+    <AppProvider client={client}>
+      <TerminalTab kind="shell" name="terminal:7" root="vault" active onExit={vi.fn()} />
+    </AppProvider>,
+  )
+
+  await waitFor(() => expect(panes()).toHaveLength(2))
+  // Each asking for the shell its pane was running, rather than opening two new ones and
+  // leaving two sessions behind in the backend for the day.
+  await waitFor(() =>
+    expect(client.terminalNames().sort()).toEqual([
+      'terminal:7/pane:80',
+      'terminal:7/pane:82',
+    ]),
+  )
+  // And the seam where it was left, not back at the middle.
+  expect(box(0).width).toBe('40%')
 })
 
 it('has no seam until the tab is split', async () => {

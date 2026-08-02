@@ -1,6 +1,6 @@
 import { watch, type FSWatcher } from 'chokidar'
 import type { TreeEvent } from '@broodmother/shared'
-import { RESERVED, toDocPath } from '../fs'
+import { RESERVED, TEMP_SUFFIX, toDocPath } from '../fs'
 
 const DEBOUNCE_MS = 100
 /**
@@ -10,6 +10,37 @@ const DEBOUNCE_MS = 100
  * to outlast the echo of a local write, which is immediate.
  */
 const SUPPRESS_MS = 250
+
+/**
+ * Whether a path is beneath something the tree does not list. `skipped` holds git's ignore
+ * list as the tree read it — top of each ignored thing, so `node_modules` rather than the
+ * forty thousand paths inside it — which means every ancestor has to be asked about, not
+ * just the name on the end.
+ */
+export function isSkipped(
+  root: string,
+  target: string,
+  skipped: ReadonlySet<string>,
+): boolean {
+  if (target === root) return false
+  let prefix = ''
+  for (const segment of toDocPath(root, target).split('/')) {
+    if (RESERVED.has(segment)) return true
+    prefix = prefix ? `${prefix}/${segment}` : segment
+    if (skipped.has(prefix)) return true
+  }
+  return false
+}
+
+export interface TreeWatchOptions {
+  /**
+   * What the tree leaves out, which is git's ignore list. Read when the watch opens and not
+   * since: a `node_modules` that appears afterwards is watched until this tree is next
+   * opened, which is one of the things the error below is for.
+   */
+  skipped?: ReadonlySet<string>
+  debounceMs?: number
+}
 
 /** Watches a tree and drops the echo of the app's own writes. */
 export class TreeWatcher {
@@ -21,26 +52,32 @@ export class TreeWatcher {
     { event: TreeEvent; timer: NodeJS.Timeout }
   >()
   private readonly suppressed = new Map<string, number>()
+  private readonly debounceMs: number
 
   constructor(
     readonly root: string,
     private readonly onEvent: (event: TreeEvent) => void,
-    private readonly debounceMs = DEBOUNCE_MS,
+    { skipped = new Set<string>(), debounceMs = DEBOUNCE_MS }: TreeWatchOptions = {},
   ) {
+    this.debounceMs = debounceMs
     this.watcher = watch(root, {
       ignoreInitial: true,
       followSymlinks: false,
-      // What the tree lists is what is watched: dotted files included, git's store and the
-      // app's own folder left alone — `.git` churns on every command and none of it is
-      // content. Every segment is checked, not just the last: nothing under `.git/` is
-      // content either.
-      ignored: (target) =>
-        target !== root &&
-        toDocPath(root, target)
-          .split('/')
-          .some((segment) => RESERVED.has(segment)),
+      // What the tree lists is what is watched. Dotted files are in — `.gitignore` is a
+      // document like any other — and three things are out: git's store, the app's own
+      // folders, and everything the repository ignores. A watch is a file descriptor per
+      // directory, and a repository whose dependencies are on disk has tens of thousands
+      // of them; none of it is content, and the tree does not list any of it.
+      ignored: (target) => isSkipped(root, target, skipped),
     })
     this.ready = new Promise((resolve) => this.watcher.once('ready', () => resolve()))
+    /* An `error` event nobody listens for is thrown, and there is nothing above chokidar to
+       catch it — the server exits. That is what a tree too big to watch used to do here.
+       What is left when a watch fails is a tree that stops refreshing on its own, which is
+       worth less than the app and is not worth the app. */
+    this.watcher.on('error', (cause) => {
+      console.error(`broodmother: watching ${root} failed — ${String(cause)}`)
+    })
     this.watcher.on('add', (p) =>
       this.queue({ type: 'created', path: toDocPath(root, p) }),
     )
@@ -79,6 +116,10 @@ export class TreeWatcher {
   }
 
   private queue(event: TreeEvent & { path: string }): void {
+    // The app's own atomic writes land as a temp file renamed over the real one. The
+    // rename's echo is the real path's to report; the temp name is nothing's, and on a
+    // busy machine its appearance and disappearance outlive the debounce and leak out.
+    if (event.path.endsWith(TEMP_SUFFIX)) return
     const existing = this.pending.get(event.path)
     if (existing) clearTimeout(existing.timer)
     const timer = setTimeout(() => {

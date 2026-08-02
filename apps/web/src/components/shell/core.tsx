@@ -4,6 +4,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import {
   useCallback,
   useEffect,
+  useRef,
   useState,
   type CSSProperties,
   type ReactNode,
@@ -12,6 +13,8 @@ import {
   projectOf,
   projectRoot,
   tilde,
+  type DiffBasis,
+  type DiffFile,
   type DocRef,
   type DocRoot,
 } from '@broodmother/shared'
@@ -28,13 +31,14 @@ import {
 } from '../tree'
 import { deleteFlow, type Flow, type FlowCtx, Palette } from '../palette'
 import { BranchMenu } from '../branch'
+import { changesOf, DiffBar, DiffView, entriesFor } from '../diff'
 import { CreateProject } from '../project'
 import { VaultMenu, VaultPicker } from '../vault'
 import { ProfilePicker } from '../profile'
-import { Confirm, Resizer, useStoredSize } from '../ui'
+import { Confirm, Icon, Resizer, useStoredSize } from '../ui'
 import { StatusLine } from './status-line'
-import { type NewTab, TabStrip } from './tabs'
-import { TerminalPanel, TerminalTab } from '../terminal'
+import { type NewTab, type Tab, TabStrip } from './tabs'
+import { forget, TerminalPanel, TerminalTab } from '../terminal'
 import { currentDoc, docRoute, useScopeTabs } from './scope-tabs'
 
 const SIDEBAR_KEY = 'broodmother.sidebar'
@@ -61,15 +65,45 @@ export function Shell({ children }: { children: ReactNode }) {
   const [profiling, setProfiling] = useState(false)
   // The project whose row asked to be deleted, held until the confirmation answers.
   const [deleting, setDeleting] = useState<string | null>(null)
+  // The branch the one you are on is being held against. Null is not comparing at all —
+  // there is no separate flag, because a comparison is the branch it is with.
+  const [against, setAgainst] = useState<string | null>(null)
+  // The two branches as they stand, which is the question the control above asks: how do
+  // these differ. It is not reset when the comparison closes or the branch moves, unlike
+  // `against` — which branch you were holding this one against stops being true when you
+  // leave, but how you were reading the difference is a preference and stays.
+  const [basis, setBasis] = useState<DiffBasis>('now')
+  const [diff, setDiff] = useState<DiffFile[]>([])
 
   const navigate = useCallback((route: string) => router.push(route), [router])
-  const { tabs, activeId, terminalTab, show, pick, close, closeMany, newTerminal } =
-    useScopeTabs({
-      scopeKey: app.scopeKey,
-      pathname,
-      event: app.treeEvent,
-      navigate,
-    })
+  const {
+    tabs,
+    terminals,
+    activeId,
+    terminalTab,
+    show,
+    pick,
+    close,
+    closeMany,
+    newTerminal,
+  } = useScopeTabs({
+    scopeKey: app.scopeKey,
+    pathname,
+    event: app.treeEvent,
+    navigate,
+  })
+
+  // The terminal tabs that have been on screen at least once. A pane mounts the first time
+  // its tab is picked — so its shell attaches to a terminal that is drawn and measured, and
+  // what it replays wraps at the width it will be read at — and then stays mounted in the
+  // background wherever you go, the shell attached the whole time.
+  const openedTerminals = useRef(new Set<string>())
+  if (terminalTab) openedTerminals.current.add(terminalTab)
+
+  // One panel per place, made the first time the terminal is opened there and kept mounted
+  // in the background after: coming back finds its shells as you left them, still attached,
+  // rather than reattaching and replaying on every move.
+  const [panels, setPanels] = useState<Record<string, DocRoot>>({})
 
   const doc = currentDoc(pathname)
 
@@ -79,29 +113,91 @@ export function Shell({ children }: { children: ReactNode }) {
      the settings is not asking for the shell to end. */
   const settings = pathname === '/settings'
 
+  /** What a comparison would open on: the repository's own branch, or failing that any
+   *  branch that is not the one you are standing on. Absent, there is nothing to compare. */
+  const comparable =
+    (
+      app.branches.find((one) => one.primary && one.name !== app.branch) ??
+      app.branches.find((one) => one.name !== app.branch)
+    )?.name ?? null
+
+  /** What the branch menu is about: the name of the repository the scope is standing in. */
+  const scopeLabel = app.project?.name ?? app.vault?.name ?? ''
+
   /** The vault's documents, and under them the files of every project inside it — each its
-   *  own root, headed by its name, because each is somewhere you can go and work. */
-  const roots: TreeRoot[] = [
-    { root: 'vault', entries: app.entries.vault, label: app.vault?.name },
+   *  own root, headed by its name, because each is somewhere you can go and work. Every
+   *  root wears what git says its checkout has touched, the way VS Code's explorer does. */
+  const trees: TreeRoot[] = [
+    {
+      root: 'vault',
+      entries: app.entries.vault,
+      label: app.vault?.name,
+      changes: app.changes.vault,
+    },
     ...app.projects.map((project) => ({
       root: projectRoot(project.name),
       entries: app.entries.projects[project.name] ?? [],
       label: project.name,
+      changes: app.changes.projects[project.name] ?? {},
     })),
   ]
+
+  /**
+   * What the tree draws. While two branches are being compared there is one repository in
+   * question and the only files worth a row are the ones the two disagree about — and those
+   * come out of the comparison rather than out of the sidebar, because a file the other
+   * branch has and this one does not is nowhere on disk to be filtered down to.
+   */
+  const roots: TreeRoot[] = against
+    ? [
+        {
+          root: app.scope,
+          entries: entriesFor(diff),
+          label: scopeLabel,
+          changes: changesOf(diff),
+        },
+      ]
+    : trees
 
   const entriesOf = (root: DocRoot) => {
     const name = projectOf(root)
     return name ? (app.entries.projects[name] ?? []) : app.entries.vault
   }
 
-  /** What the branch menu is about: the name of the repository the scope is standing in. */
-  const scopeLabel = app.project?.name ?? app.vault?.name ?? ''
-
   const toggleTerminal = useCallback(
     () => setTerminal((state) => (state === 'open' ? 'hidden' : 'open')),
     [],
   )
+
+  // While the terminal is up, the place you are standing in has a panel. A key still
+  // resolving is not a place yet, and no panel is made for one.
+  useEffect(() => {
+    if (terminal === 'closed' || app.scopeKey.startsWith('#')) return
+    setPanels((all) =>
+      app.scopeKey in all ? all : { ...all, [app.scopeKey]: app.scope },
+    )
+  }, [terminal, app.scopeKey, app.scope])
+
+  // What the tree draws and what the pane shows while a comparison is up. Refetched when
+  // the place changes and when either tree reports a write: a commit made in a shell moves
+  // the branch under you, and what differs is a fact about the branches rather than a
+  // snapshot taken when the comparison opened.
+  useEffect(() => {
+    if (!against) return setDiff([])
+    let live = true
+    app.client
+      .request('GET /api/diff', { root: app.scope, against, basis })
+      .then((result) => live && setDiff(result.files))
+      .catch(() => live && setDiff([]))
+    return () => {
+      live = false
+    }
+  }, [app.client, app.scope, app.scopeKey, app.treeEvent, against, basis])
+
+  // Moving vault, scope or branch ends the comparison: the branch you were holding this one
+  // against is not a fact about the one you have just arrived on, and comparing a branch
+  // with itself is a blank pane and a question about what went wrong.
+  useEffect(() => setAgainst(null), [app.scopeKey])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -188,7 +284,9 @@ export function Shell({ children }: { children: ReactNode }) {
   }
 
   const ctx: FlowCtx = {
-    refs: fileRefs(roots),
+    // The whole vault, not the tree on screen: what a comparison narrows is the sidebar,
+    // and the palette is how you reach a document that is not in it.
+    refs: fileRefs(trees),
     open: (ref) => show(docRoute(ref)),
     // Seeded from whatever document is open, so a note made from the palette lands beside
     // the one you were reading — in the tree it was read out of.
@@ -205,6 +303,28 @@ export function Shell({ children }: { children: ReactNode }) {
 
   const newTab = (what: NewTab) =>
     what === 'note' ? ctx.newNote() : newTerminal(what, app.scope)
+
+  /**
+   * Closing a terminal tab is the one thing that ends a shell. Everything else that takes a
+   * terminal off screen — moving to another project, putting the panel away, reloading the
+   * window — is somebody meaning to come back, and the shell goes on running for them; so
+   * this is said in so many words rather than left to be read from a socket closing.
+   */
+  const finish = (tab: Tab) => {
+    if (tab.kind !== 'terminal') return
+    forget(tab.id)
+    void app.client.request('DELETE /api/terminal', { session: tab.id })
+  }
+
+  const closeTab = (tab: Tab) => {
+    finish(tab)
+    close(tab)
+  }
+
+  const closeTabs = (going: Tab[]) => {
+    going.forEach(finish)
+    closeMany(going)
+  }
 
   const fromTree = (command: TreeCommand, ref: DocRef) => {
     if (command === 'create') return newNote(ref)
@@ -268,13 +388,13 @@ export function Shell({ children }: { children: ReactNode }) {
             tabs={tabs}
             activeId={activeId}
             onPick={pick}
-            onClose={close}
+            onClose={closeTab}
             onNew={settings ? undefined : newTab}
             // A tab stands for a file, and the file's name is typed where the file is
             // shown: this hands the rename to that row, opening whatever folders were
             // shut around it on the way.
             onRename={(tab) => tab.kind === 'doc' && startRename(tab.ref)}
-            onCloseMany={closeMany}
+            onCloseMany={closeTabs}
           />
           {app.branches.length > 0 && (
             <BranchMenu
@@ -286,17 +406,56 @@ export function Shell({ children }: { children: ReactNode }) {
               onDelete={(name) => void app.deleteBranch(app.scope, name)}
             />
           )}
+          {/* Beside the branch it is about. There is nothing to hold a branch against
+              until the repository has a second one. */}
+          {comparable && (
+            <button
+              type="button"
+              className="diff-toggle"
+              aria-label="Compare branches"
+              aria-pressed={Boolean(against)}
+              title="Compare branches"
+              onClick={() => {
+                setAgainst(against ? null : comparable)
+                // The document you were reading is not necessarily one of the ones that
+                // differ, and a comparison of a file with itself is not what was asked for.
+                if (!against) show('/')
+              }}
+            >
+              <Icon name="compare" />
+            </button>
+          )}
         </div>
+        {against && app.branch && (
+          <DiffBar
+            current={app.branch}
+            against={against}
+            basis={basis}
+            branches={app.branches}
+            files={diff.length}
+            onAgainst={setAgainst}
+            onBasis={setBasis}
+            onClose={() => setAgainst(null)}
+          />
+        )}
         <div className="main-body">
           <div className="pane" hidden={Boolean(terminalTab)}>
-            {children}
+            {against && doc ? (
+              <DiffView root={doc.root} path={doc.path} against={against} basis={basis} />
+            ) : (
+              children
+            )}
           </div>
-          {tabs
+          {terminals
             .filter((tab) => tab.kind === 'terminal')
+            .filter((tab) => openedTerminals.current.has(tab.id))
             .map((tab) => (
               <TerminalTab
                 key={tab.id}
                 kind={tab.shell}
+                // The tab's own id, which is written down with it and comes back with it —
+                // so the shell it opened can be asked for again by the name it was given.
+                name={tab.id}
                 root={tab.root}
                 active={tab.id === terminalTab}
                 onExit={() => close(tab)}
@@ -304,16 +463,25 @@ export function Shell({ children }: { children: ReactNode }) {
             ))}
         </div>
       </main>
-      {terminal !== 'closed' && (
+      {Object.entries(panels).map(([scope, root]) => (
         <TerminalPanel
-          root={app.scope}
+          /* One panel per place, all of them mounted and only the current one visible.
+             Moving to another project puts up that project's shells — its own, still
+             running and still attached where you left them — rather than carrying these
+             along to a folder they were never opened in. */
+          key={scope}
+          root={root}
+          scope={scope}
           height={terminalHeight}
           onHeight={resizeTerminal}
-          visible={terminal === 'open' && !settings}
+          visible={terminal === 'open' && !settings && scope === app.scopeKey}
           onHide={() => setTerminal('hidden')}
-          onExit={() => setTerminal('closed')}
+          onExit={() => {
+            setPanels(({ [scope]: _gone, ...rest }) => rest)
+            if (scope === app.scopeKey) setTerminal('closed')
+          }}
         />
-      )}
+      ))}
       <StatusLine
         sync={app.sync}
         notice={app.notice}

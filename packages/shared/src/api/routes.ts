@@ -5,6 +5,8 @@ import type {
   PostBranches,
 } from './branches'
 import type { DeleteData } from './data'
+import type { GetDiff, GetDiffFile } from './diff'
+import type { DeleteTerminal } from './terminal'
 import type { DeleteDoc, GetDoc, GetLinks, PostDocMove, PostFolder, PutDoc } from './docs'
 import type {
   GetConfig,
@@ -57,6 +59,9 @@ interface ApiRoutes {
   'POST /api/branches': PostBranches
   'POST /api/branches/open': PostBranchOpen
   'DELETE /api/branches': DeleteBranches
+  'GET /api/diff': GetDiff
+  'GET /api/diff/file': GetDiffFile
+  'DELETE /api/terminal': DeleteTerminal
   'GET /api/vaults': GetVaults
   'POST /api/vaults': PostVaults
   'POST /api/vaults/open': PostVaultOpen
