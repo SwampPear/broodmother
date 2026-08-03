@@ -1,12 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import type { Profile, VaultSummary } from '@broodmother/shared'
+import type { VaultSummary } from '@broodmother/shared'
 import { Confirm, Icon, Menu, type MenuSection } from '../ui'
 
 const logo = <img className="logo" src="/logo.png" alt="" width={20} height={20} />
-
-const initial = (name: string) => name.trim().charAt(0).toUpperCase() || '?'
 
 /** The row a second gesture drilled into, and what can be done to it. */
 interface Drilled {
@@ -14,37 +12,30 @@ interface Drilled {
 }
 
 /**
- * The head of the tree: which vault you are in, and who you are while you work in it. Which
- * project inside it is not asked here — the sidebar lists them all and clicking one is how
- * you go there, so a second list saying the same thing would be a second answer to a
- * question already on screen. Neither is the branch, which is one control at the end of the
- * tab bar.
+ * The head of the tree: which vault you are in. Which project inside it is not asked here
+ * — the sidebar lists them all and clicking one is how you go there, so a second list
+ * saying the same thing would be a second answer to a question already on screen. Neither
+ * is the branch, which is one control at the end of the tab bar, nor the profile, which
+ * reads from the foot of the same sidebar.
  */
 export function VaultMenu({
   vaults,
   activePath,
   activeProject,
-  profiles,
-  activeProfile,
   open,
   onOpenChange,
   onSelect,
   onAdd,
   onDelete,
   onCreateProject,
-  onSelectProfile,
-  onAddProfile,
   onSettings,
+  onDreams,
 }: {
   vaults: VaultSummary[]
   activePath: string
   /** Name of the project the scope is in, null when it is the vault. Named beside the vault
    *  rather than chosen here. */
   activeProject: string | null
-  profiles: Profile[]
-  /** Name of the profile you are working as, whose vaults these are. Null until one is
-   *  picked, which is only ever a first run. */
-  activeProfile: string | null
   /** Controlled, because ⌘K asks for this menu too — `Switch vault` is this list, not a
    *  second surface that does the same thing. */
   open: boolean
@@ -53,9 +44,8 @@ export function VaultMenu({
   onAdd: () => void
   onDelete: (name: string) => void
   onCreateProject: () => void
-  onSelectProfile: (name: string) => void
-  onAddProfile: () => void
   onSettings: () => void
+  onDreams: () => void
 }) {
   // Double-clicking a row drills into what can be done to that one, in the same surface:
   // a menu that changed under you reads better than a second menu on top.
@@ -76,7 +66,6 @@ export function VaultMenu({
         {
           id: 'delete',
           label: 'Delete vault…',
-          description: 'Its folder and everything in it',
           icon: 'x',
           danger: true,
           onSelect: () => {
@@ -111,22 +100,6 @@ export function VaultMenu({
         // menu is the rows that make one, which is the whole point of it opening there.
         ...(vaults.length > 0 ? [vaultSection] : []),
         {
-          // A section with anything selected in it is a radio group, so the rows that make
-          // a new one sit below with the other things you can do, not among them.
-          heading: 'Profile',
-          actions: profiles.map((profile) => ({
-            id: `profile:${profile.name}`,
-            label: profile.name,
-            description: profile.gitAuthor.email,
-            badge: { text: initial(profile.name), color: profile.color },
-            selected: profile.name === activeProfile,
-            onSelect: () => {
-              close()
-              if (profile.name !== activeProfile) onSelectProfile(profile.name)
-            },
-          })),
-        },
-        {
           actions: [
             { id: 'add', label: 'New vault…', icon: 'plus', onSelect: onAdd },
             {
@@ -135,12 +108,7 @@ export function VaultMenu({
               icon: 'plus',
               onSelect: onCreateProject,
             },
-            {
-              id: 'new-profile',
-              label: 'New profile…',
-              icon: 'plus',
-              onSelect: onAddProfile,
-            },
+            { id: 'dreams', label: 'Dreams', icon: 'moon-star', onSelect: onDreams },
             { id: 'settings', label: 'Settings', icon: 'settings', onSelect: onSettings },
           ],
         },

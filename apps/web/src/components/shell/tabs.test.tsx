@@ -57,6 +57,8 @@ it.each([
   ['New note', 'note'],
   ['Terminal', 'shell'],
   ['Claude Code', 'claude'],
+  ['OpenCode', 'opencode'],
+  ['Muse Spark', 'muse'],
 ])('opens %s from the plus', async (label, what) => {
   const { onNew } = show()
   await userEvent.click(screen.getByRole('button', { name: 'New tab' }))

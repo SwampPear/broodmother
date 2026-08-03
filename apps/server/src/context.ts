@@ -17,6 +17,7 @@ import {
   type GitState,
   type Identity,
   type NewProject,
+  type Persona,
   type Profile,
   type ProjectSummary,
   type ServerMessage,
@@ -37,6 +38,15 @@ import {
 } from './branches'
 import { ConfigStore, defaultConfig } from './config'
 import { diffFiles, mergeBase, readBlob, resolveRef } from './diff'
+import {
+  Crontab,
+  Dreams,
+  RunStore,
+  TriggerStore,
+  systemCrontab,
+  type CrontabIO,
+  type DreamSite,
+} from './dreams'
 import {
   GithubError,
   createRepo as createGithubRepo,
@@ -80,13 +90,19 @@ import {
   deleteVault,
   findVault,
   listVaults,
+  readPersona,
+  scanPersonas,
+  scanSkills,
   vaultCheckouts,
   type NewVault,
+  type Skill,
 } from './vault'
 
 export interface ContextOptions {
   root?: string
   home?: string
+  /** The system crontab unless a test hands in a tamer one. */
+  cron?: CrontabIO
 }
 
 export class NoVaultError extends Error {}
@@ -99,6 +115,10 @@ export interface OpenVault {
   tree: Tree
   git: Git
   links: LinkIndex
+  /** What the checkout's `.skills/` folder carries, rescanned as the watcher reports it. */
+  skills: Skill[]
+  /** The same for `.personas/`: the voices a dream's Claude node can wear. */
+  personas: Persona[]
   watcher: TreeWatcher
   /** On the repository's own state, so a commit made in a shell reaches the sidebar. */
   gitWatcher: GitWatcher
@@ -116,8 +136,8 @@ export interface OpenProject {
   tree: Tree
   git: Git
   watcher: TreeWatcher | null
-  /** Open with the tree watcher and closed with it: only the project you are in is worth
-   *  a watch, and its repository's state is part of what is being watched. */
+  /** Open for every project, scoped or not: the sidebar wears git's letters for all of
+   *  them, and a commit in a background shell has to reach the rows it is about. */
   gitWatcher: GitWatcher | null
 }
 
@@ -134,12 +154,16 @@ export class AppContext {
   readonly sync: SyncLoop
   readonly relay: Relay
   readonly terminals: Terminals
+  readonly dreams: Dreams
+  private readonly runStore: RunStore
 
   private constructor(
     readonly store: ConfigStore,
     readonly home: string,
+    cron: CrontabIO,
   ) {
     this.relay = new Relay()
+    this.runStore = new RunStore(path.join(home, 'dreams.db'))
     // The root the shell was opened from, then the vault, then the home — which is only
     // where you stand on first run, when there is nothing to stand in yet.
     this.terminals = new Terminals((root) => this.session(root))
@@ -150,6 +174,37 @@ export class AppContext {
       settings: () => this.gitSettings,
       author: () => this.activeProfile?.gitAuthor ?? null,
       onStatus: (status) => this.broadcast({ type: 'sync', status }),
+    })
+    // Dreams run wherever a dream file can live: the vault, and every open project.
+    this.dreams = new Dreams({
+      sites: () => {
+        const sites: DreamSite[] = []
+        if (this.vaultOpen)
+          sites.push({
+            root: 'vault',
+            tree: this.vaultOpen.tree,
+            path: this.vaultOpen.path,
+          })
+        for (const project of this.projectsOpen.values())
+          sites.push({
+            root: projectRoot(project.name),
+            tree: project.tree,
+            path: project.path,
+          })
+        return sites
+      },
+      vault: () => this.vaultOpen?.tree ?? null,
+      url: () => this.url,
+      cron: new Crontab(cron),
+      store: new TriggerStore(path.join(home, 'triggers.json')),
+      runs: this.runStore,
+      scratch: () => path.join(home, 'dreams', 'runs'),
+      env: (): Record<string, string> => {
+        const claudeCfgDir = this.activeProfile?.claudeCfgDir
+        return claudeCfgDir ? { CLAUDE_CONFIG_DIR: expandHome(claudeCfgDir) } : {}
+      },
+      persona: (name) =>
+        this.vaultOpen ? readPersona(this.vaultOpen.path, name) : Promise.resolve(null),
     })
   }
 
@@ -162,7 +217,7 @@ export class AppContext {
     // place for state the sync loop would offer to commit.
     const store = new ConfigStore(path.join(home, 'config.json'), defaultConfig(null))
     const migrated = await migrate(home, await store.load())
-    const context = new AppContext(store, home)
+    const context = new AppContext(store, home, options.cron ?? systemCrontab())
 
     const vaultPath = await resolveVault(options.root, migrated.config, home)
     // A vault sits inside the profile it commits as, so the open one settles who you are.
@@ -549,6 +604,7 @@ export class AppContext {
         name: project.name,
         path: project.path,
       })),
+      skills: this.vaultOpen?.skills ?? [],
       scope,
       cwd,
       sync: state === 'conflict' ? 'conflicted' : state === 'off' ? 'off' : 'on',
@@ -648,10 +704,13 @@ export class AppContext {
   start(url: string): void {
     this.url = url
     this.sync.start()
+    this.dreams.start()
   }
 
   async close(): Promise<void> {
     this.sync.stop()
+    this.dreams.stop()
+    this.runStore.close()
     this.relay.close()
     this.terminals.close()
     await this.vaultOpen?.watcher.close()
@@ -871,6 +930,8 @@ export class AppContext {
       path: target,
       tree,
       links,
+      skills: await scanSkills(target),
+      personas: await scanPersonas(target),
       git: new Git(target, this.activeProfile?.sshKeyPath ?? null, this.hostToken),
       watcher: new TreeWatcher(target, (event) => this.onTreeEvent('vault', event), {
         skipped: await this.ignoredIn(target),
@@ -902,7 +963,11 @@ export class AppContext {
         tree: new Tree(target),
         git: new Git(target, this.activeProfile?.sshKeyPath ?? null, this.hostToken),
         watcher: null,
-        gitWatcher: null,
+        // Watched whether or not the project is the scope: a commit made in any shell
+        // changes what the sidebar says, and this watch is two files, not a repository.
+        gitWatcher: new GitWatcher(target, () =>
+          this.onGitEvent(projectRoot(project.name)),
+        ),
       })
     }
     await this.watchScope()
@@ -943,14 +1008,9 @@ export class AppContext {
           (event) => this.onTreeEvent(projectRoot(project.name), event),
           { skipped: await this.ignoredIn(project.path) },
         )
-        project.gitWatcher = new GitWatcher(project.path, () =>
-          this.onGitEvent(projectRoot(project.name)),
-        )
       } else if (project.name !== here && project.watcher) {
         await project.watcher.close()
-        await project.gitWatcher?.close()
         project.watcher = null
-        project.gitWatcher = null
       }
     }
   }
@@ -979,8 +1039,26 @@ export class AppContext {
     }
     // Only the vault syncs, so only its edits are worth waiting on before one runs.
     if (root === 'vault') this.sync.noteEdit()
+    // Rescanning whole costs less than being clever about which half of a move mattered.
+    if (root === 'vault' && touchesFolder(event, '.skills')) void this.refreshSkills()
+    if (root === 'vault' && touchesFolder(event, '.personas')) void this.refreshPersonas()
     this.broadcast({ type: 'tree', root, event })
   }
+
+  private async refreshSkills(): Promise<void> {
+    const open = this.vaultOpen
+    if (open) open.skills = await scanSkills(open.path)
+  }
+
+  private async refreshPersonas(): Promise<void> {
+    const open = this.vaultOpen
+    if (open) open.personas = await scanPersonas(open.path)
+  }
+}
+
+function touchesFolder(event: TreeEvent, folder: string): boolean {
+  const touched = event.type === 'moved' ? [event.from, event.to] : [event.path]
+  return touched.some((path) => path === folder || path.startsWith(`${folder}/`))
 }
 
 const exists = (target: string) =>

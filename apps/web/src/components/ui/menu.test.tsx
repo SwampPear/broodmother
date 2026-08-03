@@ -28,14 +28,13 @@ it('groups rows under their heading', async () => {
   expect(screen.getByRole('menuitem', { name: 'Add one' })).toBeInTheDocument()
 })
 
-it('carries a description and a leading badge on the row', async () => {
+it('carries a leading badge on the row, and no text but the label', async () => {
   await show([
     {
       actions: [
         {
           id: 'a',
           label: 'Ada',
-          description: 'ada@example.com',
           badge: { text: 'A', color: '#c084fc' },
           onSelect: run,
         },
@@ -43,7 +42,7 @@ it('carries a description and a leading badge on the row', async () => {
     },
   ])
 
-  expect(screen.getByRole('menuitem')).toHaveTextContent('ada@example.com')
+  expect(screen.getByRole('menuitem')).toHaveTextContent(/^AAda$/)
   expect(screen.getByText('A')).toHaveStyle({ background: '#c084fc' })
 })
 

@@ -5,6 +5,8 @@ export {
   rewriteLinks,
   type DocLink,
 } from './links'
+export { readPersona, scanPersonas, seedPersonas } from './personas'
+export { scanSkills, seedSkills, type Skill } from './skills'
 export {
   PRIMARY,
   VaultError,

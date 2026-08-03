@@ -7,7 +7,7 @@ import { defaultGitSettings, type ApiResponse } from '@broodmother/shared'
 import { WEB_ORIGINS } from './app'
 import { defaultConfig } from './config'
 import { createProfile } from './profiles'
-import { bareRemote, cleanup, cloneOf, git, tempDir } from './test'
+import { bareRemote, cleanup, cloneOf, fakeCrontab, git, tempDir } from './test'
 import { HOST, type ServerHandle, startServer } from './index'
 
 const IDENTITY = {
@@ -35,7 +35,7 @@ async function server({ profile = 'tester' }: { profile?: string } = {}) {
   await writeFile(path.join(root, 'index.md'), '# index\n\nsee [[Risks]]\n')
   await writeFile(path.join(root, 'Risks.md'), '# Risks\n')
 
-  const handle = await startServer({ root: vault, home, port: 0 })
+  const handle = await startServer({ root: vault, home, port: 0, cron: fakeCrontab() })
   running.push(handle)
 
   const call = async (method: string, url: string, body?: unknown) => {
@@ -386,6 +386,16 @@ describe('sync routes', () => {
       state: 'off',
     })
   })
+
+  /* A project's repository is yours to commit from a terminal: Sync now leaves it alone. */
+  it('POST /api/sync/now does not touch an open project', async () => {
+    const { call } = await server()
+    const repo = await project(call, 'api')
+    await writeFile(path.join(repo, 'main.rs'), 'fn main() { run() }\n')
+
+    await call('POST', '/api/sync/now')
+    expect((await git(repo, 'status', '--porcelain')).stdout).toContain('main.rs')
+  })
 })
 
 describe('git routes', () => {
@@ -575,7 +585,7 @@ describe('vaults', () => {
 describe('vault selection', () => {
   it('has none on a fresh machine, and says so rather than inventing one', async () => {
     const home = await tempDir()
-    const handle = await startServer({ home, port: 0 })
+    const handle = await startServer({ home, port: 0, cron: fakeCrontab() })
     running.push(handle)
 
     const body = (await (
@@ -589,7 +599,7 @@ describe('vault selection', () => {
     const home = await tempDir()
     await createProfile({ name: 'tester', ...IDENTITY }, home)
     await mkdir(path.join(home, 'tester', 'dropped-in'))
-    const handle = await startServer({ home, port: 0 })
+    const handle = await startServer({ home, port: 0, cron: fakeCrontab() })
     running.push(handle)
 
     const body = (await (
@@ -912,7 +922,7 @@ describe('profiles', () => {
     const home = await tempDir()
     await mkdir(path.join(home, 'dropped-in'), { recursive: true })
     await writeFile(path.join(home, 'dropped-in', 'profile.json'), '{}')
-    const handle = await startServer({ home, port: 0 })
+    const handle = await startServer({ home, port: 0, cron: fakeCrontab() })
     running.push(handle)
 
     const body = (await (
@@ -951,7 +961,11 @@ describe('profiles', () => {
 
 describe('no vault open', () => {
   it('answers 409 rather than pretending an empty vault exists', async () => {
-    const handle = await startServer({ home: await tempDir(), port: 0 })
+    const handle = await startServer({
+      home: await tempDir(),
+      port: 0,
+      cron: fakeCrontab(),
+    })
     running.push(handle)
 
     const response = await fetch(`${handle.url}/api/tree`)

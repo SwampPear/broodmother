@@ -120,7 +120,7 @@ export function TerminalPanel({
             className="terminal-tab"
             data-kind={kind}
             aria-label={TERMINALS[kind].label}
-            title={TERMINALS[kind].label}
+            data-tip={TERMINALS[kind].label}
             aria-pressed={tab === kind}
             data-active={tab === kind || undefined}
             onClick={() => open(kind)}
@@ -133,7 +133,7 @@ export function TerminalPanel({
           type="button"
           className="terminal-hide"
           aria-label="hide terminal"
-          title="hide terminal (⌘J)"
+          data-tip="hide terminal (⌘J)"
           onClick={onHide}
         >
           ✕

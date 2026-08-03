@@ -107,12 +107,17 @@ export function DiffBar({
         type="button"
         className="diff-basis"
         aria-label={BASIS[basis].label}
+        aria-describedby="diff-basis-tip"
         aria-pressed={basis === 'split'}
-        title={BASIS[basis].title}
+        data-tip={BASIS[basis].title}
         onClick={() => onBasis(basis === 'now' ? 'split' : 'now')}
       >
         <Icon name={BASIS[basis].icon} />
       </button>
+      {/* The tip is hover's copy of the words; this one is the screen reader's. */}
+      <span id="diff-basis-tip" className="sr-only">
+        {BASIS[basis].title}
+      </span>
       <span className="diff-count">
         {files === 1 ? '1 file differs' : `${files} files differ`}
       </span>

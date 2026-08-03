@@ -35,6 +35,15 @@ const AXES = {
     along: (event: { clientX: number; clientY: number }) => -event.clientY,
     keys: { ArrowUp: 1, ArrowDown: -1 } as Record<string, number>,
   },
+  options: {
+    min: 120,
+    max: 720,
+    initial: 288,
+    orientation: 'horizontal',
+    label: 'resize options',
+    along: (event: { clientX: number; clientY: number }) => -event.clientY,
+    keys: { ArrowUp: 1, ArrowDown: -1 } as Record<string, number>,
+  },
   row: {
     min: 96,
     max: Infinity,

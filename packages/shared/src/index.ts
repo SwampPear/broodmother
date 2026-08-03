@@ -4,6 +4,15 @@ export type {
   ApiResponse,
   ApiRoute,
   Backlink,
+  DreamRun,
+  DreamStep,
+  DreamStepState,
+  DreamSummary,
+  DreamTrigger,
+  KernelClientMessage,
+  KernelServerMessage,
+  KernelState,
+  Persona,
   ServerMessage,
   WsRoute,
 } from './api'
@@ -35,8 +44,35 @@ export {
   type TaskItemAttrs,
   type WikiLinkAttrs,
 } from './doc'
+export {
+  DREAM_EXTENSION,
+  DreamError,
+  emptyDream,
+  isDreamPath,
+  isTrigger,
+  parseDream,
+  runOrder,
+  serializeDream,
+  starterDreams,
+  triggerLabel,
+  type ClaudeNode,
+  type Dream,
+  type DreamEdge,
+  type DreamKind,
+  type DreamNode,
+  type FileTrigger,
+  type GateNode,
+  type HttpTrigger,
+  type IntervalTrigger,
+  type ManualTrigger,
+  type NoteNode,
+  type ShellNode,
+  type StarterDream,
+  type TimeTrigger,
+} from './dream'
 export type { GithubDevice, GithubRepo } from './github'
 export { imageTypeOf, isImage } from './media'
+export { NOTEBOOK_EXTENSION, isNotebookPath, type CellOutput } from './notebook'
 export { basename, extensionOf, tilde } from './path'
 export type { NewProject, ProjectGit, ProjectSummary } from './project'
 export type { SyncStatus } from './sync'

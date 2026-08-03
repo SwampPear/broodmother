@@ -48,7 +48,7 @@ const INHERITED_SESSION = [
   'CLAUDE_PID',
 ]
 
-function ambient(): Record<string, string> {
+export function ambient(): Record<string, string> {
   const env = { ...process.env } as Record<string, string>
   for (const key of INHERITED_SESSION) delete env[key]
   return env

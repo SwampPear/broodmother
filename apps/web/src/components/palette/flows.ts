@@ -9,10 +9,14 @@ export interface FlowCtx {
   /** Makes one and hands it to the tree to be named. Nothing to ask, so nothing is asked:
    *  the question a dialog put first — what is it called — is the one you answer last. */
   newNote(): void
+  /** A workflow the same way: born runnable, named in the tree, drawn in the pane. */
+  newDream(): void
   move(root: DocRoot, from: DocPath, to: DocPath): void
   remove(ref: DocRef): void
   syncNow(): void
   settings(): void
+  /** The dreams page: what is scheduled, and how running has been going. */
+  dreams(): void
   toggleTerminal(): void
   vaults(): void
   projects(): void

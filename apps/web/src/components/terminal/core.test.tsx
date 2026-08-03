@@ -195,6 +195,20 @@ it('opens a second shell on the claude tab and runs claude in it', async () => {
   expect(onExit).not.toHaveBeenCalled()
 })
 
+/* Both ride opencode; which model is the whole difference, and it has to survive intact. */
+it.each([
+  [/^opencode/, 'opencode --auto\r'],
+  [/^muse spark/, 'opencode --auto --model meta/muse-spark-1.1\r'],
+])('opens a second shell on the %s tab and runs opencode in it', async (label, run) => {
+  const { client } = await show()
+  await userEvent.click(screen.getByRole('button', { name: label }))
+  await waitFor(() => expect(bodies()).toHaveLength(2))
+
+  act(() => client.emitTerminal({ type: 'output', data: '$ ' }))
+
+  expect(written.filter((data) => data.startsWith('opencode'))).toEqual([run])
+})
+
 /* Typed before the shell has printed its prompt, the command lands in a tty still echoing
    raw and is then redrawn by the line editor that starts underneath it — the same command
    on screen twice, which reads as claude having started twice. */

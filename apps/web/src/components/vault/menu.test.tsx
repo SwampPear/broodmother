@@ -2,35 +2,12 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
-import type { Profile, VaultSummary } from '@broodmother/shared'
+import type { VaultSummary } from '@broodmother/shared'
 import { VaultMenu } from './menu'
 
 const vaults: VaultSummary[] = [
   { name: 'Work', path: '/Users/you/.broodmother/ada/Work', profile: 'ada' },
   { name: 'Personal', path: '/Users/you/.broodmother/ada/Personal', profile: 'ada' },
-]
-
-const profiles: Profile[] = [
-  {
-    name: 'ada',
-    path: '/Users/you/.broodmother/ada/profile.json',
-    color: '#c084fc',
-    gitAuthor: { name: 'Ada Lovelace', email: 'ada@example.com' },
-    sshKeyPath: '~/.ssh/id_work',
-    claudeCfgDir: null,
-    soul: null,
-    github: null,
-  },
-  {
-    name: 'grace',
-    path: '/Users/you/.broodmother/grace/profile.json',
-    color: '#34d399',
-    gitAuthor: { name: 'Grace Hopper', email: 'grace@example.com' },
-    sshKeyPath: null,
-    claudeCfgDir: null,
-    soul: null,
-    github: null,
-  },
 ]
 
 function show(
@@ -41,9 +18,8 @@ function show(
   const onAdd = vi.fn()
   const onDelete = vi.fn()
   const onCreateProject = vi.fn()
-  const onSelectProfile = vi.fn()
-  const onAddProfile = vi.fn()
   const onSettings = vi.fn()
+  const onDreams = vi.fn()
   // Open is the shell's to hold, because ⌘K opens this menu too.
   function Harness() {
     const [open, setOpen] = useState(false)
@@ -52,30 +28,19 @@ function show(
         vaults={vaults}
         activePath={activePath}
         activeProject={activeProject}
-        profiles={profiles}
-        activeProfile="ada"
         open={open}
         onOpenChange={setOpen}
         onSelect={onSelect}
         onAdd={onAdd}
         onDelete={onDelete}
         onCreateProject={onCreateProject}
-        onSelectProfile={onSelectProfile}
-        onAddProfile={onAddProfile}
         onSettings={onSettings}
+        onDreams={onDreams}
       />
     )
   }
   render(<Harness />)
-  return {
-    onSelect,
-    onAdd,
-    onDelete,
-    onCreateProject,
-    onSelectProfile,
-    onAddProfile,
-    onSettings,
-  }
+  return { onSelect, onAdd, onDelete, onCreateProject, onSettings }
 }
 
 const open = () => userEvent.click(screen.getByRole('button', { name: /Work|Personal/ }))
@@ -118,26 +83,8 @@ it('does not re-open the vault already active', async () => {
   expect(onSelect).not.toHaveBeenCalled()
 })
 
-/* Who you are is picked in the same surface as where you are, because it is the same
-   question asked twice. */
-it('picks the profile the vault commits as, without leaving the menu', async () => {
-  const { onSelectProfile } = show()
-  await open()
-
-  await userEvent.click(screen.getByRole('menuitemradio', { name: /grace/ }))
-
-  await waitFor(() => expect(onSelectProfile).toHaveBeenCalledWith('grace'))
-})
-
-it('does not re-apply the profile already in use', async () => {
-  const { onSelectProfile } = show()
-  await open()
-  await userEvent.click(screen.getByRole('menuitemradio', { name: /ada@example\.com/ }))
-  expect(onSelectProfile).not.toHaveBeenCalled()
-})
-
 /* Where you are working is one question, so the project is picked in the same list as the
-   vault it belongs to and the profile you do it as — not from a control of its own. */
+   vault it belongs to — not from a control of its own. Who you are is the sidebar's foot. */
 it('names the open project beside the vault, so neither has to be opened to read', () => {
   show('/Users/you/.broodmother/ada/Work', 'api')
   const anchor = screen.getByRole('button')
@@ -150,13 +97,6 @@ it('opens the link-a-project flow from its own row', async () => {
   await open()
   await userEvent.click(screen.getByRole('menuitem', { name: /New project/ }))
   expect(onCreateProject).toHaveBeenCalled()
-})
-
-it('opens the new-profile flow from its own row', async () => {
-  const { onAddProfile } = show()
-  await open()
-  await userEvent.click(screen.getByRole('menuitem', { name: /New profile/ }))
-  expect(onAddProfile).toHaveBeenCalled()
 })
 
 it('opens the new-vault flow from its own row', async () => {

@@ -14,7 +14,7 @@ import { dropFolder, sameRef } from './paths'
 import { type TreeDrag } from './drag'
 
 export type TreeCommand =
-  'create' | 'create-folder' | 'rename' | 'delete' | 'delete-project'
+  'create' | 'create-dream' | 'create-folder' | 'rename' | 'delete' | 'delete-project'
 
 // The same commands the keys run, named after what the row is: a menu that says
 // `Delete folder…` over a folder has already answered what it is about to take. Rename opens
@@ -38,7 +38,6 @@ function menuFor(
           {
             id: 'delete-project',
             label: 'Delete project…',
-            description: 'The repository and all of its history',
             icon: 'x' as const,
             danger: true,
             onSelect: () => onCommand('delete-project', ref),
@@ -56,6 +55,12 @@ function menuFor(
                 label: 'New note here',
                 icon: 'plus' as const,
                 onSelect: () => onCommand('create', ref),
+              },
+              {
+                id: 'create-dream',
+                label: 'New dream here',
+                icon: 'moon-star' as const,
+                onSelect: () => onCommand('create-dream', ref),
               },
               {
                 id: 'create-folder',
@@ -193,24 +198,31 @@ export function TreeRow({
               {entry.kind === 'file' ? displayName(entry.name) : entry.name}
             </span>
             {/* A vault and a repository look like any other folder in a sidebar of them,
-                and clicking one moves the whole app. The same pill a file wears for its
-                extension says which folders those are. */}
+                and clicking one moves the whole app. A little icon says which folders
+                those are: the vault is the safe the notes are kept in, a project ships
+                as a package. */}
             {isRoot && (
-              <span className="tag">{root === 'vault' ? 'vault' : 'project'}</span>
+              <span
+                className="root-kind"
+                data-kind={root === 'vault' ? 'vault' : 'project'}
+                data-tip={root === 'vault' ? 'vault' : 'project'}
+              >
+                <Icon name={root === 'vault' ? 'vault' : 'package'} />
+              </span>
             )}
             {/* The tree's own row counts its changes, the way VS Code's SCM badge does;
                 the folders under it wear a dot for the same fact. */}
             {isRoot && count > 0 && (
-              <span className="change-count" title={`${count} changed`}>
+              <span className="change-count" data-tip={`${count} changed`}>
                 {count}
               </span>
             )}
             {change ? (
-              <span className="change" title={change}>
+              <span className="change" data-tip={change}>
                 {LETTER[change]}
               </span>
             ) : holds && !isRoot ? (
-              <span className="change change-dot" title="changes inside" aria-hidden>
+              <span className="change change-dot" data-tip="changes inside" aria-hidden>
                 •
               </span>
             ) : (

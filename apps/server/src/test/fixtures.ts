@@ -39,6 +39,17 @@ export async function cloneOf(remote: string): Promise<string> {
   return dir
 }
 
+/** A crontab that is only a string, so no test ever edits the machine's real one. */
+export function fakeCrontab() {
+  let text = ''
+  return {
+    read: async () => text,
+    write: async (next: string) => {
+      text = next
+    },
+  }
+}
+
 export const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 export async function until(

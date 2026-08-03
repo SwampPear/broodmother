@@ -10,8 +10,12 @@ import {
   type ReactNode,
 } from 'react'
 import {
+  DREAM_EXTENSION,
+  emptyDream,
+  isDreamPath,
   projectOf,
   projectRoot,
+  serializeDream,
   tilde,
   type DiffBasis,
   type DiffFile,
@@ -34,7 +38,7 @@ import { BranchMenu } from '../branch'
 import { changesOf, DiffBar, DiffView, entriesFor } from '../diff'
 import { CreateProject } from '../project'
 import { VaultMenu, VaultPicker } from '../vault'
-import { ProfilePicker } from '../profile'
+import { ProfileMenu, ProfilePicker } from '../profile'
 import { Confirm, Icon, Resizer, useStoredSize } from '../ui'
 import { StatusLine } from './status-line'
 import { type NewTab, type Tab, TabStrip } from './tabs'
@@ -107,11 +111,15 @@ export function Shell({ children }: { children: ReactNode }) {
 
   const doc = currentDoc(pathname)
 
-  /* Settings is a page about the app rather than a place in it: nothing here is opened in a
-     tab or run in a shell, so the plus and the terminal have nothing to offer while it is
-     up. The terminal is hidden rather than closed — a pty that unmounts dies, and reading
-     the settings is not asking for the shell to end. */
-  const settings = pathname === '/settings'
+  /* Settings and Dreams are pages about the app rather than places in it: nothing here is
+     opened in a tab or run in a shell, so the plus and the terminal have nothing to offer
+     while one is up. The terminal is hidden rather than closed — a pty that unmounts dies,
+     and reading a page is not asking for the shell to end. */
+  const appPage = pathname === '/settings' || pathname === '/dreams'
+
+  /* The dream editor takes the bottom panel for its own options, so ⌘J is its key there
+     and the terminal stays hidden the way it does on an app page — hidden, not closed. */
+  const dreamPage = doc !== null && isDreamPath(doc.path)
 
   /** What a comparison would open on: the repository's own branch, or failing that any
    *  branch that is not the one you are standing on. Absent, there is nothing to compare. */
@@ -207,7 +215,7 @@ export function Shell({ children }: { children: ReactNode }) {
         setFlow({ kind: 'search' })
       } else if (event.key === 'j') {
         event.preventDefault()
-        toggleTerminal()
+        if (!dreamPage) toggleTerminal()
       } else if (event.shiftKey && event.key.toLowerCase() === 's') {
         event.preventDefault()
         void app.syncNow()
@@ -215,7 +223,7 @@ export function Shell({ children }: { children: ReactNode }) {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [toggleTerminal, app])
+  }, [toggleTerminal, app, dreamPage])
 
   /**
    * A note is made by making it. `Untitled` in the folder you asked from, open in the pane,
@@ -223,18 +231,24 @@ export function Shell({ children }: { children: ReactNode }) {
    * stand here asked for a path, and a path is the one thing you cannot give before there
    * is a note to give it to. Naming is the last step, and it is a rename like any other.
    */
-  const newNote = (seed: DocRef) => {
+  const newDoc = (seed: DocRef, extension: string, contents?: string) => {
     const entries = entriesOf(seed.root)
     const at: DocRef = {
       root: seed.root,
-      path: untitledIn(entries, folderOf(entries, seed.path)),
+      path: untitledIn(entries, folderOf(entries, seed.path), extension),
     }
-    void app.create(at).then((failed) => {
+    void app.create(at, contents).then((failed) => {
       if (failed) return
       show(docRoute(at))
       setRenaming(at)
     })
   }
+
+  const newNote = (seed: DocRef) => newDoc(seed, '.md')
+  // Born with its manual trigger already on the canvas: a dream that opens empty would
+  // open as a question, and the file has an answer.
+  const newDream = (seed: DocRef) =>
+    newDoc(seed, DREAM_EXTENSION, serializeDream(emptyDream()))
 
   /**
    * Opens a row as a field, a frame from now. Every rename is raised from a menu, and a
@@ -291,10 +305,12 @@ export function Shell({ children }: { children: ReactNode }) {
     // Seeded from whatever document is open, so a note made from the palette lands beside
     // the one you were reading — in the tree it was read out of.
     newNote: () => newNote(doc ?? { root: 'vault', path: '' }),
+    newDream: () => newDream(doc ?? { root: 'vault', path: '' }),
     move: (root, from, to) => void app.move(root, from, to),
     remove: (ref) => void app.remove(ref),
     syncNow: () => void app.syncNow(),
     settings: () => router.push('/settings'),
+    dreams: () => router.push('/dreams'),
     vaults: () => setPicker(true),
     projects: () => setWhereMenu(true),
     createProject: () => setCreating(true),
@@ -328,6 +344,7 @@ export function Shell({ children }: { children: ReactNode }) {
 
   const fromTree = (command: TreeCommand, ref: DocRef) => {
     if (command === 'create') return newNote(ref)
+    if (command === 'create-dream') return newDream(ref)
     if (command === 'create-folder') return newFolder(ref)
     // Renaming is the row turning into a field, not a dialog over the top of it — the same
     // thing a new note does the moment it exists, so there is one way to name anything.
@@ -354,23 +371,29 @@ export function Shell({ children }: { children: ReactNode }) {
             vaults={app.vaults}
             activePath={app.config?.vaultPath ?? ''}
             activeProject={app.project?.name ?? null}
-            profiles={app.profiles}
-            activeProfile={app.profile?.name ?? null}
             open={whereMenu}
             onOpenChange={setWhereMenu}
             onSelect={(path) => void app.openVault(path)}
             onAdd={() => setPicker(true)}
             onDelete={(name) => void app.deleteVault(name)}
             onCreateProject={() => setCreating(true)}
-            onSelectProfile={(name) => void app.selectProfile(name)}
-            onAddProfile={() => setProfiling(true)}
             onSettings={ctx.settings}
+            onDreams={ctx.dreams}
+          />
+        }
+        foot={
+          <ProfileMenu
+            profiles={app.profiles}
+            active={app.profile?.name ?? null}
+            onSelect={(name) => void app.selectProfile(name)}
+            onAdd={() => setProfiling(true)}
           />
         }
         onOpen={ctx.open}
         // A folder is not a document, so the pane has nothing to show for one. The home
-        // screen is what standing in a folder looks like.
-        onOpenFolder={() => show('/')}
+        // screen is what standing in a folder looks like — unless an app page is up, which
+        // survives the move and turns to face the scope it landed in.
+        onOpenFolder={() => !appPage && show('/')}
         onScope={(root) => void app.setScope(root)}
         onCommand={fromTree}
         onCreateProject={() => setCreating(true)}
@@ -389,7 +412,7 @@ export function Shell({ children }: { children: ReactNode }) {
             activeId={activeId}
             onPick={pick}
             onClose={closeTab}
-            onNew={settings ? undefined : newTab}
+            onNew={appPage ? undefined : newTab}
             // A tab stands for a file, and the file's name is typed where the file is
             // shown: this hands the rename to that row, opening whatever folders were
             // shut around it on the way.
@@ -414,7 +437,7 @@ export function Shell({ children }: { children: ReactNode }) {
               className="diff-toggle"
               aria-label="Compare branches"
               aria-pressed={Boolean(against)}
-              title="Compare branches"
+              data-tip="Compare branches"
               onClick={() => {
                 setAgainst(against ? null : comparable)
                 // The document you were reading is not necessarily one of the ones that
@@ -474,7 +497,9 @@ export function Shell({ children }: { children: ReactNode }) {
           scope={scope}
           height={terminalHeight}
           onHeight={resizeTerminal}
-          visible={terminal === 'open' && !settings && scope === app.scopeKey}
+          visible={
+            terminal === 'open' && !appPage && !dreamPage && scope === app.scopeKey
+          }
           onHide={() => setTerminal('hidden')}
           onExit={() => {
             setPanels(({ [scope]: _gone, ...rest }) => rest)

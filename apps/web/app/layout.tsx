@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { Shell } from '../src/components/shell'
+import { Tooltips } from '../src/components/ui'
 import { AppProvider } from '../src/state'
 import './globals.css'
 
@@ -14,6 +15,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <AppProvider>
           <Shell>{children}</Shell>
         </AppProvider>
+        <Tooltips />
       </body>
     </html>
   )

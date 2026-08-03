@@ -80,6 +80,13 @@
   /* Not ours — Anthropic's, and the mark is only itself in it. */
   --claude: #d97757;
 
+  /* White, as the mark wears on opencode's own site — a colour would read as somebody
+     else's, and green in particular as any terminal. */
+  --opencode: var(--white);
+
+  /* Not ours — Meta's blue, so the spark reads as theirs. */
+  --muse: #0866ff;
+
   /* Whoever you are showing up as tints the one button that commits a screen. */
   --accent: var(--opal-violet);
 
@@ -127,6 +134,14 @@
 
 * {
   box-sizing: border-box;
+}
+
+/* Next's dev overlay ignores `devIndicators: false` once there is an error to badge, and
+   the badge sits exactly where the status line lives. The overlay mounts as this one
+   element, so hiding it is the whole fix; errors still land in the console. Production
+   never renders the element, so the rule matches nothing there. */
+nextjs-portal {
+  display: none;
 }
 
 /* Nothing in the app draws a scrollbar: the document, the tree, the palette, a modal, a code
@@ -542,6 +557,51 @@ body[data-resizing='column'] {
   letter-spacing: -0.018em;
 }
 
+/* The head's mirror: who you work as, pinned under the rows and read left to right the
+   way the vault is at the top. No border of its own — the anchor's hover already says
+   where the control is, and a second line under the rows boxed the whole sidebar in. */
+.tree-foot {
+  display: flex;
+  align-items: center;
+  height: var(--head);
+  flex: none;
+}
+
+.profile-anchor {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1;
+  min-width: 0;
+  align-self: stretch;
+  margin: 0.3rem;
+  padding: 0 0.55rem;
+  border-radius: 0.4rem;
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  text-align: left;
+}
+
+.profile-anchor:hover,
+.profile-anchor[data-state='open'] {
+  background: var(--raised);
+  color: var(--white);
+}
+
+.profile-anchor .name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-anchor .icon {
+  flex: none;
+  margin-left: auto;
+  width: 14px;
+  height: 14px;
+}
+
 .tree-head .dot {
   width: 0.5rem;
   height: 0.5rem;
@@ -636,6 +696,28 @@ body[data-resizing='column'] {
   font-size: 0.6rem;
   line-height: 1.2;
   letter-spacing: 0.05em;
+}
+
+/* Which of the two a heading row is, where the pill used to spell it out: the vault is
+   the gem the notes are kept in, a project ships as a package. */
+.tree > ul .root-kind {
+  display: flex;
+  flex: none;
+  margin-left: auto;
+  color: var(--faint);
+}
+
+.tree > ul .root-kind .icon {
+  width: 12px;
+  height: 12px;
+}
+
+.tree > ul .root-kind[data-kind='vault'] {
+  color: var(--opal-violet);
+}
+
+.tree > ul .root-kind[data-kind='project'] {
+  color: var(--opal-cyan);
 }
 
 /* What became of the file, where the extension pill would be — git's own letter, in the
@@ -1064,9 +1146,17 @@ body[data-resizing='column'] {
   font-size: 0.85rem;
 }
 
-/* The spark carries its colour into the strip: one glance says which tab is claude. */
+/* Each agent's mark carries its colour into the strip: one glance says whose tab it is. */
 .tab[data-shell='claude'] > .icon {
   color: var(--claude);
+}
+
+.tab[data-shell='opencode'] > .icon {
+  color: var(--opencode);
+}
+
+.tab[data-shell='muse'] > .icon {
+  color: var(--muse);
 }
 
 .tab-name {
@@ -1673,6 +1763,342 @@ body[data-resizing='column'] {
   max-width: 100%;
 }
 
+/* ---------- notebook ---------- */
+
+/* Code runs the width of the page, so the notebook is the one document that leaves the
+   prose measure behind. */
+.doc-body:has(.notebook) > * {
+  max-width: none;
+}
+
+/* Cells in a scrolling list. Focus on the list itself is command mode, said by the
+   selected cell's edge rather than by an outline of its own; the rhythm between cells
+   comes from the insert seams. */
+.notebook {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  outline: none;
+}
+
+/* The bar wears the anatomy of the tree's menus: the same lifted surface, holding flat
+   rows that light up under the pointer. The rows are glyphs alone — the title says the
+   rest — so the bar stays a quiet strip rather than a sentence of labels. */
+.notebook-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  padding: var(--surface-inset);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--surface-radius);
+}
+
+.notebook-button {
+  display: flex;
+  padding: 0.35rem;
+  background: none;
+  border: none;
+  border-radius: var(--row-radius);
+  color: var(--muted);
+}
+
+.notebook-button:hover {
+  background: var(--active);
+  color: var(--white);
+}
+
+.notebook-button:disabled {
+  background: none;
+  color: var(--faint);
+  cursor: default;
+}
+
+.notebook-button .icon {
+  width: 0.85rem;
+  height: 0.85rem;
+}
+
+.notebook-kernel {
+  margin-left: auto;
+  padding-inline: 0.45rem;
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  color: var(--muted);
+}
+
+.notebook-kernel[data-state='busy'] {
+  color: var(--opal-cyan);
+}
+
+.notebook-kernel[data-state='idle'] {
+  color: var(--opal-mint);
+}
+
+/* A cell wears its selection on its left edge, the way VS Code's do. The gutter column
+   is the page's left margin: run, count and handling live there, and the source takes
+   everything to the right. */
+.notebook-cell {
+  display: grid;
+  grid-template-columns: 3.9rem minmax(0, 1fr);
+  column-gap: 0.6rem;
+  border-left: 2px solid transparent;
+  padding-left: 0.35rem;
+}
+
+.notebook-cell[data-selected] {
+  border-left-color: var(--accent);
+}
+
+.notebook-main {
+  min-width: 0;
+}
+
+.notebook-gutter {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  padding-top: 0.4rem;
+}
+
+/* The handling — move, retype, delete — waits invisibly under the count until the
+   pointer or the selection is on the cell. */
+.notebook-handling {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.notebook-cell:hover .notebook-handling,
+.notebook-cell:focus-within .notebook-handling,
+.notebook-cell[data-selected] .notebook-handling {
+  opacity: 1;
+}
+
+.notebook-handle {
+  display: flex;
+  padding: 0.25rem;
+  color: var(--muted);
+}
+
+.notebook-handle:hover {
+  color: var(--white);
+}
+
+.notebook-handle .icon {
+  width: 12px;
+  height: 12px;
+}
+
+/* The seam between two cells: a hairline that says nothing until the pointer asks. */
+.notebook-insert {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  height: 1.4rem;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.notebook-insert:hover,
+.notebook-insert:focus-within {
+  opacity: 1;
+}
+
+.notebook-insert::before {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  top: 50%;
+  border-top: 1px solid var(--line);
+}
+
+.notebook-insert button {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.05rem 0.5rem;
+  font-size: 0.72rem;
+}
+
+.notebook-insert button .icon {
+  width: 11px;
+  height: 11px;
+}
+
+.notebook-run {
+  display: flex;
+  padding: 0.15rem;
+}
+
+.notebook-run .icon {
+  width: 13px;
+  height: 13px;
+}
+
+.notebook-run:disabled {
+  color: var(--faint);
+  cursor: default;
+}
+
+/* `In [ ]` holds its blank the way Jupyter prints it. */
+.notebook-count {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  color: var(--faint);
+  white-space: pre;
+}
+
+/* The cell's editor is Monaco standing as tall as its content, dressed as the fields
+   around it; the page scrolls, the cell does not. */
+.notebook-source {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  padding-block: 0.35rem;
+  background: var(--editor-ground);
+  border: 1px solid var(--line);
+  border-radius: var(--field-radius);
+}
+
+.notebook-cell[data-selected] .notebook-source {
+  border-color: var(--line-hover);
+}
+
+.cell-editor .monaco-editor,
+.cell-editor .monaco-editor .monaco-editor-background,
+.cell-editor .monaco-editor .margin {
+  background: transparent;
+}
+
+.notebook-md {
+  min-height: 1.6rem;
+}
+
+.notebook-md > :first-child {
+  margin-top: 0;
+}
+
+.notebook-md > :last-child {
+  margin-bottom: 0;
+}
+
+/* Outputs sit under the source, in the same full-width column. */
+.notebook-outputs {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+}
+
+.notebook-text {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.notebook-text[data-stream='stderr'],
+.notebook-text[data-stream='error'] {
+  background: color-mix(in srgb, var(--danger) 7%, transparent);
+  padding: 0.3rem 0.5rem;
+  border-radius: var(--row-radius);
+}
+
+.notebook-image {
+  max-width: 100%;
+  border-radius: var(--row-radius);
+}
+
+.notebook-frame {
+  width: 100%;
+  height: 24rem;
+  border: 0;
+  background: var(--white);
+  border-radius: var(--row-radius);
+}
+
+.doc-body:has(.notebook-broken) {
+  position: relative;
+}
+
+.notebook-broken {
+  position: absolute;
+  top: 0.75rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  padding: 0.3rem 0.65rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--field-radius);
+}
+
+/* The ANSI a kernel speaks: VS Code's dark-theme terminal palette, because the traceback
+   being read here is the one it would print. */
+.ansi-black {
+  color: #666666;
+}
+.ansi-red {
+  color: #cd3131;
+}
+.ansi-green {
+  color: #0dbc79;
+}
+.ansi-yellow {
+  color: #e5e510;
+}
+.ansi-blue {
+  color: #2472c8;
+}
+.ansi-magenta {
+  color: #bc3fbc;
+}
+.ansi-cyan {
+  color: #11a8cd;
+}
+.ansi-white {
+  color: #e5e5e5;
+}
+.ansi-bright-black {
+  color: #666666;
+}
+.ansi-bright-red {
+  color: #f14c4c;
+}
+.ansi-bright-green {
+  color: #23d18b;
+}
+.ansi-bright-yellow {
+  color: #f5f543;
+}
+.ansi-bright-blue {
+  color: #3b8eea;
+}
+.ansi-bright-magenta {
+  color: #d670d6;
+}
+.ansi-bright-cyan {
+  color: #29b8db;
+}
+.ansi-bright-white {
+  color: #fffeee;
+}
+.ansi-bold {
+  font-weight: 700;
+}
+
 /* ---------- commands ---------- */
 
 /* The slash menu is anchored to a caret rather than to a control, but it is the same
@@ -1739,12 +2165,14 @@ body[data-resizing='column'] {
   color: var(--muted);
 }
 
-.terminal-head .spacer {
+.terminal-head .spacer,
+.dream-options-head .spacer {
   flex: 1;
 }
 
 /* Square, all of them: a strip of icons reads as a row only if the hit targets match. */
-.terminal-head button {
+.terminal-head button,
+.dream-options-head button {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1759,7 +2187,8 @@ body[data-resizing='column'] {
   font-size: 0.75rem;
 }
 
-.terminal-head button:hover {
+.terminal-head button:hover,
+.dream-options-head button:hover {
   background: var(--raised);
   color: var(--white);
 }
@@ -1785,6 +2214,14 @@ body[data-resizing='column'] {
   width: 1rem;
   height: 1rem;
   color: var(--claude);
+}
+
+.terminal-tab[data-kind='opencode'] .icon {
+  color: var(--opencode);
+}
+
+.terminal-tab[data-kind='muse'] .icon {
+  color: var(--muse);
 }
 
 .terminal-tab[data-active] {
@@ -2182,23 +2619,11 @@ p.palette-label {
   color: inherit;
 }
 
-.menu-text {
-  display: flex;
-  flex-direction: column;
-  gap: 0.05rem;
+.menu-label {
   min-width: 0;
-}
-
-.menu-label,
-.menu-description {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.menu-description {
-  color: var(--faint);
-  font-size: 0.63rem;
 }
 
 .menu-mark {
@@ -2263,6 +2688,28 @@ p.palette-label {
   font-size: 0.58rem;
   font-weight: 700;
   line-height: 1;
+}
+
+/* ---------- tooltips ---------- */
+
+/* The same lifted sheet as a menu — same panel, line, shadow and grow-out — sized down to
+   one phrase, so hover help and dropdowns read as one system. Above the menus: a tip can
+   be raised over an open surface, and under one it is lost. */
+.tooltip {
+  position: fixed;
+  z-index: 60;
+  width: max-content;
+  max-width: 18rem;
+  padding: 0.3rem 0.5rem;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--surface-radius);
+  box-shadow: var(--surface-shadow);
+  color: color-mix(in srgb, var(--white) 82%, transparent);
+  font-size: 0.7rem;
+  line-height: 1.35;
+  pointer-events: none;
+  animation: menu-in 110ms ease-out;
 }
 
 /* ---------- modals ---------- */
@@ -2821,4 +3268,461 @@ p.palette-label {
    different ways. */
 .vault-picker form {
   padding-top: 0.5rem;
+}
+
+/* ---------- dreams ---------- */
+
+/* The canvas: a dot grid that pans with the world, everything else absolute over it. */
+/* The canvas over the panel, the way the shell holds a pane over the terminal. */
+.dream-page {
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.dream {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  user-select: none;
+  background-color: var(--ground);
+  background-image: radial-gradient(var(--line) 1px, transparent 1px);
+  background-size: 16px 16px;
+  outline: none;
+}
+
+.dreaming {
+  display: contents;
+  color: var(--opal-indigo);
+}
+
+.dream-world {
+  position: absolute;
+  transform-origin: 0 0;
+}
+
+.dream-edges {
+  position: absolute;
+  overflow: visible;
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
+}
+
+.dream-edge {
+  fill: none;
+  stroke: var(--faint);
+  stroke-width: 2;
+  pointer-events: none;
+}
+
+.dream-edge[data-picked] {
+  stroke: var(--opal-indigo);
+}
+
+.dream-ghost {
+  stroke: var(--opal-indigo);
+  stroke-dasharray: 6 4;
+}
+
+/* Fat and invisible under the visible line, so an edge can be picked without aim. */
+.dream-edge-hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 12;
+  pointer-events: stroke;
+  cursor: pointer;
+}
+
+.dream-node {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  cursor: grab;
+}
+
+.dream-node[data-picked] {
+  border-color: var(--opal-indigo);
+}
+
+.dream-node[data-state='running'] {
+  border-color: var(--opal-cyan);
+}
+
+.dream-node[data-state='done'] {
+  border-color: var(--opal-mint);
+}
+
+.dream-node[data-state='error'],
+.dream-node[data-state='skipped'] {
+  border-color: var(--opal-rose);
+}
+
+/* A step that chose to end the flow: an outcome worth its own colour, not an error's. */
+.dream-node[data-state='stopped'] {
+  border-color: var(--opal-gold);
+}
+
+.dream-node .icon {
+  flex: none;
+  color: var(--opal-indigo);
+}
+
+.dream-node-words {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.dream-node-name {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 0.85rem;
+}
+
+.dream-node-kind {
+  color: var(--faint);
+  font-family: var(--mono);
+  font-size: 0.68rem;
+}
+
+.dream-port {
+  position: absolute;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  transform: translateY(-50%);
+  border: 2px solid var(--faint);
+  border-radius: 50%;
+  background: var(--ground);
+}
+
+.dream-in {
+  left: -6px;
+}
+
+.dream-out {
+  right: -6px;
+  cursor: crosshair;
+}
+
+.dream-out:hover {
+  border-color: var(--opal-indigo);
+}
+
+/* The toolbar floats over the canvas the way n8n's does, out of the world's transform,
+   dressed as the tree's menus: the same lifted surface, holding flat rows that light up
+   under the pointer rather than buttons standing raised on their own. */
+.dream-bar {
+  position: absolute;
+  top: 0.75rem;
+  left: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  padding: var(--surface-inset);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--surface-radius);
+  box-shadow: var(--surface-shadow);
+}
+
+.dream-button {
+  display: flex;
+  padding: 0.35rem;
+  background: none;
+  border: none;
+  border-radius: var(--row-radius);
+  color: var(--muted);
+}
+
+.dream-button:hover,
+.dream-button[data-state='open'] {
+  background: var(--active);
+  color: var(--white);
+}
+
+.dream-button .icon {
+  width: 0.85rem;
+  height: 0.85rem;
+}
+
+.dream-state {
+  padding-inline: 0.45rem;
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  color: var(--muted);
+}
+
+.dream-state[data-state='running'] {
+  color: var(--opal-cyan);
+}
+
+.dream-state[data-state='done'] {
+  color: var(--opal-mint);
+}
+
+.dream-state[data-state='error'] {
+  color: var(--opal-rose);
+}
+
+/* The options panel: the terminal's slot on every other page, holding the picked node's
+   settings here. Same seam, same chrome, ⌘J either way. */
+.dream-options {
+  position: relative;
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--panel);
+  border-top: 1px solid var(--line);
+}
+
+.dream-options[hidden] {
+  display: none;
+}
+
+.dream-options-head {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  flex: none;
+  height: 2rem;
+  padding: 0 0.5rem 0 0.6rem;
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+/* Fields down a centred column, the width and weight the settings pages give theirs. */
+.dream-options-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0.85rem 1rem 1rem;
+}
+
+.dream-options-body > * {
+  width: 100%;
+  max-width: 40rem;
+  margin-inline: auto;
+}
+
+.dream-options .inline-editor {
+  height: 11rem;
+}
+
+.dream-inspector {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+/* A field is named the way the settings pages name one: the label carries the weight,
+   the control underneath takes the app's own input styling untouched. */
+.dream-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  color: var(--white);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.dream-field input,
+.dream-field textarea {
+  font-size: 0.9rem;
+  font-weight: 400;
+  resize: vertical;
+}
+
+.dream-step {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.dream-step[data-state='stopped'] {
+  color: var(--opal-gold);
+}
+
+.dream-step[data-state='error'] {
+  color: var(--opal-rose);
+}
+
+/* The step's output, set the way settings set a public key: bordered, on the editor's
+   ground, monospace because it is meant to be read back. */
+.dream-step pre {
+  margin: 0;
+  overflow: auto;
+  max-height: 12rem;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: var(--field-radius);
+  background: var(--editor-ground);
+  white-space: pre-wrap;
+}
+
+/* The dreams page: the settings page's column, without the rail — a table of what is set
+   to run, and the log of what running has looked like. */
+.dreams-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  width: 100%;
+  max-width: 60rem;
+  margin-inline: auto;
+}
+
+.dreams-page h1 {
+  margin: 0;
+  line-height: 1.25;
+}
+
+.dreams-page h2 {
+  margin: 0 0 0.6rem;
+  font-size: 0.95rem;
+}
+
+.dreams-empty {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.dreams-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.dreams-table th {
+  text-align: left;
+  padding: 0.35rem 0.55rem;
+  color: var(--faint);
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid var(--line);
+}
+
+.dreams-table td {
+  padding: 0.45rem 0.55rem;
+  border-bottom: 1px solid var(--line);
+  vertical-align: baseline;
+}
+
+/* The name is the way in: the same row-shaped button the sidebar teaches. */
+.dreams-open {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  background: transparent;
+  border-color: transparent;
+  border-radius: var(--row-radius);
+  padding: 0.2rem 0.45rem;
+  font-weight: 600;
+}
+
+.dreams-open:hover {
+  background: var(--raised);
+  border-color: transparent;
+}
+
+.dreams-open .icon {
+  width: 0.85rem;
+  height: 0.85rem;
+  color: var(--opal-indigo);
+}
+
+.dreams-dim {
+  color: var(--muted);
+}
+
+.dreams-log {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dreams-log > li > button {
+  display: flex;
+  align-items: baseline;
+  gap: 0.55rem;
+  width: 100%;
+  background: transparent;
+  border-color: transparent;
+  border-radius: var(--row-radius);
+  padding: 0.35rem 0.1rem;
+  font-size: 0.85rem;
+  text-align: left;
+}
+
+.dreams-log > li > button:hover {
+  background: var(--raised);
+  border-color: transparent;
+}
+
+.dreams-log > li > button[aria-expanded='true'] {
+  background: var(--active);
+}
+
+.dreams-run-name {
+  font-weight: 600;
+}
+
+/* An opened run: its steps, the way the inspector shows one, indented under the row. */
+.dreams-run {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin: 0.35rem 0 0.6rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: var(--field-radius);
+}
+
+.dreams-run-error {
+  margin: 0;
+  color: var(--opal-rose);
+  font-family: var(--mono);
+  font-size: 0.72rem;
+}
+
+.dreams-starters {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dreams-starters li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.45rem 0.55rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.dreams-starters p {
+  margin: 0.15rem 0 0;
 }

@@ -13,6 +13,7 @@ const STATE: BriefState = {
     { name: 'api', path: `${VAULT}/api/local` },
     { name: 'pipeline', path: `${VAULT}/pipeline/local` },
   ],
+  skills: [],
   scope: 'project:api',
   cwd: `${VAULT}/api/local`,
   sync: 'off',
@@ -40,6 +41,15 @@ describe('brief', () => {
     const marked = inVault.split('\n').filter((line) => line.includes('you are here'))
     expect(marked).toHaveLength(1)
     expect(marked[0]).toContain('vault')
+  })
+
+  /* The editor soft-wraps, so a paragraph hard-wrapped to a terminal's width reads back
+     full of stray newlines — the one writing habit worth spelling out to every agent. */
+  it('tells an agent to write whole paragraphs and leave the wrapping to the editor', () => {
+    const text = brief(STATE)
+
+    expect(text).toContain('Write each paragraph as one long line')
+    expect(text).toContain('Never hard-wrap prose at a column width')
   })
 
   it('says so when no vault is open, and lists no trees', () => {
@@ -113,5 +123,25 @@ describe('brief', () => {
     expect(brief(STATE)).toContain('sync     off —')
     expect(brief({ ...STATE, sync: 'on' })).toContain('sync     on —')
     expect(brief({ ...STATE, sync: 'conflicted' })).toContain('sync     conflicted —')
+  })
+
+  it('names each skill against its description, under the skills path', () => {
+    const text = brief({
+      ...STATE,
+      skills: [
+        { name: 'hello', description: 'prove the skills folder works' },
+        { name: 'train-model', description: 'submit a training run' },
+      ],
+    })
+
+    expect(text).toContain('## Skills')
+    expect(text).toContain('~/.broodmother/tester/handbook/local/.skills')
+    expect(text).toContain('hello')
+    expect(text).toMatch(/train-model\s+submit a training run/)
+    expect(text).toContain("read a skill's SKILL.md in full")
+  })
+
+  it('renders no skills section at all for a vault that carries none', () => {
+    expect(brief(STATE)).not.toContain('## Skills')
   })
 })

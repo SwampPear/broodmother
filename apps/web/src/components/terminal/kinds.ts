@@ -1,11 +1,11 @@
 import { type IconName } from '../ui'
 
 /**
- * Both are a plain login shell; the difference is what gets typed into it first. They live
+ * Each is a plain login shell; the difference is what gets typed into it first. They live
  * here rather than beside the terminal itself because the tab strip offers them too, and a
  * strip that had to import the terminal would drag xterm in with it.
  */
-export type TerminalKind = 'shell' | 'claude'
+export type TerminalKind = 'shell' | 'claude' | 'opencode' | 'muse'
 
 /**
  * What a tab types into its shell once the shell has spoken, or null where it types
@@ -15,8 +15,18 @@ export type TerminalKind = 'shell' | 'claude'
  * to be one argument.
  */
 export function command(kind: TerminalKind): string | null {
-  if (kind !== 'claude') return null
-  return 'claude --dangerously-skip-permissions --append-system-prompt "$BROODMOTHER_BRIEF"\r'
+  switch (kind) {
+    case 'claude':
+      return 'claude --dangerously-skip-permissions --append-system-prompt "$BROODMOTHER_BRIEF"\r'
+    case 'opencode':
+      return 'opencode --auto\r'
+    // Muse Spark has no CLI of its own: it rides opencode, through the meta provider the
+    // user has configured in opencode.json.
+    case 'muse':
+      return 'opencode --auto --model meta/muse-spark-1.1\r'
+    default:
+      return null
+  }
 }
 
 export const TERMINALS: Record<
@@ -29,6 +39,12 @@ export const TERMINALS: Record<
     name: 'claude',
     label: 'claude code (--dangerously-skip-permissions)',
   },
+  opencode: { icon: 'opencode', name: 'opencode', label: 'opencode (--auto)' },
+  muse: {
+    icon: 'muse',
+    name: 'muse spark',
+    label: 'muse spark 1.1 via opencode (--auto)',
+  },
 }
 
-export const KINDS: TerminalKind[] = ['shell', 'claude']
+export const KINDS: TerminalKind[] = ['shell', 'claude', 'opencode', 'muse']

@@ -1,6 +1,11 @@
 import {
+  basename,
   defaultGitSettings,
+  parseDream,
   projectOf,
+  projectRoot,
+  runOrder,
+  triggerLabel,
   type ApiRequest,
   type ApiResponse,
   type ApiRoute,
@@ -10,11 +15,13 @@ import {
   type DiffFile,
   type DocPath,
   type DocRoot,
+  type DreamRun,
   type GitSettings,
   type GitState,
   type Identity,
   type GitAuthor,
   type GithubRepo,
+  type Persona,
   type Profile,
   type ProjectSummary,
   type ServerMessage,
@@ -130,6 +137,9 @@ export function createMockClient(
     /** How that branch has those files, so a side-by-side has a left-hand side. */
     diffDocs?: Record<string, Record<DocPath, string>>
 
+    /** What the vault's `.personas/` folder carries, for a dream's picker to offer. */
+    personas?: Persona[]
+
     /** Routes that never answer, for asking what the app does while it is waiting. */
     stall?: ApiRoute[]
 
@@ -218,6 +228,7 @@ export function createMockClient(
   const sessions = new Set<string>()
   /** The shells something has said it is finished with, which is what ends one. */
   const finished: string[] = []
+  const dreamRuns: DreamRun[] = []
   const emit = (message: ServerMessage) => listener?.(message)
   const emitTerminal = (message: TerminalServerMessage) => shell?.(message)
 
@@ -476,6 +487,80 @@ export function createMockClient(
         if (!(path in files)) throw new Error(`no such document: ${path}`)
         return { markdown: files[path] }
       },
+      /* A run here finishes the moment it starts: what is under test at this end is the
+         asking and the painting, not the walking. */
+      'POST /api/dream/run': async ({ root, path }) => {
+        const files = filesIn(root)
+        if (!(path in files)) throw new Error(`no such dream: ${path}`)
+        const dream = parseDream(files[path])
+        const order = runOrder(dream)
+        if (!order) throw new Error('the dream has a cycle — untangle it first')
+        const byId = new Map(dream.nodes.map((node) => [node.id, node]))
+        const run: DreamRun = {
+          id: `run-${dreamRuns.length + 1}`,
+          ref: { root, path },
+          startedAt: 0,
+          finishedAt: 0,
+          state: 'done',
+          steps: order.flat().flatMap((id) => {
+            const node = byId.get(id)
+            return node
+              ? [
+                  {
+                    node: id,
+                    name: node.name,
+                    kind: node.kind,
+                    state: 'done' as const,
+                    output: `ran ${node.name}`,
+                  },
+                ]
+              : []
+          }),
+        }
+        dreamRuns.push(run)
+        return { run }
+      },
+      'GET /api/dream/runs': async ({ root, path }) => ({
+        runs: dreamRuns
+          .filter((run) => run.ref.root === root && run.ref.path === path)
+          .reverse(),
+      }),
+      'GET /api/dreams': async () => {
+        const roots: DocRoot[] = [
+          'vault',
+          ...Object.keys(seed.projectDocs ?? {}).map(projectRoot),
+        ]
+        const dreams = roots.flatMap((root) =>
+          Object.entries(filesIn(root))
+            .filter(([path]) => path.endsWith('.dream'))
+            .flatMap(([path, text]) => {
+              let dream
+              try {
+                dream = parseDream(text)
+              } catch {
+                return []
+              }
+              const wired = new Set(dream.edges.map((edge) => edge.from))
+              return [
+                {
+                  ref: { root, path },
+                  name: basename(path).replace(/\.dream$/, ''),
+                  triggers: dream.nodes.flatMap((node) => {
+                    const label = triggerLabel(node)
+                    return label && wired.has(node.id) ? [{ kind: node.kind, label }] : []
+                  }),
+                  lastRun:
+                    dreamRuns.findLast(
+                      (run) => run.ref.root === root && run.ref.path === path,
+                    ) ?? null,
+                },
+              ]
+            }),
+        )
+        return { dreams }
+      },
+      'GET /api/dream/log': async () => ({ runs: [...dreamRuns].reverse() }),
+      'GET /api/personas': async () => ({ personas: [...(seed.personas ?? [])] }),
       'PUT /api/doc': async ({ root, path, markdown }) => {
         const files = filesIn(root)
         const created = !(path in files)

@@ -157,8 +157,8 @@ it('heads the vault’s documents with its name, and folds them away', async () 
 
 it('says which of the two each heading row is', () => {
   show(null, headed)
-  expect(within(item('handbook')).getByText('vault')).toBeInTheDocument()
-  expect(within(item('api')).getByText('project')).toBeInTheDocument()
+  expect(item('handbook').querySelector('[data-tip="vault"]')).toBeInTheDocument()
+  expect(item('api').querySelector('[data-tip="project"]')).toBeInTheDocument()
 })
 
 /* Deleting the vault takes everything in it, and that is asked from the menu at the head of
@@ -200,9 +200,11 @@ it('wears the checkout’s changes: letters, folder dots and a count on the root
     },
   ])
 
-  expect(within(item('handbook')).getByTitle('3 changed')).toHaveTextContent('3')
+  expect(item('handbook').querySelector('[data-tip="3 changed"]')).toHaveTextContent('3')
   expect(item('Handbook')).toHaveAttribute('data-holds')
-  expect(within(item('Handbook')).getByTitle('changes inside')).toBeInTheDocument()
+  expect(
+    item('Handbook').querySelector('[data-tip="changes inside"]'),
+  ).toBeInTheDocument()
   expect(item('README.md')).toHaveAttribute('data-change', 'conflicted')
   expect(within(item('README.md')).getByText('C')).toBeInTheDocument()
 
@@ -450,10 +452,28 @@ it('offers a new folder on a folder, beside the new note', async () => {
     within(menu)
       .getAllByRole('menuitem')
       .map((item) => item.textContent),
-  ).toEqual(['New note here', 'New folder here', 'Rename folder', 'Delete folder…'])
+  ).toEqual([
+    'New note here',
+    'New dream here',
+    'New folder here',
+    'Rename folder',
+    'Delete folder…',
+  ])
 
   await userEvent.click(within(menu).getByRole('menuitem', { name: 'New folder here' }))
   expect(onCommand).toHaveBeenCalledWith('create-folder', vault('Handbook'))
+})
+
+it('offers a new dream wherever a note goes', async () => {
+  const { onCommand } = show()
+
+  await userEvent.pointer({
+    keys: '[MouseRight]',
+    target: screen.getByRole('treeitem', { name: 'Handbook' }),
+  })
+  const menu = await screen.findByRole('menu')
+  await userEvent.click(within(menu).getByRole('menuitem', { name: 'New dream here' }))
+  expect(onCommand).toHaveBeenCalledWith('create-dream', vault('Handbook'))
 })
 
 it('offers no new folder on a file, there being nowhere to put one', async () => {

@@ -1,7 +1,7 @@
 {
   "name": "@broodmother/root",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Local markdown optimized for collaboration between people and agents.",
   "license": "MIT",
   "homepage": "https://github.com/SwampPear/broodmother#readme",
@@ -46,6 +46,7 @@
     "@types/react-dom": "^19.2.3",
     "@types/ws": "^8.18.1",
     "@vitejs/plugin-react": "^6.0.4",
+    "assemblyscript": "^0.28.20",
     "concurrently": "^10.0.4",
     "esbuild": "^0.28.1",
     "jsdom": "^29.0.0",

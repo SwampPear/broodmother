@@ -4,6 +4,7 @@ export {
   cleanup,
   cloneOf,
   delay,
+  fakeCrontab,
   git,
   initRepo,
   tempDir,

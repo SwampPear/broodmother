@@ -1,9 +1,11 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { isImage, type DocRef } from '@broodmother/shared'
+import { isDreamPath, isImage, isNotebookPath, type DocRef } from '@broodmother/shared'
 import { Editor } from '../../editor'
 import { useApp, type RootEvent } from '../../state'
+import { DreamView } from '../dream'
+import { NotebookView } from '../notebook'
 import { ImageView } from './image'
 
 const saveDebounceMs = 500
@@ -106,6 +108,22 @@ export function DocView({ root, path }: DocRef) {
   // Blank, not "loading …": the read lands in a frame or two and the word only ever showed
   // up as a flash.
   if (markdown === null) return <div className="empty" />
+
+  // A dream is JSON underneath, but nobody dreams in JSON: the canvas is its editor, fed
+  // and saved through exactly the machinery a note uses.
+  if (isDreamPath(path))
+    return <DreamView root={root} path={path} value={markdown} onChange={onChange} />
+
+  // A notebook is JSON underneath too, but nobody reads one as JSON: cells are its editor,
+  // fed and saved through exactly the machinery a note uses.
+  if (isNotebookPath(path))
+    return (
+      <article className="doc">
+        <div className="doc-body">
+          <NotebookView root={root} path={path} markdown={markdown} onChange={onChange} />
+        </div>
+      </article>
+    )
 
   // No header: the tab strip already says which document this is, and saying it twice cost
   // a band of chrome across the top of every note.

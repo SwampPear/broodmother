@@ -4,6 +4,7 @@ import { cors } from 'hono/cors'
 import type { Context } from 'hono'
 import { z } from 'zod'
 import {
+  DreamError,
   imageTypeOf,
   type BroodmotherConfig,
   type DiffBasis,
@@ -317,6 +318,21 @@ export function createApp(ctx: AppContext): Hono {
     return c.json({ ok: true } as const)
   })
 
+  app.post('/api/dream/run', async (c) => {
+    const { root: of, path } = await parse(c, folderBody)
+    return c.json({ run: await ctx.dreams.run({ root: of, path }) })
+  })
+
+  app.get('/api/dream/runs', (c) =>
+    c.json({ runs: ctx.dreams.runsFor({ root: root(c), path: query(c, 'path') }) }),
+  )
+
+  app.get('/api/dreams', async (c) => c.json({ dreams: await ctx.dreams.summaries() }))
+
+  app.get('/api/dream/log', (c) => c.json({ runs: ctx.dreams.log() }))
+
+  app.get('/api/personas', (c) => c.json({ personas: ctx.opened?.personas ?? [] }))
+
   app.get('/api/links', async (c) => {
     const path = normalize(query(c, 'path'))
     return c.json({
@@ -367,6 +383,7 @@ export function createApp(ctx: AppContext): Hono {
       return c.json({ error: error.message }, 409)
     if (
       error instanceof BadRequest ||
+      error instanceof DreamError ||
       error instanceof PathError ||
       error instanceof ProfileError ||
       error instanceof VaultError ||

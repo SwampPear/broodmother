@@ -298,6 +298,17 @@ it('keeps a panel per place, the background ones mounted and hidden', async () =
   expect(up[0]!.dataset.scope?.endsWith('#fix')).toBe(true)
 })
 
+/* The dream editor takes the bottom panel for its own options, so ⌘J is its key there and
+   the shell keeps the terminal out of the way. */
+it('does not answer ⌘J with the terminal over the dream editor', async () => {
+  pathname = '/doc/vault/Nightly.dream'
+  show(createMockClient())
+  await screen.findByText('the vault')
+
+  await userEvent.keyboard('{Meta>}j{/Meta}')
+  expect(screen.queryByTestId('panel')).not.toBeInTheDocument()
+})
+
 /* A click that also moves the scope has already said where it wants to be: the file you
    touched. Restoring where that scope was last left, on top of it, would navigate away from
    the very thing you clicked. */
@@ -366,6 +377,52 @@ it('keeps a tab set per branch', async () => {
   )
 })
 
+/* A project's branches scope the same way the vault's do: each worktree keeps its own
+   tabs and terminals, so two branches are two desks you can move between with everything
+   still running on both. */
+it('keeps a tab set per project branch, terminals included', async () => {
+  const client = createMockClient({
+    projects: [{ name: 'api', repo: '/h/.projects/api/local' }],
+    project: 'api',
+    projectDocs: { api: { 'main.rs': 'fn main() {}\n' } },
+    projectBranches: {
+      api: [
+        { name: 'main', path: '/h/.projects/api/local', checkedOut: true, primary: true },
+        { name: 'fix', path: '/h/.projects/api/fix', checkedOut: true, primary: false },
+      ],
+    },
+  })
+  const { rerender } = show(client)
+  await screen.findByText('the vault')
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: /handbook/ })).toHaveTextContent('api'),
+  )
+
+  pathname = '/doc/project:api/main.rs'
+  rerender(tree(client))
+  await screen.findByRole('tab', { name: /main/ })
+  await userEvent.click(screen.getByRole('button', { name: 'New tab' }))
+  await userEvent.click(await screen.findByRole('menuitem', { name: /Terminal/ }))
+  await screen.findByRole('tab', { name: /terminal/ })
+
+  await userEvent.click(screen.getByRole('button', { name: 'Branch' }))
+  await userEvent.click(await screen.findByRole('menuitemradio', { name: /fix/ }))
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: 'Branch' })).toHaveTextContent('fix'),
+  )
+
+  // Both tabs belonged to main's worktree and stayed there, the shell still running.
+  expect(screen.queryByRole('tab', { name: /main/ })).not.toBeInTheDocument()
+  expect(screen.queryByRole('tab', { name: /terminal/ })).not.toBeInTheDocument()
+  expect(client.finishedTerminals()).toEqual([])
+
+  // Back onto main, the desk is as it was left.
+  await userEvent.click(screen.getByRole('button', { name: 'Branch' }))
+  await userEvent.click(await screen.findByRole('menuitemradio', { name: /main/ }))
+  await screen.findByRole('tab', { name: /main/ })
+  await screen.findByRole('tab', { name: /terminal/ })
+})
+
 /* A project lives inside its vault, so the sidebar draws the open vault's and nobody
    else's. Working as someone else opens one of their vaults — or none — and the projects of
    the vault you left used to stay in the tree, listed under the name of a vault they are
@@ -385,7 +442,7 @@ it('lists the open vault’s projects, and drops them with the vault', async () 
   show(client)
   await screen.findByRole('treeitem', { name: 'api' })
 
-  await userEvent.click(screen.getByRole('button', { name: /handbook/ }))
+  await userEvent.click(screen.getByRole('button', { name: 'you' }))
   await userEvent.click(await screen.findByRole('menuitemradio', { name: /ada/ }))
 
   await waitFor(() =>
@@ -407,7 +464,7 @@ it('empties the tree of projects when the new profile has no vault', async () =>
   show(client)
   await screen.findByRole('treeitem', { name: 'api' })
 
-  await userEvent.click(screen.getByRole('button', { name: /handbook/ }))
+  await userEvent.click(screen.getByRole('button', { name: 'you' }))
   await userEvent.click(await screen.findByRole('menuitem', { name: /New profile/ }))
   await userEvent.type(screen.getByLabelText('Profile name'), 'ada')
   await userEvent.type(screen.getByLabelText('Author email'), 'ada@example.com')
@@ -417,6 +474,25 @@ it('empties the tree of projects when the new profile has no vault', async () =>
     expect(screen.getByRole('button', { name: /No vault/ })).toBeInTheDocument(),
   )
   expect(screen.queryByRole('treeitem', { name: 'api' })).not.toBeInTheDocument()
+})
+
+/* Settings is the app's own chrome, not a place in a tree: a scope switch made while it
+   is open changes what its panels are about and nothing else. */
+it('stays on settings across a project switch', async () => {
+  const client = createMockClient({
+    projects: [{ name: 'api', repo: '/h/.projects/api/local' }],
+  })
+  const { rerender } = show(client)
+  await screen.findByText('the vault')
+
+  pathname = '/settings'
+  rerender(tree(client))
+  await userEvent.click(await screen.findByRole('treeitem', { name: 'api' }))
+
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: /handbook/ })).toHaveTextContent('api'),
+  )
+  expect(pathname).toBe('/settings')
 })
 
 /* Switching project is the same kind of move as switching branch: the tabs are the ones

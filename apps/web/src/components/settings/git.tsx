@@ -123,7 +123,7 @@ export function GitSettingsSection() {
             whether it is on and whether it can be touched, so nothing is left for a box
             around them to say. */}
         {SWITCHES.map((row) => (
-          <label key={row.key} className="check" title={row.hint}>
+          <label key={row.key} className="check" data-tip={row.hint}>
             <input
               type="checkbox"
               checked={git[row.key]}

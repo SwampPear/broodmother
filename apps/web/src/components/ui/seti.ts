@@ -21,6 +21,8 @@ const BY_EXTENSION: Record<string, Entry | undefined> = {
   json: ['\uE055', '#cbcb41'],
   jsonc: ['\uE055', '#cbcb41'],
   py: ['\uE07B', '#519aba'],
+  // The pack predates Jupyter having a glyph of its own, and a notebook is python's.
+  ipynb: ['\uE07B', '#519aba'],
   rb: ['\uE081', '#cc3e44'],
   rs: ['\uE082', '#6d8086'],
   go: ['\uE03A', '#519aba'],

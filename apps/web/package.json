@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "next dev -H 127.0.0.1 -p 6767",
+    "wasm": "asc wasm/kernel.ts -o public/dream-kernel.wasm -O3 --runtime stub --initialMemory 8 --use abort=",
     "build": "next build",
     "start": "next start -H 127.0.0.1 -p 6767",
     "test": "vitest run"
@@ -12,6 +13,7 @@
   "dependencies": {
     "@broodmother/shared": "*",
     "@broodmother/editor": "*",
-    "@broodmother/markdown": "*"
+    "@broodmother/markdown": "*",
+    "@broodmother/notebook": "*"
   }
 }

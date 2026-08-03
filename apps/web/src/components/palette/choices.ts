@@ -30,6 +30,7 @@ function commands(ctx: FlowCtx): Choice[] {
   }
   return [
     command('New note', 'plus', () => done(() => ctx.newNote())),
+    command('New dream', 'moon-star', () => done(() => ctx.newDream())),
     command('Move or rename document', 'file-text', () =>
       pick('Move', (ref) => moveFlow(ctx, ref)),
     ),
@@ -39,6 +40,7 @@ function commands(ctx: FlowCtx): Choice[] {
     command('Switch project', 'folder', () => done(() => ctx.projects())),
     command('New project', 'plus', () => done(() => ctx.createProject())),
     command('Switch or create vault', 'layout-dashboard', () => done(() => ctx.vaults())),
+    command('Dreams', 'moon-star', () => done(() => ctx.dreams())),
     command('Settings', 'settings', () => done(() => ctx.settings())),
   ]
 }

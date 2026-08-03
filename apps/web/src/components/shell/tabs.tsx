@@ -43,6 +43,8 @@ const NEW: (Omit<MenuAction, 'onSelect' | 'id'> & { id: NewTab })[] = [
   { id: 'note', label: 'New note', icon: 'plus' },
   { id: 'shell', label: 'Terminal', icon: 'terminal' },
   { id: 'claude', label: 'Claude Code', icon: 'claude' },
+  { id: 'opencode', label: 'OpenCode', icon: 'opencode' },
+  { id: 'muse', label: 'Muse Spark', icon: 'muse' },
 ]
 
 /**
@@ -88,7 +90,6 @@ export function TabStrip({
                   // No ellipsis: the name is typed on the row in the tree, and nothing
                   // opens to ask for it.
                   label: 'Rename',
-                  description: 'the file this tab stands for',
                   icon: 'file-text' as const,
                   onSelect: () => onRename(tab),
                 },

@@ -27,6 +27,7 @@ export function FileTree({
   current,
   scope,
   head,
+  foot,
   onOpen,
   onOpenFolder,
   onScope,
@@ -41,6 +42,8 @@ export function FileTree({
   /** The root the app is standing in, so its rows can say so. */
   scope: DocRoot
   head?: ReactNode
+  /** Pinned under the rows — the profile, in the app. */
+  foot?: ReactNode
   onOpen: (ref: DocRef) => void
   /** A folder was selected. It has no document to show, so the pane goes blank. */
   onOpenFolder: (ref: DocRef) => void
@@ -204,6 +207,7 @@ export function FileTree({
           })}
         </ul>
       </ContextMenu>
+      {foot}
     </nav>
   )
 }

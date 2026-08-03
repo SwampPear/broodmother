@@ -33,6 +33,8 @@ export interface GetSync {
   response: SyncStatus
 }
 
+/** Sync now is the vault's alone: a project's repository is yours to commit from a
+ *  terminal, so nothing here touches it. */
 export interface PostSyncNow {
   request: null
   response: SyncStatus

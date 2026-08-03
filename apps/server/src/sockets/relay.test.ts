@@ -3,7 +3,7 @@ import path from 'node:path'
 import WebSocket from 'ws'
 import { afterAll, describe, expect, it } from 'vitest'
 import type { ServerMessage } from '@broodmother/shared'
-import { cleanup, tempDir, until } from '../test'
+import { cleanup, fakeCrontab, tempDir, until } from '../test'
 import { type ServerHandle, startServer } from '../index'
 
 const running: ServerHandle[] = []
@@ -17,7 +17,12 @@ async function server() {
   const vault = await tempDir()
   const root = path.join(vault, 'local')
   await mkdir(root, { recursive: true })
-  const handle = await startServer({ root: vault, home: await tempDir(), port: 0 })
+  const handle = await startServer({
+    root: vault,
+    home: await tempDir(),
+    port: 0,
+    cron: fakeCrontab(),
+  })
   running.push(handle)
   return Object.assign(handle, { root })
 }

@@ -6,7 +6,8 @@ import type { TerminalClientMessage, TerminalServerMessage } from '@broodmother/
 import { mkdir, writeFile } from 'node:fs/promises'
 import { defaultConfig } from '../config'
 import { createProfile } from '../profiles'
-import { cleanup, delay, tempDir, until } from '../test'
+import { cleanup, delay, fakeCrontab, tempDir, until } from '../test'
+import { seedSkills } from '../vault'
 import { type ServerHandle, startServer } from '../index'
 
 const running: ServerHandle[] = []
@@ -29,7 +30,7 @@ async function server() {
   // A vault is a folder in the profile it commits as.
   const root = path.join(home, 'tester', 'handbook')
   await mkdir(root, { recursive: true })
-  const handle = await startServer({ root, home, port: 0 })
+  const handle = await startServer({ root, home, port: 0, cron: fakeCrontab() })
   running.push(handle)
   return handle
 }
@@ -121,6 +122,23 @@ describe('terminals', () => {
     await until(() =>
       shell.output().includes(`dir=${path.join(os.homedir(), 'claude-work')}`),
     )
+  })
+
+  it('names the vault’s skills in the brief a shell is handed', async () => {
+    const home = await tempDir()
+    await createProfile({ name: 'tester', ...IDENTITY }, home)
+    const root = path.join(home, 'tester', 'handbook')
+    // Seeded before the server opens the vault, so the first scan already holds it.
+    await seedSkills(path.join(root, 'local'))
+    const handle = await startServer({ root, home, port: 0, cron: fakeCrontab() })
+    running.push(handle)
+
+    const shell = await open(handle)
+    shell.send({
+      type: 'input',
+      data: 'case "$BROODMOTHER_BRIEF" in *"hello"*) echo "skill-$((1 + 0))";; esac\r',
+    })
+    await until(() => shell.output().includes('skill-1\r\n'))
   })
 
   /* The brief is what an agent is told about the room it woke up in, and the shell is how

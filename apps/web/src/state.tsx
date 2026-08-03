@@ -101,7 +101,8 @@ export interface App {
   treeEvent: RootEvent | null
   notice: string | null
   dismissNotice(): void
-  create(ref: DocRef): Promise<Failure>
+  /** An empty note unless told otherwise — a dream is born with its first trigger. */
+  create(ref: DocRef, contents?: string): Promise<Failure>
   createFolder(ref: DocRef): Promise<Failure>
   move(root: DocRoot, from: DocPath, to: DocPath): Promise<Failure>
   remove(ref: DocRef): Promise<Failure>
@@ -474,9 +475,9 @@ export function AppProvider({
     notice,
     dismissNotice: () => setNotice(null),
 
-    create: (ref) =>
+    create: (ref, contents = '') =>
       run(async () => {
-        await client.request('PUT /api/doc', { ...ref, markdown: '' })
+        await client.request('PUT /api/doc', { ...ref, markdown: contents })
         return `created ${ref.path}`
       }),
 

@@ -13,10 +13,12 @@ function ctx(): FlowCtx {
     })),
     open: vi.fn(),
     newNote: vi.fn(),
+    newDream: vi.fn(),
     move: vi.fn(),
     remove: vi.fn(),
     syncNow: vi.fn(),
     settings: vi.fn(),
+    dreams: vi.fn(),
     toggleTerminal: vi.fn(),
     vaults: vi.fn(),
     projects: vi.fn(),
@@ -39,6 +41,7 @@ it('offers every command and every document, commands first', async () => {
   open(ctx())
   expect(listed()).toEqual([
     'New note',
+    'New dream',
     'Move or rename document',
     'Delete document',
     'Toggle terminal',
@@ -46,6 +49,7 @@ it('offers every command and every document, commands first', async () => {
     'Switch project',
     'New project',
     'Switch or create vault',
+    'Dreams',
     'Settings',
     'README.md',
     'Handbook/Overview.md',

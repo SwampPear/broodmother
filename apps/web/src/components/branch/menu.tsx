@@ -54,7 +54,6 @@ export function BranchMenu({
         id: branch.name,
         label: branch.name,
         // What picking it will do, which is the one thing the name does not say.
-        description: branch.checkedOut ? undefined : 'not checked out yet',
         selected: branch.name === active,
         onSelect: () => {
           close()

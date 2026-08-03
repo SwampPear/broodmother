@@ -108,7 +108,7 @@ export function ProfileForm({
       <fieldset className="swatches">
         <legend>Color</legend>
         {palette.map((option) => (
-          <label key={option.hex} title={`opal ${option.name}`}>
+          <label key={option.hex} data-tip={`opal ${option.name}`}>
             <input
               type="radio"
               name="color"

@@ -6,6 +6,18 @@ export type {
 } from './branches'
 export type { DeleteData } from './data'
 export type { GetDiff, GetDiffFile } from './diff'
+export type {
+  DreamRun,
+  DreamStep,
+  DreamStepState,
+  DreamSummary,
+  DreamTrigger,
+  GetDreamLog,
+  GetDreamRuns,
+  GetDreams,
+  PostDreamRun,
+} from './dreams'
+export type { GetPersonas, Persona } from './personas'
 export type { DeleteTerminal } from './terminal'
 export type {
   Backlink,
@@ -26,6 +38,7 @@ export type {
   PutConfig,
   PutGit,
 } from './git'
+export type { KernelClientMessage, KernelServerMessage, KernelState } from './kernel'
 export type {
   DeleteGithub,
   GetGithubRepos,

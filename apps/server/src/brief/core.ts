@@ -1,4 +1,5 @@
 import { projectOf, tilde, type DocRoot } from '@broodmother/shared'
+import type { Skill } from '../vault'
 import { DEFAULT_SOUL } from './soul'
 
 /** How much the vault syncs, in the one word the brief has room for. */
@@ -12,6 +13,7 @@ export interface BriefState {
   /** `path` is the vault folder, `checkout` the branch folder open inside it. */
   vault: { name: string; path: string; checkout: string } | null
   projects: { name: string; path: string }[]
+  skills: Skill[]
   scope: DocRoot
   cwd: string
   sync: BriefSync
@@ -23,6 +25,11 @@ folder of markdown. The .md files on disk are the source of truth and git is the
 so edit the files directly rather than reaching for a database or an API. Someone may have
 the file you are editing open in the browser beside you — the editor follows the file on
 disk, so prefer small edits over rewriting a document out from under them.
+
+Write each paragraph as one long line and leave the wrapping to the editor, which wraps to
+its own width. Never hard-wrap prose at a column width: the breaks land in the file, and
+the editor shows a paragraph full of stray newlines. Take existing hard-wrapped paragraphs
+back to one line as you edit them.
 `.trim()
 
 const SYNC: Record<BriefSync, string> = {
@@ -46,6 +53,7 @@ export function brief(state: BriefState): string {
     OPENING,
     where(state),
     trees(state),
+    skills(state),
     asking(state.api),
     HERE,
     `${SOUL}\n\n${state.soul?.trim() || DEFAULT_SOUL}`,
@@ -78,6 +86,21 @@ function trees(state: BriefState): string {
 
 The vault is the notes. A project is a code repository those notes are about, checked out
 inside the vault; there are as many as the notes cover, and all of them are open at once.`
+}
+
+/** The line here is only the trigger; the whole instruction set stays in each SKILL.md,
+ *  read when a task matches — progressive disclosure, paid for once in the brief. */
+function skills(state: BriefState): string {
+  if (!state.vault || state.skills.length === 0) return ''
+  return `## Skills
+
+Reusable workflows this vault carries, filed under
+${tilde(state.vault.checkout)}/.skills — one folder per skill, its scripts beside a
+SKILL.md. The line here is only the trigger: read a skill's SKILL.md in full before
+running it, and take what it needs — credentials, endpoints — from the environment,
+never from a file.
+
+${table(state.skills.map((skill): [string, string] => [skill.name, skill.description]))}`
 }
 
 function asking(api: string): string {
@@ -128,7 +151,10 @@ And for state, once what you were told above has gone stale under you.
 }
 
 function section(title: string, rows: [string, string][]): string {
+  return `## ${title}\n\n${table(rows)}`
+}
+
+function table(rows: [string, string][]): string {
   const width = Math.max(...rows.map(([label]) => label.length)) + 2
-  const body = rows.map(([label, value]) => `  ${label.padEnd(width)}${value}`)
-  return `## ${title}\n\n${body.join('\n')}`
+  return rows.map(([label, value]) => `  ${label.padEnd(width)}${value}`).join('\n')
 }

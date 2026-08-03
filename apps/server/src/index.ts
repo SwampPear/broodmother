@@ -44,6 +44,9 @@ export async function startServer(
         root: url.searchParams.get('root') as DocRoot | null,
         session: url.searchParams.get('session'),
       }),
+    // The kernel proxy is the notebook plan's phase 2; until it lands, the route answers
+    // by hanging up, and no client dials it.
+    '/kernel': (socket) => socket.close(),
   }
   /**
    * The sockets that have answered since they were last asked. Sleep and a frozen tab both

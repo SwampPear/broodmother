@@ -1,2 +1,2 @@
 export { Relay } from './relay'
-export { Terminals, type TerminalSession } from './terminal'
+export { Terminals, ambient, type TerminalSession } from './terminal'

@@ -14,7 +14,7 @@ export function Button({
   disabled = false,
   submit = false,
   form,
-  title,
+  tip,
   accent,
 }: {
   children: ReactNode
@@ -25,7 +25,7 @@ export function Button({
   /** Submits the form it is in, or the one named — a footer button is outside its form. */
   submit?: boolean
   form?: string
-  title?: string
+  tip?: string
   /** The profile's colour, for the one button on a screen that commits to something. */
   accent?: string | null
 }) {
@@ -35,7 +35,7 @@ export function Button({
       className={danger ? 'danger' : undefined}
       disabled={disabled}
       form={form}
-      title={title}
+      data-tip={tip}
       style={accent ? ({ '--accent': accent } as CSSProperties) : undefined}
       onClick={onClick}
     >

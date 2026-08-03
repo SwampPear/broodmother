@@ -202,12 +202,15 @@ it('starts the palette at the colour it is offering', () => {
   show()
   const swatches = screen
     .getAllByRole('radio')
-    .map((radio) => radio.closest('label')?.title)
+    .map((radio) => radio.closest('label')?.getAttribute('data-tip'))
 
   expect(swatches[0]).toBe('opal indigo')
-  expect(screen.getByRole('radio', { checked: true }).closest('label')?.title).toBe(
-    'opal indigo',
-  )
+  expect(
+    screen
+      .getByRole('radio', { checked: true })
+      .closest('label')
+      ?.getAttribute('data-tip'),
+  ).toBe('opal indigo')
 })
 
 /* First run is this same modal with nobody to pick from and no way out. */

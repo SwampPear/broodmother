@@ -40,16 +40,14 @@ it('wears the other branch once you are on it', () => {
 })
 
 /* The whole point of the list: work started elsewhere is offered without any setup. */
-it('lists branches that have no checkout yet, and says so', async () => {
+it('lists branches that have no checkout yet', async () => {
   show()
   await open()
   const rows = screen.getAllByRole('menuitemradio')
   expect(rows).toHaveLength(3)
   expect(rows[0]).toHaveTextContent('main')
   expect(rows[0]).toHaveAttribute('aria-checked', 'true')
-  expect(screen.getByRole('menuitemradio', { name: /feat\/sync/ })).toHaveTextContent(
-    'not checked out yet',
-  )
+  expect(screen.getByRole('menuitemradio', { name: /feat\/sync/ })).toBeInTheDocument()
 })
 
 /* One repository in the menu, headed by its name: whose branches these are is the thing

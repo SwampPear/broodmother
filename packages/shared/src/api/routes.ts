@@ -6,6 +6,8 @@ import type {
 } from './branches'
 import type { DeleteData } from './data'
 import type { GetDiff, GetDiffFile } from './diff'
+import type { GetDreamLog, GetDreamRuns, GetDreams, PostDreamRun } from './dreams'
+import type { GetPersonas } from './personas'
 import type { DeleteTerminal } from './terminal'
 import type { DeleteDoc, GetDoc, GetLinks, PostDocMove, PostFolder, PutDoc } from './docs'
 import type {
@@ -71,6 +73,11 @@ interface ApiRoutes {
   'POST /api/projects': PostProjects
   'DELETE /api/projects': DeleteProjects
   'POST /api/scope': PostScope
+  'POST /api/dream/run': PostDreamRun
+  'GET /api/dream/runs': GetDreamRuns
+  'GET /api/dreams': GetDreams
+  'GET /api/dream/log': GetDreamLog
+  'GET /api/personas': GetPersonas
   'GET /api/doc': GetDoc
   'PUT /api/doc': PutDoc
   'POST /api/doc/move': PostDocMove

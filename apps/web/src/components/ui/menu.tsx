@@ -16,8 +16,8 @@ import { Icon, type IconName } from './icons'
 /**
  * The one dropdown in the app. Every menu — profiles, row actions, anything anchored to a
  * control — is a list of sections rendered here, so they share an anatomy: a floating
- * surface, grouped rows separated by a rule, a leading visual, an optional second line,
- * and a trailing check on whatever is currently chosen.
+ * surface, grouped rows separated by a rule, a leading visual, a label, and a trailing
+ * check on whatever is currently chosen.
  *
  * The behaviour underneath is a headless menu primitive, not ours: roving focus, wrap-around
  * arrows, type-ahead, escape, click-away, focus returning to the trigger, and flipping when
@@ -26,8 +26,6 @@ import { Icon, type IconName } from './icons'
 export interface MenuAction {
   id: string
   label: string
-  /** Second line under the label — what the row means, not a repeat of it. */
-  description?: string
   icon?: IconName
   /** An initial on a colour, where the row stands for a person rather than an action. */
   badge?: { text: string; color: string }
@@ -66,12 +64,7 @@ export function MenuRow({ action }: { action: MenuAction }) {
       ) : (
         action.icon && <Icon name={action.icon} />
       )}
-      <span className="menu-text">
-        <span className="menu-label">{action.label}</span>
-        {action.description && (
-          <span className="menu-description">{action.description}</span>
-        )}
-      </span>
+      <span className="menu-label">{action.label}</span>
       {action.selected !== undefined && (
         <Dropdown.ItemIndicator className="menu-mark">
           <Icon name="check" />
@@ -235,7 +228,7 @@ export function Menu({
           type="button"
           className={anchorClass}
           aria-label={anchorLabel}
-          title={anchorLabel}
+          data-tip={anchorLabel}
         >
           {children}
         </button>

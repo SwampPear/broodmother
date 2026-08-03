@@ -145,10 +145,41 @@ describe('createVault', () => {
     const vault = await createVault({ name: 'plain', git: 'none' }, owner(home))
 
     expect(await new Git(localOf(vault)).isRepo()).toBe(false)
-    expect(await readdir(localOf(vault))).toEqual(['README.md'])
+    expect((await readdir(localOf(vault))).sort()).toEqual([
+      '.personas',
+      '.skills',
+      'README.md',
+    ])
     expect(await readFile(path.join(localOf(vault), 'README.md'), 'utf8')).not.toContain(
       'git',
     )
+  })
+
+  it('is born with the placeholder skill and persona beside its README', async () => {
+    const home = await tempDir()
+    const vault = await createVault({ name: 'seeded', git: 'none' }, owner(home))
+
+    const hello = path.join(localOf(vault), '.skills', 'hello')
+    expect(await readFile(path.join(hello, 'SKILL.md'), 'utf8')).toContain(
+      'description: prove the skills folder works',
+    )
+    expect(await readFile(path.join(hello, 'hello.py'), 'utf8')).toContain('print(')
+    expect(
+      await readFile(
+        path.join(localOf(vault), '.personas', 'hello', 'PERSONA.md'),
+        'utf8',
+      ),
+    ).toContain('description: prove the personas folder works')
+  })
+
+  it('carries the placeholders in a repository’s first commit', async () => {
+    const home = await tempDir()
+    const vault = await createVault({ name: 'kept', git: 'local' }, owner(home))
+
+    const listed = await git(localOf(vault), 'ls-tree', '-r', '--name-only', 'HEAD')
+    expect(listed.stdout).toContain('.skills/hello/SKILL.md')
+    expect(listed.stdout).toContain('.skills/hello/hello.py')
+    expect(listed.stdout).toContain('.personas/hello/PERSONA.md')
   })
 
   it('needs no remote to reach, so it cannot fail on one', async () => {

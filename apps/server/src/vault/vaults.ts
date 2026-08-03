@@ -5,6 +5,8 @@ import type { Checkouts } from '../branches'
 import { Git, classifyRemoteError } from '../git'
 import { profileDir, readAccount } from '../profiles'
 import { nameProblem } from '../fs'
+import { seedPersonas } from './personas'
+import { seedSkills } from './skills'
 
 export class VaultError extends Error {}
 
@@ -106,6 +108,8 @@ export async function createVault(
   if (kind === 'none') {
     await mkdir(local, { recursive: true })
     await writeFile(path.join(local, 'README.md'), readme(name, kind))
+    await seedSkills(local)
+    await seedPersonas(local)
     return created
   }
 
@@ -144,6 +148,9 @@ export async function createVault(
   await git.run(['init', '-b', head])
   if (kind === 'remote') await git.run(['remote', 'add', 'origin', remoteUrl!.trim()])
   await writeFile(path.join(local, 'README.md'), readme(name, kind))
+  // Before stageAll, so the first commit carries the placeholders.
+  await seedSkills(local)
+  await seedPersonas(local)
   await git.stageAll()
   const commit = await git.commit(`broodmother: create vault ${name}`, profile.gitAuthor)
   if (!commit.ok) throw new VaultError(commit.message)
