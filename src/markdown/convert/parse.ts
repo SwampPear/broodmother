@@ -142,7 +142,7 @@ function inline(tokens: Token[], parent: DocNode) {
       last.text += text
     else out.push(sorted ? { type: 'text', text, marks: sorted } : { type: 'text', text })
   }
-  /** An atom still sits inside whatever marks are open around it. */
+  // An atom still sits inside whatever marks are open around it.
   const push = (node: DocNode) => {
     if (marks.length) node.marks = sortMarks(marks)
     out.push(node)
@@ -207,7 +207,7 @@ function inline(tokens: Token[], parent: DocNode) {
   }
 }
 
-/** `SCHEMA_SPEC.marks` is the canonical nesting order, so a mark set has one spelling. */
+// `SCHEMA_SPEC.marks` is the canonical nesting order, so a mark set has one spelling.
 export const sortMarks = (marks: Mark[]): Mark[] =>
   [...marks].sort(
     (a, b) => SCHEMA_SPEC.marks.indexOf(a.type) - SCHEMA_SPEC.marks.indexOf(b.type),
@@ -222,7 +222,7 @@ const leadText = (item: DocNode): DocNode[] | undefined => {
   return text?.type === 'text' && !text.marks ? first.content : undefined
 }
 
-/** markdown-it has no task lists: a bullet list whose every item starts `[ ]` is one. */
+// markdown-it has no task lists: a bullet list whose every item starts `[ ]` is one.
 function tasks(nodes: DocNode[]): DocNode[] {
   for (const node of nodes) {
     if (node.content) node.content = tasks(node.content)

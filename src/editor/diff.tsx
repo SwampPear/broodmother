@@ -12,14 +12,12 @@ import {
   type MonacoApi,
 } from './monaco'
 
-/**
- * One file as two branches have it, side by side. Monaco's own diff editor, which is the
- * one VS Code is: the gutter, the line numbers and the red and green come with it, and the
- * comparison itself runs in the worker rather than on the frame that draws it.
- *
- * Always the code editor, even for markdown. A note is read as prose, but a difference is
- * read by line — and a diff with the line numbers taken off is not one.
- */
+// One file as two branches have it, side by side. Monaco's own diff editor, which is the
+// one VS Code is: the gutter, the line numbers and the red and green come with it, and the
+// comparison itself runs in the worker rather than on the frame that draws it.
+//
+// Always the code editor, even for markdown. A note is read as prose, but a difference is
+// read by line — and a diff with the line numbers taken off is not one.
 const OPTIONS: Monaco.editor.IStandaloneDiffEditorConstructionOptions = {
   ...CODE,
   readOnly: true,
@@ -39,11 +37,11 @@ export function DiffEditor({
   path,
   theme = 'dark',
 }: {
-  /** The branch being compared against, as the left-hand side. */
+  // The branch being compared against, as the left-hand side.
   against: string
-  /** The branch you are on, as the right. */
+  // The branch you are on, as the right.
   current: string
-  /** The file's path, which is what decides the language. */
+  // The file's path, which is what decides the language.
   path: string
   theme?: 'dark' | 'light'
 }) {
@@ -99,8 +97,8 @@ export function DiffEditor({
   )
 }
 
-/** A model per side, in the language the path names. The pair the editor was holding goes
- *  with them: a model nobody disposes is a document Monaco keeps forever. */
+// A model per side, in the language the path names. The pair the editor was holding goes
+// with them: a model nobody disposes is a document Monaco keeps forever.
 async function models(
   monaco: MonacoApi,
   editor: Monaco.editor.IStandaloneDiffEditor,

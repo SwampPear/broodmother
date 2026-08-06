@@ -1,16 +1,14 @@
 import type { Profile } from '../profile'
 import type { GithubDevice, GithubRepo } from '../github'
 
-/** Opens the device flow: what comes back is a code and the page to type it into. */
+// Opens the device flow: what comes back is a code and the page to type it into.
 export interface PostGithubDevice {
   request: null
   response: GithubDevice
 }
 
-/**
- * One ask for the answer to a code. `pending` is the ordinary case — it means the browser
- * has not been through it yet, and the app asks again after the interval it was given.
- */
+// One ask for the answer to a code. `pending` is the ordinary case — it means the browser
+// has not been through it yet, and the app asks again after the interval it was given.
 export interface PostGithubConnect {
   request: { deviceCode: string }
   response: { pending: boolean; profile: Profile }

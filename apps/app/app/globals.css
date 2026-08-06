@@ -292,6 +292,7 @@ textarea:focus-visible {
 /* Shape and cursor by the line it draws; where it sits is per edge, below. A seam between
    two terminal panes is the same element as the window's own edges. */
 .resizer[data-axis='sidebar'],
+.resizer[data-axis='options'],
 .resizer[data-axis='row'] {
   width: 7px;
   justify-content: center;
@@ -322,6 +323,14 @@ textarea:focus-visible {
   top: -4px;
   left: 0;
   right: 0;
+}
+
+/* The panel's own left border, measured from inside it — the same 4px back the panel seam
+   takes, so the handle's middle pixel lands on the border rather than beside it. */
+.resizer[data-axis='options'] {
+  top: 0;
+  bottom: 0;
+  left: -4px;
 }
 
 /* Placed on the split it divides, so the 3px that straddles it comes off here rather than
@@ -1541,6 +1550,15 @@ body[data-resizing='column'] {
 .monaco-editor .md-fence {
   font-family: var(--mono);
   font-size: 0.9em;
+}
+
+/* Frontmatter is a header, not prose: mono and dimmed so it reads as the note's label
+   rather than its first paragraph, and never as markdown — no bullet on a `- `, no rule
+   on the fences. */
+.monaco-editor .md-frontmatter {
+  font-family: var(--mono);
+  font-size: 0.85em;
+  color: var(--faint);
 }
 
 .monaco-editor .md-link,
@@ -3273,17 +3291,19 @@ p.palette-label {
 /* ---------- dreams ---------- */
 
 /* The canvas: a dot grid that pans with the world, everything else absolute over it. */
-/* The canvas over the panel, the way the shell holds a pane over the terminal. */
+/* The canvas beside the panel: a node's settings are a column of fields, and the canvas has
+   width to spare where it had no height to give. */
 .dream-page {
   display: flex;
   height: 100%;
-  flex-direction: column;
+  flex-direction: row;
   min-height: 0;
 }
 
 .dream {
   position: relative;
   flex: 1;
+  min-width: 0;
   min-height: 0;
   overflow: hidden;
   user-select: none;
@@ -3475,16 +3495,17 @@ p.palette-label {
   color: var(--opal-rose);
 }
 
-/* The options panel: the terminal's slot on every other page, holding the picked node's
-   settings here. Same seam, same chrome, ⌘J either way. */
+/* The options panel: down the right of the canvas, holding the picked node's settings.
+   Same seam, same chrome, ⌘J either way. */
 .dream-options {
   position: relative;
   display: flex;
   flex: none;
   flex-direction: column;
+  min-width: 0;
   min-height: 0;
   background: var(--panel);
-  border-top: 1px solid var(--line);
+  border-left: 1px solid var(--line);
 }
 
 .dream-options[hidden] {
@@ -3513,8 +3534,6 @@ p.palette-label {
 
 .dream-options-body > * {
   width: 100%;
-  max-width: 40rem;
-  margin-inline: auto;
 }
 
 .dream-options .inline-editor {
@@ -3725,4 +3744,49 @@ p.palette-label {
 
 .dreams-starters p {
   margin: 0.15rem 0 0;
+}
+
+/* ---------- mode picker ---------- */
+
+/* Not a band across the top of every note — the doc view dropped its header on purpose.
+   A corner, quiet until the pointer or the keyboard arrives. */
+.doc-modes-host {
+  position: relative;
+  height: 100%;
+  min-height: 0;
+}
+
+.doc-modes {
+  position: absolute;
+  top: 0.35rem;
+  right: 0.6rem;
+  z-index: 5;
+  display: flex;
+  gap: 1px;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.doc-modes-host:hover .doc-modes,
+.doc-modes:focus-within {
+  opacity: 1;
+}
+
+.doc-modes-button {
+  padding: 0.15rem 0.5rem;
+  border: none;
+  background: var(--raised);
+  color: var(--faint);
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  cursor: pointer;
+}
+
+.doc-modes-button:hover {
+  color: var(--muted);
+}
+
+.doc-modes-button[aria-pressed='true'] {
+  background: var(--active);
+  color: var(--white);
 }

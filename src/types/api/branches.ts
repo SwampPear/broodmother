@@ -2,24 +2,24 @@ import type { Branch } from '../branch'
 import type { BroodmotherConfig } from '../core'
 import type { DocRoot } from '../tree'
 
-/** Whose branches: the vault's, or the open project's. */
+// Whose branches: the vault's, or the open project's.
 interface Of {
   root: DocRoot
 }
 
 export interface GetBranches {
   request: Of
-  /** `active` is the branch of the open checkout, or null when there is no repository. */
+  // `active` is the branch of the open checkout, or null when there is no repository.
   response: { branches: Branch[]; active: string | null }
 }
 
-/** Cuts a new branch off the primary's HEAD and gives it a checkout. */
+// Cuts a new branch off the primary's HEAD and gives it a checkout.
 export interface PostBranches {
   request: Of & { name: string }
   response: { branch: Branch; config: BroodmotherConfig }
 }
 
-/** Checks the branch out if it has no folder yet, then moves into it either way. */
+// Checks the branch out if it has no folder yet, then moves into it either way.
 export interface PostBranchOpen {
   request: Of & { name: string }
   response: { branch: Branch; config: BroodmotherConfig }

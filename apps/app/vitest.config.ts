@@ -9,7 +9,7 @@ export default defineConfig({
   plugins: [react()],
   resolve: { alias: { '@': resolve(root, 'src') } },
   test: {
-    name: '@broodmother/web',
+    name: '@broodmother/app',
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
     passWithNoTests: true,

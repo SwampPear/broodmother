@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="apps/web/public/logo.png" alt="" width="72" height="72" />
+  <img src="apps/app/public/logo.png" alt="" width="72" height="72" />
 </p>
 
 <h1 align="center">broodmother</h1>

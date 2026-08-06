@@ -54,8 +54,8 @@ function startBackends(): void {
   children.push(node(join(runtime, 'server', 'index.cjs'), join(runtime, 'server')))
   children.push(
     node(
-      join(runtime, 'web', 'apps', 'web', 'server.js'),
-      join(runtime, 'web', 'apps', 'web'),
+      join(runtime, 'web', 'apps', 'app', 'server.js'),
+      join(runtime, 'web', 'apps', 'app'),
       {
         HOSTNAME: '127.0.0.1',
         PORT: '6767',

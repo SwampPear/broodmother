@@ -8,8 +8,8 @@ export interface MathSpan {
   block: boolean
 }
 
-/** A display equation drawn where its source was. Errors render as the source, not as a
- *  thrown exception: a half-typed equation is the normal state of one being written. */
+// A display equation drawn where its source was. Errors render as the source, not as a
+// thrown exception: a half-typed equation is the normal state of one being written.
 export function renderMath(latex: string, block: boolean): HTMLElement {
   const host = document.createElement(block ? 'div' : 'span')
   host.className = block ? 'md-math md-math-block' : 'md-math'
@@ -21,11 +21,9 @@ export function renderMath(latex: string, block: boolean): HTMLElement {
   return host
 }
 
-/**
- * `$$…$$` first, so a display equation is never mistaken for two inline ones. Both forms
- * are found by scanning rather than by the markdown grammar, which keeps multi-line
- * display math working and leaves the parser untouched.
- */
+// `$$…$$` first, so a display equation is never mistaken for two inline ones. Both forms
+// are found by scanning rather than by the markdown grammar, which keeps multi-line
+// display math working and leaves the parser untouched.
 export function findMath(text: string, offset = 0): MathSpan[] {
   const spans: MathSpan[] = []
   let index = 0

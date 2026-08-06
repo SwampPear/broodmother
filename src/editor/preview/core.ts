@@ -6,60 +6,52 @@ import { revealed, scan, type Align, type Span, type Table, type Task } from './
 
 type Editor = Monaco.editor.IStandaloneCodeEditor
 
-/**
- * Taking lines out of the view entirely, which is the only way a rendered equation stands
- * where its source was rather than under it. Hiding the text leaves the row; collapsing the
- * row through a decoration's `lineHeight` does not take, measured at 27px either way. This
- * is what the folding widget uses, and it is on the editor at runtime without being in the
- * published API — so it is reached for carefully and the editor still works without it.
- */
+// Taking lines out of the view entirely, which is the only way a rendered equation stands
+// where its source was rather than under it. Hiding the text leaves the row; collapsing the
+// row through a decoration's `lineHeight` does not take, measured at 27px either way. This
+// is what the folding widget uses, and it is on the editor at runtime without being in the
+// published API — so it is reached for carefully and the editor still works without it.
 type Foldable = Editor & {
   setHiddenAreas?: (ranges: Monaco.IRange[], source?: unknown) => void
 }
 
-/** The classes that draw something other than the characters underneath them. */
+// The classes that draw something other than the characters underneath them.
 const GLYPHS = /md-(bullet|task)/
 
-/**
- * A hidden marker is `display: none`, so the characters under it are no width at all.
- * Monaco places the caret and paints the selection from widths it computed for the text it
- * thinks is there; this is what tells it to measure the line instead. Without it every
- * caret on a line holding a hidden URL is drawn that URL's width off.
- */
+// A hidden marker is `display: none`, so the characters under it are no width at all.
+// Monaco places the caret and paints the selection from widths it computed for the text it
+// thinks is there; this is what tells it to measure the line instead. Without it every
+// caret on a line holding a hidden URL is drawn that URL's width off.
 const HIDDEN = {
   inlineClassName: 'md-hidden',
   inlineClassNameAffectsLetterSpacing: true,
 } as const
 
-/**
- * Markdown drawn as what it means rather than as what it says, following the same rule
- * everywhere: a marker hides until a cursor or selection is inside the element it belongs
- * to, and comes straight back when one is.
- *
- * A display equation obeys the same rule with more machinery behind it. Monaco has no way
- * to swap a range of lines for rendered DOM, so the swap is made of three parts: the source
- * text is hidden, its lines are collapsed to a hairline, and the equation is drawn in a view
- * zone at the same place. Put the cursor in it and all three come off at once, leaving the
- * LaTeX to be edited.
- */
+// Markdown drawn as what it means rather than as what it says, following the same rule
+// everywhere: a marker hides until a cursor or selection is inside the element it belongs
+// to, and comes straight back when one is.
+//
+// A display equation obeys the same rule with more machinery behind it. Monaco has no way
+// to swap a range of lines for rendered DOM, so the swap is made of three parts: the source
+// text is hidden, its lines are collapsed to a hairline, and the equation is drawn in a view
+// zone at the same place. Put the cursor in it and all three come off at once, leaving the
+// LaTeX to be edited.
 export class LivePreview {
   private decorations: Monaco.editor.IEditorDecorationsCollection
   private zones: string[] = []
-  /** What is currently drawn, so a keystroke elsewhere does not rebuild every equation. */
+  // What is currently drawn, so a keystroke elsewhere does not rebuild every equation.
   private drawn = new Map<string, Piece>()
   private folded = ''
-  /** A block a click is about to open. The caret cannot be moved into a hidden line, so the
-   *  lines come back first and this is what tells the next refresh to leave them alone. */
+  // A block a click is about to open. The caret cannot be moved into a hidden line, so the
+  // lines come back first and this is what tells the next refresh to leave them alone.
   private pending: Span | null = null
-  /** Where the checkboxes are, as of the last draw. */
+  // Where the checkboxes are, as of the last draw.
   private boxes: Task[] = []
   private disposables: Monaco.IDisposable[] = []
   private enabled = false
-  /**
-   * Monaco always has a cursor, focused or not, and it starts at the top of the document —
-   * so a note nobody has clicked into would open with its first heading's `#` showing. An
-   * unfocused editor is one being read, and a reader has no cursor.
-   */
+  // Monaco always has a cursor, focused or not, and it starts at the top of the document —
+  // so a note nobody has clicked into would open with its first heading's `#` showing. An
+  // unfocused editor is one being read, and a reader has no cursor.
   private focused = false
 
   constructor(
@@ -151,8 +143,8 @@ export class LivePreview {
     this.draw(model, drawn, tables)
   }
 
-  /** Toggles the box that was clicked, and nothing else — a click anywhere but on one is a
-   *  click in the text, which is the editor's business. */
+  // Toggles the box that was clicked, and nothing else — a click anywhere but on one is a
+  // click in the text, which is the editor's business.
   private onMouseDown(event: Monaco.editor.IEditorMouseEvent): void {
     const model = this.editor.getModel()
     const position = event.target.position
@@ -173,7 +165,7 @@ export class LivePreview {
     ])
   }
 
-  /** Lines nobody is editing, gone from the view rather than merely invisible. */
+  // Lines nobody is editing, gone from the view rather than merely invisible.
   private fold(ranges: Monaco.IRange[]): void {
     const editor = this.editor as Foldable
     if (typeof editor.setHiddenAreas !== 'function') return
@@ -186,7 +178,7 @@ export class LivePreview {
     editor.setHiddenAreas(ranges)
   }
 
-  /** Everything drawn in place of its source: equations and tables both. */
+  // Everything drawn in place of its source: equations and tables both.
   private draw(
     model: Monaco.editor.ITextModel,
     blocks: { from: number; to: number; latex: string }[],
@@ -285,7 +277,7 @@ export class LivePreview {
   }
 }
 
-/** One thing drawn where its source was. */
+// One thing drawn where its source was.
 type Piece =
   | { kind: 'math'; key: string; line: number; from: number; latex: string }
   | { kind: 'table'; key: string; line: number; from: number; table: Table }
@@ -299,8 +291,8 @@ function same(a: Map<string, Piece>, b: Map<string, Piece>): boolean {
   return true
 }
 
-/** A pipe table as a table. A cell holds inline markdown like anywhere else in a note, and
- *  is built out of nodes rather than parsed as markup. */
+// A pipe table as a table. A cell holds inline markdown like anywhere else in a note, and
+// is built out of nodes rather than parsed as markup.
 export function renderTable(table: Table): HTMLElement {
   const element = document.createElement('table')
   element.className = 'md-table'
@@ -329,12 +321,10 @@ function setAlign(cell: HTMLTableCellElement, align: Align): void {
   if (align) cell.style.textAlign = align
 }
 
-/**
- * Offscreen but laid out, and laid out where it will be drawn: `display: none` would measure
- * zero, a stage with room the zone does not have measures a height the zone does not get,
- * and a stage outside the editor inherits the page's type rather than the editor's — which
- * is a table measured a row short of the one the reader is given.
- */
+// Offscreen but laid out, and laid out where it will be drawn: `display: none` would measure
+// zero, a stage with room the zone does not have measures a height the zone does not get,
+// and a stage outside the editor inherits the page's type rather than the editor's — which
+// is a table measured a row short of the one the reader is given.
 function measure(host: HTMLElement, width: number, within: HTMLElement): number {
   const stage = document.createElement('div')
   stage.style.cssText = `position:absolute;visibility:hidden;pointer-events:none;left:-9999px;top:0;width:${width}px`

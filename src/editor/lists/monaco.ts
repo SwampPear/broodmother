@@ -13,17 +13,13 @@ import {
 type Editor = Monaco.editor.IStandaloneCodeEditor
 type Model = Monaco.editor.ITextModel
 
-/**
- * Lists are prose, and a source file is not: a `.ts` keeps the Tab and Enter VS Code would
- * have given it. The suggest widget owns both keys while it is up, the way it does anywhere.
- */
+// Lists are prose, and a source file is not: a `.ts` keeps the Tab and Enter VS Code would
+// have given it. The suggest widget owns both keys while it is up, the way it does anywhere.
 const WHEN = 'editorTextFocus && editorLangId == markdown && !suggestWidgetVisible'
 
-/**
- * Obsidian's list keys, on Monaco. Enter continues an item and empties one out a level at a
- * time, Shift-Enter breaks a line inside an item, Tab and Shift-Tab move a level, and a list
- * of numbers renumbers itself as it is edited rather than when it is asked.
- */
+// Obsidian's list keys, on Monaco. Enter continues an item and empties one out a level at a
+// time, Shift-Enter breaks a line inside an item, Tab and Shift-Tab move a level, and a list
+// of numbers renumbers itself as it is edited rather than when it is asked.
 export function installLists(editor: Editor, monaco: typeof Monaco): void {
   const { KeyCode, KeyMod } = monaco
 

@@ -55,10 +55,8 @@ function block(node: DocNode): string {
   }
 }
 
-/**
- * Escaping is decided by trying it without: markdown that reparses to the same node needed
- * none. Nothing else knows whether a `*` in this position is literal.
- */
+// Escaping is decided by trying it without: markdown that reparses to the same node needed
+// none. Nothing else knows whether a `*` in this position is literal.
 function verified(node: DocNode, render: (esc: boolean) => string): string {
   const plain = render(false)
   return equal(parse(plain).content, [node]) ? plain : render(true)
@@ -72,7 +70,7 @@ function codeBlock(node: DocNode): string {
   return text ? `${open}\n${text}\n${fence}` : `${open}\n${fence}`
 }
 
-/** A `mathBlock` always takes the fenced form; `$$x$$` on one line is the same node. */
+// A `mathBlock` always takes the fenced form; `$$x$$` on one line is the same node.
 const latex = (node: DocNode): string => node.content?.[0]?.text ?? ''
 
 const prefix = (text: string, pad: string, empty: string): string =>
@@ -84,7 +82,7 @@ const prefix = (text: string, pad: string, empty: string): string =>
 const checkbox = (item: DocNode) =>
   `[${(item.attrs as TaskItemAttrs).checked ? 'x' : ' '}] `
 
-/** The checkbox is item content, not marker, so it does not widen the continuation indent. */
+// The checkbox is item content, not marker, so it does not widen the continuation indent.
 function list(
   node: DocNode,
   bullet: (item: DocNode, index: number) => string,
@@ -102,7 +100,7 @@ function list(
   return items.join(loose ? '\n\n' : '\n')
 }
 
-/** Inside an item only paragraph-after-paragraph needs a blank line; a nested list does not. */
+// Inside an item only paragraph-after-paragraph needs a blank line; a nested list does not.
 function itemBlocks(nodes: DocNode[]): string {
   return nodes.reduce((text, node, i) => {
     if (i === 0) return block(node)
@@ -146,10 +144,8 @@ const closer = (mark: Mark): string => {
   return `](${target}${title === null ? '' : ` "${title}"`})`
 }
 
-/**
- * A mark already open stays open if the next leaf still carries it, whatever its position —
- * closing and reopening would emit `**` runs that no longer parse as the same marks.
- */
+// A mark already open stays open if the next leaf still carries it, whatever its position —
+// closing and reopening would emit `**` runs that no longer parse as the same marks.
 function inline(nodes: DocNode[], esc: boolean): string {
   let text = ''
   let open: Mark[] = []

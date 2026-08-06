@@ -35,14 +35,17 @@ const AXES = {
     along: (event: { clientX: number; clientY: number }) => -event.clientY,
     keys: { ArrowUp: 1, ArrowDown: -1 } as Record<string, number>,
   },
+  // A side panel rather than a slot along the bottom, so the seam runs down its left edge
+  // and the drag reads across: leftwards is wider. A form is a column of fields, and the
+  // canvas it sits beside is wider than it is tall.
   options: {
-    min: 120,
+    min: 220,
     max: 720,
-    initial: 288,
-    orientation: 'horizontal',
+    initial: 320,
+    orientation: 'vertical',
     label: 'resize options',
-    along: (event: { clientX: number; clientY: number }) => -event.clientY,
-    keys: { ArrowUp: 1, ArrowDown: -1 } as Record<string, number>,
+    along: (event: { clientX: number; clientY: number }) => -event.clientX,
+    keys: { ArrowLeft: 1, ArrowRight: -1 } as Record<string, number>,
   },
   row: {
     min: 96,

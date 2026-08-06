@@ -1,8 +1,6 @@
-/**
- * A place in a document, counted from zero on both axes. Monaco counts from one and the
- * conversion is the adapter's job — the model itself is text and arithmetic, which is what
- * makes it testable without an editor.
- */
+// A place in a document, counted from zero on both axes. Monaco counts from one and the
+// conversion is the adapter's job — the model itself is text and arithmetic, which is what
+// makes it testable without an editor.
 export interface Point {
   line: number
   column: number
@@ -17,41 +15,37 @@ export interface Edit extends Region {
   text: string
 }
 
-/**
- * How far a level of list is. Obsidian's default, and the width Tab, Shift-Tab and an empty
- * item all move by. Two would be enough to nest a bullet and not enough to nest under `1. `,
- * so a list of numbers would stop nesting at the first level.
- */
+// How far a level of list is. Obsidian's default, and the width Tab, Shift-Tab and an empty
+// item all move by. Two would be enough to nest a bullet and not enough to nest under `1. `,
+// so a list of numbers would stop nesting at the first level.
 export const INDENT = '    '
 
-/**
- * Obsidian's own list prefix, group for group: the indent and any quote markers, then a
- * bullet or a number, then an optional checkbox. One space after the marker rather than a
- * run — `-  x` is a bullet whose text begins with a space, which is what every markdown
- * reader makes of it. Everything is optional, so this matches every line.
- */
+// Obsidian's own list prefix, group for group: the indent and any quote markers, then a
+// bullet or a number, then an optional checkbox. One space after the marker rather than a
+// run — `-  x` is a bullet whose text begins with a space, which is what every markdown
+// reader makes of it. Everything is optional, so this matches every line.
 const LIST = /^([>\s]*)(([*+-] |(\d+)([.)] ))(?:\[(.)\] )?)?/
 
-/** A line that ends whatever list was above it. */
+// A line that ends whatever list was above it.
 const BREAK = /^\s*(?:> |#{1,6} |([-_*])(\s*\1){2,}\s*$|~~~|```)/
 
-/** The whitespace and quote markers a line opens with, which is what Tab moves. */
+// The whitespace and quote markers a line opens with, which is what Tab moves.
 const LEAD = /^[\s>]+/
 
-/** A run of levels: one tab or four spaces each. */
+// A run of levels: one tab or four spaces each.
 const LEVELS = /^(?:\t| {4})*/
 
 interface Prefix {
-  /** Everything before the item's text. */
+  // Everything before the item's text.
   all: string
   indent: string
-  /** The marker and its checkbox together. */
+  // The marker and its checkbox together.
   marker: string
-  /** The bullet, or the number and the delimiter after it. */
+  // The bullet, or the number and the delimiter after it.
   lead: string
   number: string
   delimiter: string
-  /** Whatever stands between the brackets, which is empty when there are none. */
+  // Whatever stands between the brackets, which is empty when there are none.
   box: string
 }
 
@@ -72,12 +66,10 @@ function at(line: number, from: number, to: number, text: string): Edit {
   return { start: { line, column: from }, end: { line, column: to }, text }
 }
 
-/**
- * Enter. A list item continues into another one; an empty item gives a level of indent back
- * and then stops being a list at all. Null when the line is not a list, which leaves Enter
- * to the editor — and null for every caret when any one of them is not, because a document
- * half of whose cursors continued a list is worse than one where none did.
- */
+// Enter. A list item continues into another one; an empty item gives a level of indent back
+// and then stops being a list at all. Null when the line is not a list, which leaves Enter
+// to the editor — and null for every caret when any one of them is not, because a document
+// half of whose cursors continued a list is worse than one where none did.
 export function continueList(lines: string[], carets: Point[]): Edit[] | null {
   const edits: Edit[] = []
   for (const caret of carets) {
@@ -125,8 +117,8 @@ function enter(lines: string[], caret: Point): Edit | null {
   return at(caret.line, caret.column, to, `\n${found.indent}${next}`)
 }
 
-/** An empty item is one you have finished: Enter takes a level off it, and takes the marker
- *  off the last level. */
+// An empty item is one you have finished: Enter takes a level off it, and takes the marker
+// off the last level.
 function finish(found: Prefix, caret: Point): Edit | null {
   const { line } = caret
   const { indent } = found
@@ -144,10 +136,8 @@ function finish(found: Prefix, caret: Point): Edit | null {
   return at(line, indent.length - spaces, indent.length, '')
 }
 
-/**
- * Shift-Enter: a line inside the item rather than a new item, standing under the item's text
- * instead of under its marker.
- */
+// Shift-Enter: a line inside the item rather than a new item, standing under the item's text
+// instead of under its marker.
 export function hangingNewline(lines: string[], carets: Point[]): Edit[] | null {
   const edits: Edit[] = []
   for (const caret of carets) {
@@ -161,7 +151,7 @@ export function hangingNewline(lines: string[], carets: Point[]): Edit[] | null 
   return edits.length ? edits : null
 }
 
-/** Tab: a level of indent in front of the line, after whatever quote markers it opens with. */
+// Tab: a level of indent in front of the line, after whatever quote markers it opens with.
 export function indent(lines: string[], regions: Region[]): Edit[] {
   return each(lines, regions, (line, number) => {
     const lead = LEAD.exec(line)?.[0] ?? ''
@@ -171,7 +161,7 @@ export function indent(lines: string[], regions: Region[]): Edit[] {
   })
 }
 
-/** Shift-Tab: a level of it back, down to the next level rather than by a fixed width. */
+// Shift-Tab: a level of it back, down to the next level rather than by a fixed width.
 export function outdent(lines: string[], regions: Region[]): Edit[] {
   return each(lines, regions, (line, number) => {
     const lead = LEAD.exec(line)?.[0] ?? ''
@@ -226,12 +216,12 @@ function columns(text: string): number {
   return width
 }
 
-/** How many `>` a line opens with. */
+// How many `>` a line opens with.
 function quotesOf(indent: string): number {
   return (indent.match(/>/g) ?? []).length
 }
 
-/** How deep a line sits, in levels, behind at most one quote marker. */
+// How deep a line sits, in levels, behind at most one quote marker.
 function depthOf(indent: string): number {
   const quoted = /^>(?:\t| {4})* ?/.exec(indent)?.[0] ?? ''
   const rest = indent.slice(quoted.length)
@@ -242,11 +232,9 @@ function levels(eaten: string): number {
   return (eaten.match(/\t| {4}/g) ?? []).length
 }
 
-/**
- * Ordered lists count for themselves. Obsidian renumbers as you type rather than when you
- * ask, so an item inserted in the middle pushes the rest down and one taken out closes the
- * gap. An item with nothing above it keeps the number it was given: `5.` starts at five.
- */
+// Ordered lists count for themselves. Obsidian renumbers as you type rather than when you
+// ask, so an item inserted in the middle pushes the rest down and one taken out closes the
+// gap. An item with nothing above it keeps the number it was given: `5.` starts at five.
 export function renumber(lines: string[], touched: number[]): Edit[] {
   const edits: Edit[] = []
   const done = new Set<number>()
@@ -298,7 +286,7 @@ function number(line: number, found: Prefix, count: number): Edit {
   return at(line, from, from + found.number.length, String(count))
 }
 
-/** The number of the item above this one in the same list, or null when it starts one. */
+// The number of the item above this one in the same list, or null when it starts one.
 function previous(
   lines: string[],
   start: number,

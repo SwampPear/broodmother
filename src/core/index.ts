@@ -1,7 +1,6 @@
 export { defaultGitSettings } from './git'
 export { imageTypeOf, isImage } from './media'
 export {
-  NOTEBOOK_EXTENSION,
   NotebookParseError,
   isNotebookPath,
   parseNotebook,

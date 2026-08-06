@@ -165,7 +165,7 @@ export function DreamView({
   const [personas, setPersonas] = useState<Persona[]>([])
   const [view, setView] = useState<View>({ x: 40, y: 40, zoom: 1 })
   const [options, setOptions] = useState(false)
-  const [optionsHeight, resizeOptions] = useStoredSize('options', OPTIONS_KEY)
+  const [optionsWidth, resizeOptions] = useStoredSize('options', OPTIONS_KEY)
 
   const written = useRef<string | null>(null)
   const canvas = useRef<HTMLDivElement>(null)
@@ -513,15 +513,16 @@ export function DreamView({
           )}
         </div>
       </div>
-      {/* The terminal's slot, taken over: same chrome, same seam, same key — the options
-          for whatever the canvas has picked, set the way the settings pages set theirs. */}
+      {/* Alongside the canvas rather than under it: same chrome, same seam, same key — the
+          options for whatever the canvas has picked, set the way the settings pages set
+          theirs. A node's fields are a column, and the canvas has width to spare. */}
       <section
         className="dream-options"
         aria-label="dream options"
         hidden={!options}
-        style={{ height: optionsHeight }}
+        style={{ width: optionsWidth }}
       >
-        <Resizer axis="options" size={optionsHeight} onSize={resizeOptions} />
+        <Resizer axis="options" size={optionsWidth} onSize={resizeOptions} />
         <header className="dream-options-head">
           {pickedNode ? pickedNode.name : 'options'}
           <span className="spacer" />

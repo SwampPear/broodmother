@@ -6,7 +6,7 @@ export interface GetProjects {
   response: { projects: ProjectSummary[] } // the open vault's, every one of them open
 }
 
-/** Makes the folder if it is not there yet, then links it to a vault. */
+// Makes the folder if it is not there yet, then links it to a vault.
 export interface PostProjects {
   request: NewProject
   response: { project: ProjectSummary; config: BroodmotherConfig }

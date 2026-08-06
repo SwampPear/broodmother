@@ -22,7 +22,7 @@ const renderer = new MarkdownIt('default', {
 renderer.renderer.rules.math_inline = (tokens, i) => tex(tokens[i].content, false)
 renderer.renderer.rules.math_block = (tokens, i) => tex(tokens[i].content.trim(), true)
 
-/** Reading mode. Frontmatter is a header, not prose, so it is dropped rather than shown. */
+// Reading mode. Frontmatter is a header, not prose, so it is dropped rather than shown.
 export function render(source: string): string {
   const text = source.replace(/\r\n/g, '\n')
   const fence = FRONTMATTER.exec(text)

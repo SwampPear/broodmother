@@ -1,0 +1,22 @@
+{
+  "name": "@broodmother/app",
+  "version": "0.3.0",
+  "private": true,
+  "description": "broodmother as a site and as a Mac app — the same interface, started two ways",
+  "author": "broodmother",
+  "type": "module",
+  "main": "dist/main.cjs",
+  "scripts": {
+    "dev": "next dev -H 127.0.0.1 -p 6767",
+    "wasm": "asc wasm/kernel.ts -o public/dream-kernel.wasm -O3 --runtime stub --initialMemory 8 --use abort=",
+    "build": "next build",
+    "start": "next start -H 127.0.0.1 -p 6767",
+    "app": "node electron/build.mjs && electron dist/main.cjs",
+    "dist": "node electron/build.mjs && electron-builder --mac --config electron-builder.json",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "electron": "43.2.0",
+    "electron-builder": "26.15.3"
+  }
+}

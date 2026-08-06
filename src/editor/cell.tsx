@@ -12,11 +12,9 @@ interface CellEditorProps {
   autoFocus?: boolean
 }
 
-/**
- * A cell is a code editor without a viewport of its own: it stands as tall as its content
- * and the page scrolls, so the minimap, the overview ruler and the wheel are surrendered
- * to the notebook around it.
- */
+// A cell is a code editor without a viewport of its own: it stands as tall as its content
+// and the page scrolls, so the minimap, the overview ruler and the wheel are surrendered
+// to the notebook around it.
 const CELL: Monaco.editor.IStandaloneEditorConstructionOptions = {
   ...CODE,
   minimap: { enabled: false },

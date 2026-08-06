@@ -6,14 +6,12 @@ type Model = Monaco.editor.ITextModel
 export interface Command {
   title: string
   hint: string
-  /** `from` and `to` are offsets: what the trigger text occupies, and what it replaces. */
+  // `from` and `to` are offsets: what the trigger text occupies, and what it replaces.
   run: (editor: Editor, from: number, to: number) => void
 }
 
-/**
- * Commands, not a block menu — anything markdown can spell is typed, the way Obsidian
- * does it. What earns a command is what has no comfortable spelling.
- */
+// Commands, not a block menu — anything markdown can spell is typed, the way Obsidian
+// does it. What earns a command is what has no comfortable spelling.
 export const COMMANDS: Command[] = [
   {
     title: 'Equation',
@@ -64,12 +62,10 @@ export function rangeOf(model: Model, from: number, to: number): Monaco.IRange {
   }
 }
 
-/**
- * ⌘B and ⌘I. Markdown has no bold, only asterisks, so the command is the typing you would
- * have done: wrap the selection, unwrap it when it is already wrapped — whether the
- * markers are inside the selection or just outside it — and leave the cursor between a
- * fresh pair when there is nothing selected.
- */
+// ⌘B and ⌘I. Markdown has no bold, only asterisks, so the command is the typing you would
+// have done: wrap the selection, unwrap it when it is already wrapped — whether the
+// markers are inside the selection or just outside it — and leave the cursor between a
+// fresh pair when there is nothing selected.
 export function toggleWrap(editor: Editor, marker: string): void {
   const model = editor.getModel()
   const selections = editor.getSelections()
@@ -79,9 +75,9 @@ export function toggleWrap(editor: Editor, marker: string): void {
   const char = marker[0]!
   const text = model.getValue()
 
-  /** Asterisks come in runs: one is italic, two is bold, three is both. Italic is on when
-   *  the run is odd, bold when there are at least two — so ⌘I over `**word**` adds one
-   *  rather than tearing a marker off the bold. */
+  // Asterisks come in runs: one is italic, two is bold, three is both. Italic is on when
+  //  the run is odd, bold when there are at least two — so ⌘I over `**word**` adds one
+  // rather than tearing a marker off the bold.
   const already = (run: number) => (width === 1 ? run % 2 === 1 : run >= width)
 
   const runFrom = (at: number, step: 1 | -1) => {
@@ -154,7 +150,7 @@ export interface Trigger {
   items: Command[]
 }
 
-/** `/` as the first thing on a line, the way the old block menu opened. */
+// `/` as the first thing on a line, the way the old block menu opened.
 export function triggerAt(text: string, caret: number): Trigger | null {
   const lineStart = text.lastIndexOf('\n', caret - 1) + 1
   const before = text.slice(lineStart, caret)

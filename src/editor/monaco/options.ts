@@ -1,6 +1,6 @@
 import type * as Monaco from 'monaco-editor'
 
-/** True of every editor here, whatever it is showing. */
+// True of every editor here, whatever it is showing.
 export const SHARED: Monaco.editor.IStandaloneEditorConstructionOptions = {
   automaticLayout: true,
   wordWrap: 'on',
@@ -18,7 +18,7 @@ export const SHARED: Monaco.editor.IStandaloneEditorConstructionOptions = {
   },
 }
 
-/** A source file is a source file, so it gets the editor VS Code would have given it. */
+// A source file is a source file, so it gets the editor VS Code would have given it.
 export const CODE: Monaco.editor.IStandaloneEditorConstructionOptions = {
   ...SHARED,
   minimap: { enabled: true },

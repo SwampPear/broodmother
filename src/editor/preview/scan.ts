@@ -5,12 +5,12 @@ export interface Span {
   to: number
 }
 
-/** A run of characters that is syntax rather than content: `**`, `# `, `](url)`. */
-export interface Marker extends Span {
-  /** The element the marker belongs to. It reveals when the cursor is anywhere in this. */
+// A run of characters that is syntax rather than content: `**`, `# `, `](url)`.
+interface Marker extends Span {
+  // The element the marker belongs to. It reveals when the cursor is anywhere in this.
   owner: Span
-  /** An element that is a run inside a line rather than the line itself, which is what
-   *  decides whether a caret sitting against its edge is in it or has left it. */
+  // An element that is a run inside a line rather than the line itself, which is what
+  // decides whether a caret sitting against its edge is in it or has left it.
   inline?: boolean
 }
 
@@ -18,21 +18,19 @@ export interface Styled extends Span {
   className: string
 }
 
-/**
- * A fenced code block's own lines. They are whole lines rather than runs inside one, so
- * hiding them has to take the line with it or the block is bracketed by two blank rows.
- */
-export interface Fence {
+// A fenced code block's own lines. They are whole lines rather than runs inside one, so
+// hiding them has to take the line with it or the block is bracketed by two blank rows.
+interface Fence {
   open: Span
   close: Span | null
   owner: Span
 }
 
-/** A `- [ ]` box, and the text it governs. */
+// A `- [ ]` box, and the text it governs.
 export interface Task {
-  /** The bullet, which is where the box is drawn. */
+  // The bullet, which is where the box is drawn.
   box: Span
-  /** The character between the brackets, which is what ticking one writes. */
+  // The character between the brackets, which is what ticking one writes.
   state: Span
   text: Span
   done: boolean
@@ -40,33 +38,31 @@ export interface Task {
 
 export type Align = 'left' | 'center' | 'right' | null
 
-/**
- * A pipe table, the way Obsidian and GitHub spell one: a header row, a delimiter row that
- * sets the alignment, and the body. It is held as cells rather than as text because what
- * gets drawn is a table, and a table is rows and columns.
- */
+// A pipe table, the way Obsidian and GitHub spell one: a header row, a delimiter row that
+// sets the alignment, and the body. It is held as cells rather than as text because what
+// gets drawn is a table, and a table is rows and columns.
 export interface Table extends Span {
   header: string[]
   align: Align[]
   rows: string[][]
 }
 
-export interface Scan {
-  /** Hidden unless the cursor is inside `owner`. */
+interface Scan {
+  // Hidden unless the cursor is inside `owner`.
   markers: Marker[]
-  /** Always styled, cursor or not. */
+  // Always styled, cursor or not.
   styled: Styled[]
-  /** Display equations, rendered in place of their source. */
+  // Display equations, rendered in place of their source.
   blocks: MathSpan[]
-  /** ``` lines, hidden with their line unless the cursor is in the block. */
+  // ``` lines, hidden with their line unless the cursor is in the block.
   fences: Fence[]
-  /** Checkboxes, which are the one decoration you can click. */
+  // Checkboxes, which are the one decoration you can click.
   tasks: Task[]
-  /** Pipe tables, drawn as tables in place of their source. */
+  // Pipe tables, drawn as tables in place of their source.
   tables: Table[]
 }
 
-/** `| a | b |` becomes `['a', 'b']`: the outer pipes are a convention, not content. */
+// `| a | b |` becomes `['a', 'b']`: the outer pipes are a convention, not content.
 function cells(line: string): string[] {
   let text = line.trim()
   if (text.startsWith('|')) text = text.slice(1)
@@ -92,7 +88,7 @@ function cells(line: string): string[] {
 
 const DELIMITER = /^:?-+:?$/
 
-/** The row of dashes is what makes the rows above and below it a table rather than text. */
+// The row of dashes is what makes the rows above and below it a table rather than text.
 function alignments(line: string): Align[] | null {
   const parts = cells(line)
   if (!parts.length || !parts.every((part) => DELIMITER.test(part))) return null
@@ -106,10 +102,8 @@ function alignments(line: string): Align[] | null {
   })
 }
 
-/**
- * Tables are found line by line rather than by regex: a table is a run of lines that agree
- * with each other, which is a shape a regex states badly and a loop states plainly.
- */
+// Tables are found line by line rather than by regex: a table is a run of lines that agree
+// with each other, which is a shape a regex states badly and a loop states plainly.
 function tables(text: string, blocked: (at: number) => boolean): Table[] {
   const found: Table[] = []
   const lines: { text: string; from: number; to: number }[] = []
@@ -145,10 +139,8 @@ function tables(text: string, blocked: (at: number) => boolean): Table[] {
   return found
 }
 
-/**
- * Where the fenced code is. Everything else is skipped inside these, because a `**` in a
- * shell script is two asterisks and hiding them would be editing the file behind your back.
- */
+// Where the fenced code is. Everything else is skipped inside these, because a `**` in a
+// shell script is two asterisks and hiding them would be editing the file behind your back.
 function fences(text: string): Fence[] {
   const found: Fence[] = []
   const pattern = /^([ \t]*)(`{3,}|~{3,})([^\n]*)$/gm
@@ -186,7 +178,7 @@ function fences(text: string): Fence[] {
   return found
 }
 
-/** Inline code spans, for the same reason as fences. */
+// Inline code spans, for the same reason as fences.
 function codeSpans(text: string, skip: Span[]): Span[] {
   const spans: Span[] = []
   for (const match of text.matchAll(/(?<!`)(`+)(?!`)([^\n]*?)(?<!`)\1(?!`)/g)) {
@@ -199,18 +191,29 @@ function codeSpans(text: string, skip: Span[]): Span[] {
 const inside = (spans: Span[], at: number) =>
   spans.some((span) => at >= span.from && at < span.to)
 
-/**
- * Markdown by scanning rather than by parse tree. Only the constructs that hide a marker
- * matter here, and each one is a shape a regex can state exactly — which keeps multi-line
- * display math working and leaves what you typed untouched.
- */
+const FRONTMATTER = /^---[ \t]*\r?\n[\s\S]*?\r?\n---[ \t]*(?:\r?\n|$)/
+
+// The YAML block a note opens with, fences included. It is not markdown and must not be read
+// as any: a `- ` in it starts a value, not a bullet, and `---` closes it rather than ruling
+// a line. Skipped whole and set in mono — plan 06's dimmed block, edited as text.
+function frontmatter(text: string): Span | null {
+  const hit = FRONTMATTER.exec(text)
+  if (!hit) return null
+  return { from: 0, to: hit[0].replace(/\r?\n$/, '').length }
+}
+
+// Markdown by scanning rather than by parse tree. Only the constructs that hide a marker
+// matter here, and each one is a shape a regex can state exactly — which keeps multi-line
+// display math working and leaves what you typed untouched.
 export function scan(text: string): Scan {
   const markers: Marker[] = []
   const styled: Styled[] = []
   const code = fences(text)
   const codeSkip = code.map((fence) => fence.owner)
   const inlineCode = codeSpans(text, codeSkip)
-  const skip = [...codeSkip, ...inlineCode]
+  const front = frontmatter(text)
+  const skip = [...codeSkip, ...inlineCode, ...(front ? [front] : [])]
+  if (front) styled.push({ ...front, className: 'md-frontmatter' })
   const blocked = (at: number) => inside(skip, at)
 
   // Headings: the hash run and the space after it are the marker, the line is the owner.
@@ -349,7 +352,14 @@ export function scan(text: string): Scan {
     else styled.push({ from: span.from, to: span.to, className: 'md-math-inline' })
   }
 
-  return { markers, styled, blocks, fences: code, tasks, tables: tables(text, blocked) }
+  return {
+    markers,
+    styled,
+    blocks,
+    fences: code,
+    tasks,
+    tables: tables(text, blocked),
+  }
 }
 
 function lineAt(text: string, at: number): Span {
@@ -358,15 +368,13 @@ function lineAt(text: string, at: number): Span {
   return { from, to: end < 0 ? text.length : end }
 }
 
-/**
- * Obsidian's rule: a marker shows the moment a cursor or selection is inside its element.
- *
- * Where an element ends is the whole question. A line keeps its markers up while the caret
- * is anywhere on it, either end included — the caret at the end of a heading is still on
- * the heading. A run inside a line ends where it ends: step off the last `*` of a bold run
- * or the `)` of a link and you have left it, so it closes behind you. Counting the edge as
- * inside would leave a link open because the caret is resting against the one before it.
- */
+// Obsidian's rule: a marker shows the moment a cursor or selection is inside its element.
+//
+// Where an element ends is the whole question. A line keeps its markers up while the caret
+// is anywhere on it, either end included — the caret at the end of a heading is still on
+// the heading. A run inside a line ends where it ends: step off the last `*` of a bold run
+// or the `)` of a link and you have left it, so it closes behind you. Counting the edge as
+// inside would leave a link open because the caret is resting against the one before it.
 export function revealed(owner: Span, cursors: Span[], inline = false): boolean {
   return inline
     ? cursors.some((cursor) => cursor.from < owner.to && cursor.to > owner.from)

@@ -13,7 +13,7 @@ export interface PutConfig {
   response: { config: BroodmotherConfig }
 }
 
-/** Asks a checkout whether it can reach its remote, and says which reason it cannot. */
+// Asks a checkout whether it can reach its remote, and says which reason it cannot.
 export interface PostGitCheck {
   request: { root: DocRoot }
   response: AccessCheck
@@ -34,8 +34,8 @@ export interface GetSync {
   response: SyncStatus
 }
 
-/** Sync now is the vault's alone: a project's repository is yours to commit from a
- *  terminal, so nothing here touches it. */
+// Sync now is the vault's alone: a project's repository is yours to commit from a
+// terminal, so nothing here touches it.
 export interface PostSyncNow {
   request: null
   response: SyncStatus

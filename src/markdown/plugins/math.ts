@@ -38,10 +38,8 @@ function blockRule(
   return true
 }
 
-/**
- * `$…$` only when the delimiters hug their content and the closer is not followed by a
- * digit — the vault is full of prices, and `$289k–$1.25M` is not an equation.
- */
+// `$…$` only when the delimiters hug their content and the closer is not followed by a
+// digit — the vault is full of prices, and `$289k–$1.25M` is not an equation.
 function inlineRule(state: StateInline, silent: boolean): boolean {
   const { src, pos, posMax } = state
   if (src[pos] !== '$' || src[pos + 1] === '$' || src[pos - 1] === '$') return false

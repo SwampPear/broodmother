@@ -22,19 +22,17 @@ interface EditorProps {
   markdown: string
   onChange: (markdown: string) => void
   mode?: EditMode
-  /** The document's path, which is what decides the language. Markdown when nothing is given. */
+  // The document's path, which is what decides the language. Markdown when nothing is given.
   path?: string
   theme?: 'dark' | 'light'
-  /** A field rather than a page. Prose is given room to be read in, and a box a few lines
-   *  tall does not have it to give. */
+  // A field rather than a page. Prose is given room to be read in, and a box a few lines
+  // tall does not have it to give.
   compact?: boolean
 }
 
-/**
- * How tall the caret stands, as a multiple of the editor's own font size. A heading is set
- * larger than the prose around it, so the caret on one is too, and these are the sizes the
- * stylesheet gives each level.
- */
+// How tall the caret stands, as a multiple of the editor's own font size. A heading is set
+// larger than the prose around it, so the caret on one is too, and these are the sizes the
+// stylesheet gives each level.
 const HEADING_SCALE = [1.6, 1.32, 1.15, 1.04, 1, 1]
 
 function caretScale(line: string): number {
@@ -42,12 +40,10 @@ function caretScale(line: string): number {
   return heading ? HEADING_SCALE[heading[1]!.length - 1]! : 1
 }
 
-/**
- * Markdown is prose, and prose is not code. Everything that makes a code editor legible —
- * the line numbers, the minimap, the ruler, the current-line band, the indent guides — is
- * furniture around a document you are reading, so a note gets none of it. What is left is
- * the text, in the app's own face, at the app's own measure.
- */
+// Markdown is prose, and prose is not code. Everything that makes a code editor legible —
+// the line numbers, the minimap, the ruler, the current-line band, the indent guides — is
+// furniture around a document you are reading, so a note gets none of it. What is left is
+// the text, in the app's own face, at the app's own measure.
 const PROSE: Monaco.editor.IStandaloneEditorConstructionOptions = {
   ...SHARED,
   minimap: { enabled: false },
@@ -165,7 +161,7 @@ export function Editor({
         setMenu(null)
       }
 
-      /** The caret, sized off the line it is on and handed to the stylesheet. */
+      // The caret, sized off the line it is on and handed to the stylesheet.
       function caretSize() {
         const model = created!.getModel()
         if (!model || !host.current) return

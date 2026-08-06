@@ -7,13 +7,14 @@ import { fileURLToPath } from 'node:url'
 import { build } from 'esbuild'
 
 const here = dirname(fileURLToPath(import.meta.url))
-const root = resolve(here, '../..')
-const dist = join(here, 'dist')
+const app = resolve(here, '..')
+const root = resolve(app, '../..')
+const dist = join(app, 'dist')
 const runtime = join(dist, 'runtime')
 
 const bundle = (entry, outfile, { external = [], plugins = [] } = {}) =>
   build({
-    entryPoints: [join(here, 'src', entry)],
+    entryPoints: [join(here, entry)],
     outfile,
     bundle: true,
     platform: 'node',
@@ -45,11 +46,11 @@ await rm(dist, { recursive: true, force: true })
 await mkdir(runtime, { recursive: true })
 
 await bundle('main.ts', join(dist, 'main.cjs'), { external: ['electron'] })
-await cp(join(here, 'src/loading.html'), join(dist, 'loading.html'))
+await cp(join(here, 'loading.html'), join(dist, 'loading.html'))
 // The Dock icon a checkout run wears. `build/icon.icns` is what electron-builder stamps
 // into the bundle, and Electron cannot read an icns, so the mark comes from the one PNG
 // the whole app already draws it from rather than from a second copy kept in step by hand.
-await cp(join(root, 'apps/web/public/logo.png'), join(dist, 'icon.png'))
+await cp(join(app, 'public/logo.png'), join(dist, 'icon.png'))
 
 await bundle('server.ts', join(runtime, 'server/index.cjs'), {
   plugins: [ptyBesideTheBundle],
@@ -58,7 +59,7 @@ await cp(join(root, 'node_modules/@lydell', PTY), join(runtime, 'server/pty'), {
   recursive: true,
 })
 
-execFileSync('npm', ['run', 'build', '-w', '@broodmother/web'], {
+execFileSync('npm', ['run', 'build', '-w', '@broodmother/app'], {
   cwd: root,
   stdio: 'inherit',
 })
@@ -68,16 +69,16 @@ execFileSync('npm', ['run', 'build', '-w', '@broodmother/web'], {
 // `dereference` because the trace leaves symlinks behind that point at absolute paths on
 // the machine that built it. Copied as links they are broken everywhere else, and codesign
 // refuses a bundle holding a link that leaves it — which is how they were found.
-const web = join(runtime, 'web/apps/web')
-await cp(join(root, 'apps/web/.next/standalone'), join(runtime, 'web'), {
+const site = join(runtime, 'web/apps/app')
+await cp(join(app, '.next/standalone'), join(runtime, 'web'), {
   recursive: true,
   dereference: true,
 })
-await cp(join(root, 'apps/web/.next/static'), join(web, '.next/static'), {
+await cp(join(app, '.next/static'), join(site, '.next/static'), {
   recursive: true,
   dereference: true,
 })
-await cp(join(root, 'apps/web/public'), join(web, 'public'), {
+await cp(join(app, 'public'), join(site, 'public'), {
   recursive: true,
   dereference: true,
 })

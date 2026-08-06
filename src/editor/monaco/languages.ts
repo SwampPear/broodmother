@@ -1,14 +1,12 @@
 import { basename, extensionOf } from '@/core'
 import type { MonacoApi } from './core'
 
-/** Everything in a vault is text, so a file nobody has a grammar for still opens. */
+// Everything in a vault is text, so a file nobody has a grammar for still opens.
 export const PLAIN = 'plaintext'
 
-/**
- * Monaco's own registry is the extension table: every language it knows declares the
- * extensions and filenames it owns, so asking it is the same answer VS Code would give
- * — without a mapping of our own to keep in step with one.
- */
+// Monaco's own registry is the extension table: every language it knows declares the
+// extensions and filenames it owns, so asking it is the same answer VS Code would give
+// — without a mapping of our own to keep in step with one.
 export function languageForPath(monaco: MonacoApi, path: string): string {
   const name = basename(path).toLowerCase()
   const extension = extensionOf(path)
@@ -25,10 +23,8 @@ export function languageForPath(monaco: MonacoApi, path: string): string {
   return PLAIN
 }
 
-/**
- * Where Monaco's id for a language and Shiki's differ. Both are mostly the VS Code id, so
- * this is the short list of disagreements rather than a full table.
- */
+// Where Monaco's id for a language and Shiki's differ. Both are mostly the VS Code id, so
+// this is the short list of disagreements rather than a full table.
 const SHIKI_ID: Record<string, string> = {
   objective: 'objective-c',
   'objective-c': 'objc',

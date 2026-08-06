@@ -22,15 +22,14 @@
   },
   "type": "module",
   "workspaces": [
-    "apps/*",
-    "packages/*"
+    "apps/*"
   ],
   "scripts": {
     "setup": "npm install && npm link",
-    "localhost": "concurrently -k -n server,web -c magenta,cyan \"npm run dev -w @broodmother/server\" \"npm run dev -w @broodmother/web\"",
-    "start": "concurrently -k -n server,web -c magenta,cyan \"npm run start -w @broodmother/server\" \"npm run start -w @broodmother/web\"",
-    "app": "npm run start -w @broodmother/desktop",
-    "build": "npm run typecheck && npm run build -w @broodmother/web",
+    "localhost": "concurrently -k -n server,app -c magenta,cyan \"npm run dev -w @broodmother/server\" \"npm run dev -w @broodmother/app\"",
+    "start": "concurrently -k -n server,app -c magenta,cyan \"npm run start -w @broodmother/server\" \"npm run start -w @broodmother/app\"",
+    "app": "npm run app -w @broodmother/app",
+    "build": "npm run typecheck && npm run build -w @broodmother/app",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "check": "npm run typecheck && npm run test",
