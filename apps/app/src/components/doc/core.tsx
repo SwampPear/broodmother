@@ -5,7 +5,9 @@ import { isImage, isNotebookPath } from '@/core'
 import { isDreamPath } from '@/dream'
 import type { DocRef } from '@/types'
 import { Editor } from '../../editor'
+import { useTimer } from '../../hooks'
 import { useApp, type RootEvent } from '../../state'
+import { DivergenceModal, leave, useCollab } from '../collab'
 import { DreamView } from '../dream'
 import { NotebookView } from '../notebook'
 import { ImageView } from './image'
@@ -23,9 +25,30 @@ export function DocView({ root, path }: DocRef) {
   const [markdown, setMarkdown] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [revision, setRevision] = useState(0)
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const save = useTimer()
   // An image has no text to read, and reading its bytes as text is how you corrupt it.
   const picture = isImage(path)
+
+  /**
+   * The session for this document, if it is being shared. It is made here because this is
+   * where the text is: the first peer into a room seeds it from what is on this screen.
+   *
+   * While one is live it owns the buffer — this view stops saving and stops adopting writes
+   * from disk, because two things writing one editor is the bug all of this avoids.
+   */
+  const collab = useCollab(
+    { root, path },
+    markdown,
+    app.profile && { name: app.profile.name, color: app.profile.color },
+    // The session's flush is also how this view keeps up with a document it has stopped
+    // holding: when the share ends, what it hands back to the editor has to be the text as
+    // the room left it and not the copy it had when the share began.
+    (next) => {
+      setMarkdown(next)
+      return app.save({ root, path }, next)
+    },
+  )
+  const bound = collab?.state.mode === 'live' || collab?.state.mode === 'solo'
 
   useEffect(() => {
     if (picture) return
@@ -68,9 +91,12 @@ export function DocView({ root, path }: DocRef) {
   // about the file, so the open copy follows it. Typing that has not reached disk yet wins,
   // because adopting mid-keystroke throws away what is being typed; that edit lands on top a
   // moment later, which is the last-write-wins the app already had.
+  // A live session is the exception: its buffer is the truth for as long as it is live, and
+  // adopting a write from disk on top of it would mean merging two documents — which is what
+  // divergence exists to refuse. The notice says so; the document is left alone.
   const event = app.treeEvent
   useEffect(() => {
-    if (!event || !touches(event, { root, path }) || timer.current) return
+    if (!event || !touches(event, { root, path }) || save.pending() || bound) return
     // A picture is refetched by the browser, not by this client: bumping the revision is
     // what changes the `src` it was told to cache.
     if (picture) return setRevision((was) => was + 1)
@@ -80,21 +106,11 @@ export function DocView({ root, path }: DocRef) {
       // A read that fails once the file has been moved or deleted says so, which is the
       // truth about what is on screen.
       .catch((cause: Error) => setError(cause.message))
-  }, [app.client, event, root, path, picture])
-
-  useEffect(() => {
-    return () => {
-      if (timer.current) clearTimeout(timer.current)
-    }
-  }, [])
+  }, [app.client, event, root, path, picture, bound])
 
   const onChange = (next: string) => {
     setMarkdown(next)
-    if (timer.current) clearTimeout(timer.current)
-    timer.current = setTimeout(() => {
-      timer.current = null
-      void app.save({ root, path }, next)
-    }, saveDebounceMs)
+    save.set(() => void app.save({ root, path }, next), saveDebounceMs)
   }
 
   if (picture)
@@ -132,8 +148,24 @@ export function DocView({ root, path }: DocRef) {
   return (
     <article className="doc">
       <div className="doc-body">
-        <Editor markdown={markdown} onChange={onChange} path={path} />
+        <Editor
+          markdown={markdown}
+          onChange={onChange}
+          path={path}
+          session={bound ? collab.live.session : null}
+        />
       </div>
+      {collab?.state.mode === 'divergent' && collab.state.mine !== null && (
+        <DivergenceModal
+          mine={collab.state.mine}
+          theirs={collab.state.text}
+          onTake={() => collab.live.session.takeRoom()}
+          onKeep={() => {
+            collab.live.session.keepMine()
+            leave({ root, path })
+          }}
+        />
+      )}
     </article>
   )
 }

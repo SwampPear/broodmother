@@ -1,15 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react'
 import { DiffEditor } from '@/editor'
 import { basename, isImage } from '@/core'
 import type { DiffBasis, DocRef } from '@/types'
+import { useLoad } from '../../hooks'
 import { useApp } from '../../state'
-
-interface Sides {
-  against: string | null
-  current: string | null
-}
 
 /**
  * One file as the two branches have it, side by side. A side the file is not on is empty
@@ -28,21 +23,16 @@ export function DiffView({
   basis: DiffBasis
 }) {
   const app = useApp()
-  const [sides, setSides] = useState<Sides | null>(null)
-  const [error, setError] = useState<string | null>(null)
   // A picture has no lines to set beside each other, and reading its bytes as text is how
   // you get a page of replacement characters.
   const picture = isImage(path)
 
-  useEffect(() => {
-    if (picture) return
-    setSides(null)
-    setError(null)
-    app.client
-      .request('GET /api/diff/file', { root, against, path, basis })
-      .then(setSides)
-      .catch((cause: Error) => setError(cause.message))
-  }, [app.client, root, against, path, basis, picture])
+  const { value: sides, error } = useLoad(
+    picture
+      ? null
+      : () => app.client.request('GET /api/diff/file', { root, against, path, basis }),
+    [app.client, root, against, path, basis, picture],
+  )
 
   if (picture)
     return (

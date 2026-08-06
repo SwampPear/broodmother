@@ -1,7 +1,8 @@
 {
-  "name": "@broodmother/server",
+  "name": "@broodmother/relay",
   "version": "0.0.0",
   "private": true,
+  "description": "A pipe between two people editing one document. Holds no document.",
   "type": "module",
   "main": "./src/index.ts",
   "types": "./src/index.ts",

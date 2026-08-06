@@ -11,7 +11,7 @@ import {
   type WheelEvent as ReactWheelEvent,
 } from 'react'
 import { parseDream, runOrder, serializeDream } from '@/dream'
-import type { DocRef, Dream, DreamKind, DreamNode, DreamRun, Persona } from '@/types'
+import type { DocRef, Dream, DreamKind, DreamNode, Persona } from '@/types'
 import {
   Icon,
   Menu,
@@ -21,6 +21,7 @@ import {
   type MenuSection,
 } from '../ui'
 import { InlineEditor } from '../../editor'
+import { useKeyDown, useLoad } from '../../hooks'
 import { useApp } from '../../state'
 import { loadKernel, type Kernel } from './kernel'
 
@@ -157,12 +158,9 @@ export function DreamView({
   kernel?: Kernel
 }) {
   const app = useApp()
-  const [kernel, setKernel] = useState<Kernel | null>(given ?? null)
   const [broken, setBroken] = useState<string | null>(null)
   const [dream, setDream] = useState<Dream | null>(null)
   const [picked, setPicked] = useState<Picked | null>(null)
-  const [run, setRun] = useState<DreamRun | null>(null)
-  const [personas, setPersonas] = useState<Persona[]>([])
   const [view, setView] = useState<View>({ x: 40, y: 40, zoom: 1 })
   const [options, setOptions] = useState(false)
   const [optionsWidth, resizeOptions] = useStoredSize('options', OPTIONS_KEY)
@@ -170,17 +168,9 @@ export function DreamView({
   const written = useRef<string | null>(null)
   const canvas = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    if (given) return
-    let alive = true
-    loadKernel()
-      .then((loaded) => alive && setKernel(loaded))
-      // Without the kernel there are no edges to draw, but the nodes still stand.
-      .catch(() => null)
-    return () => {
-      alive = false
-    }
-  }, [given])
+  // Without the kernel there are no edges to draw, but the nodes still stand.
+  const fetched = useLoad(given ? null : loadKernel, [given])
+  const kernel: Kernel | null = given ?? fetched.value
 
   // The text is the document; the graph on screen follows it. A save this editor just
   // made comes back as the same text and is not news.
@@ -206,47 +196,30 @@ export function DreamView({
 
   // The key the terminal answers everywhere else: here the bottom panel is the dream's
   // options, and the shell stands aside for this page.
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (!event.metaKey && !event.ctrlKey) return
-      if (event.key !== 'j') return
-      event.preventDefault()
-      setOptions((open) => !open)
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [])
+  useKeyDown((event) => {
+    if (!event.metaKey && !event.ctrlKey) return
+    if (event.key !== 'j') return
+    event.preventDefault()
+    setOptions((open) => !open)
+  })
 
   // The voices the vault carries, for the inspector's picker to offer.
-  useEffect(() => {
-    let alive = true
-    app.client
-      .request('GET /api/personas', null)
-      .then((result) => alive && setPersonas(result.personas))
-      .catch(() => null)
-    return () => {
-      alive = false
-    }
-  }, [app.client])
+  const { value: voices } = useLoad(
+    () => app.client.request('GET /api/personas', null).then((result) => result.personas),
+    [app.client],
+  )
+  const personas: Persona[] = voices ?? []
 
   // What is on screen while a run is live, polled rather than pushed: a run is short and
   // the canvas is open, so asking once a second is simpler than a socket has to be.
-  useEffect(() => {
-    let alive = true
-    const ask = () =>
+  const { value: run, set: setRun } = useLoad(
+    () =>
       app.client
         .request('GET /api/dream/runs', { root, path })
-        .then((result) => alive && setRun(result.runs[0] ?? null))
-        .catch(() => null)
-    void ask()
-    const timer = setInterval(() => {
-      void ask()
-    }, POLL_MS)
-    return () => {
-      alive = false
-      clearInterval(timer)
-    }
-  }, [app.client, root, path])
+        .then((result) => result.runs[0] ?? null),
+    [app.client, root, path],
+    POLL_MS,
+  )
 
   const steps = useMemo(
     () => new Map((run?.steps ?? []).map((step) => [step.node, step])),

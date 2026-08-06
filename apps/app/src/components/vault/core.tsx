@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from 'react'
 import { tilde } from '@/core'
+import { useAttempt } from '../../hooks'
 import { useApp } from '../../state'
 import { RemoteField } from '../github'
 import { Button, Choices, Modal, type Choice } from '../ui'
@@ -39,8 +40,7 @@ export function VaultPicker({ onClose }: { onClose: () => void }) {
   const [git, setGit] = useState<VaultGit>('remote')
   const [remoteUrl, setRemoteUrl] = useState('')
   const [branch, setBranch] = useState('main')
-  const [busy, setBusy] = useState(false)
-  const [failed, setFailed] = useState<string | null>(null)
+  const attempt = useAttempt()
 
   const current = app.config?.vaultPath ?? null
   // First run is having none, not being unable to dismiss: a home with vaults in it
@@ -49,18 +49,17 @@ export function VaultPicker({ onClose }: { onClose: () => void }) {
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
-    setBusy(true)
-    setFailed(null)
     // A remote is proven reachable before anything is written, so this is where an
     // unreachable one is found out — and where it has to be said.
-    const reason = await app.createVault({
-      name: name.trim(),
-      git,
-      remoteUrl: git === 'remote' ? remoteUrl.trim() : null,
-      branch: git === 'none' ? null : branch,
-    })
-    setBusy(false)
-    if (reason) return setFailed(reason)
+    const made = await attempt.run(() =>
+      app.createVault({
+        name: name.trim(),
+        git,
+        remoteUrl: git === 'remote' ? remoteUrl.trim() : null,
+        branch: git === 'none' ? null : branch,
+      }),
+    )
+    if (!made) return
     setName('')
     setRemoteUrl('')
     onClose?.()
@@ -93,9 +92,11 @@ export function VaultPicker({ onClose }: { onClose: () => void }) {
           <Button
             accent={accent}
             form="new-vault"
-            disabled={busy || !name.trim() || (git === 'remote' && !remoteUrl.trim())}
+            disabled={
+              attempt.busy || !name.trim() || (git === 'remote' && !remoteUrl.trim())
+            }
           >
-            {busy ? 'creating…' : 'create vault'}
+            {attempt.busy ? 'creating…' : 'create vault'}
           </Button>
         </>
       }
@@ -158,9 +159,9 @@ export function VaultPicker({ onClose }: { onClose: () => void }) {
             </label>
           )}
 
-          {failed && (
+          {attempt.failed && (
             <p className="field-error" role="alert">
-              {failed}
+              {attempt.failed}
             </p>
           )}
         </form>

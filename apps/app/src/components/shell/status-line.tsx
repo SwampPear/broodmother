@@ -1,5 +1,6 @@
 'use client'
 
+import type { ReactNode } from 'react'
 import type { SyncStatus } from '@/types'
 import { Button } from '../ui'
 
@@ -30,11 +31,15 @@ function syncLabel(sync: SyncStatus): string {
 export function StatusLine({
   sync,
   notice,
+  collab,
   onClearConflict,
   onDismissNotice,
 }: {
   sync: SyncStatus
   notice: string | null
+  /** Who else is in the open document, when it is being shared. A slot rather than a prop
+   *  of its own: what it draws is the collab area's business, not this line's. */
+  collab?: ReactNode
   onClearConflict: () => void
   onDismissNotice: () => void
 }) {
@@ -55,6 +60,7 @@ export function StatusLine({
         <span className="sync" data-state={sync.state}>
           {syncLabel(sync)}
         </span>
+        {collab}
         {notice && (
           <button type="button" className="notice" onClick={onDismissNotice}>
             {notice} ✕

@@ -4,6 +4,7 @@ import { useCallback, useState } from 'react'
 import { tilde } from '@/core'
 import type { GitAuthor, Profile } from '@/types'
 import { opal } from '../../colors'
+import { useAttempt } from '../../hooks'
 import { Button, Modal } from '../ui'
 import { type ProfileDraft, ProfileForm, type ProfileFormState } from './form'
 
@@ -41,20 +42,11 @@ export function ProfilePicker({
     color: opal[0].hex,
   })
   const onState = useCallback((next: ProfileFormState) => setForm(next), [])
-  const [busy, setBusy] = useState(false)
-  const [failed, setFailed] = useState<string | null>(null)
-  const first = !onClose && existing.length === 0
-
   // Writing a profile touches disk and can be refused. Until it comes back the button says
   // so, and if it comes back a failure that is said here rather than only in the status
   // line — on first run this modal has no way out, and the line is behind it.
-  const create = async (draft: ProfileDraft) => {
-    setBusy(true)
-    setFailed(null)
-    const reason = await onCreate(draft)
-    setBusy(false)
-    if (reason) setFailed(reason)
-  }
+  const attempt = useAttempt()
+  const first = !onClose && existing.length === 0
 
   const pick = (name: string) => {
     onSelect(name)
@@ -69,8 +61,12 @@ export function ProfilePicker({
       footer={
         <>
           {onClose && <Button onClick={onClose}>cancel</Button>}
-          <Button form="new-profile" accent={form.color} disabled={!form.ready || busy}>
-            {busy ? 'creating…' : first ? 'create profile' : 'add profile'}
+          <Button
+            form="new-profile"
+            accent={form.color}
+            disabled={!form.ready || attempt.busy}
+          >
+            {attempt.busy ? 'creating…' : first ? 'create profile' : 'add profile'}
           </Button>
         </>
       }
@@ -97,13 +93,13 @@ export function ProfilePicker({
           id="new-profile"
           existing={existing}
           suggested={suggested}
-          onSubmit={(draft) => void create(draft)}
+          onSubmit={(draft) => void attempt.run(() => onCreate(draft))}
           onState={onState}
         />
 
-        {failed && (
+        {attempt.failed && (
           <p className="field-error" role="alert">
-            {failed}
+            {attempt.failed}
           </p>
         )}
       </div>

@@ -7,6 +7,8 @@
   "include": [
     "next-env.d.ts",
     "app",
+    "electron",
+    "server",
     "src",
     "*.config.ts",
     ".next/types/**/*.ts",

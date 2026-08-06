@@ -7,10 +7,12 @@
   "type": "module",
   "main": "dist/main.cjs",
   "scripts": {
-    "dev": "next dev -H 127.0.0.1 -p 6767",
+    "server": "tsx watch server/main.ts",
+    "site": "next dev -H 127.0.0.1 -p 6767",
+    "dev": "concurrently -k -n server,site -c magenta,cyan \"npm run server\" \"npm run site\"",
     "wasm": "asc wasm/kernel.ts -o public/dream-kernel.wasm -O3 --runtime stub --initialMemory 8 --use abort=",
     "build": "next build",
-    "start": "next start -H 127.0.0.1 -p 6767",
+    "start": "concurrently -k -n server,site -c magenta,cyan \"tsx server/main.ts\" \"next start -H 127.0.0.1 -p 6767\"",
     "app": "node electron/build.mjs && electron dist/main.cjs",
     "dist": "node electron/build.mjs && electron-builder --mac --config electron-builder.json",
     "test": "vitest run"

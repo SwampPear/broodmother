@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react'
 import type * as Monaco from 'monaco-editor'
+import type { CollabSession } from '@/collab'
+import { bindSession } from './collab'
 import { COMMANDS, toggleWrap, triggerAt, type Command, type Trigger } from './commands'
 import { INDENT, installLists } from './lists'
 import {
@@ -28,6 +30,13 @@ interface EditorProps {
   // A field rather than a page. Prose is given room to be read in, and a box a few lines
   // tall does not have it to give.
   compact?: boolean
+  /**
+   * A document two or more people are editing. With one, the buffer belongs to the session:
+   * `markdown` stops being reconciled in and `onChange` stops being called, because the
+   * session is already writing every keystroke to disk and to the room. Without one this is
+   * exactly the editor it has always been.
+   */
+  session?: CollabSession | null
 }
 
 // How tall the caret stands, as a multiple of the editor's own font size. A heading is set
@@ -95,6 +104,7 @@ export function Editor({
   path = 'untitled.md',
   theme = 'dark',
   compact = false,
+  session = null,
 }: EditorProps) {
   const host = useRef<HTMLDivElement>(null)
   const editor = useRef<Monaco.editor.IStandaloneCodeEditor | null>(null)
@@ -110,7 +120,12 @@ export function Editor({
     left: number
   } | null>(null)
   const [prose, setProse] = useState(true)
+  // The editor is made once, in an effect that runs once, so whether a session is bound has
+  // to be readable from inside it at any later moment rather than closed over.
+  const bound = useRef(session)
+  const [made, setMade] = useState(false)
   emit.current = onChange
+  bound.current = session
 
   useEffect(() => {
     let live = true
@@ -147,7 +162,10 @@ export function Editor({
         const model = created!.getModel()
         if (!model) return
         emitted.current = model.getValue()
-        emit.current(emitted.current)
+        // A live session owns the buffer and is already writing it down. Emitting as well
+        // would put a second writer on one document — the save this replaced, racing the
+        // session's own flush.
+        if (!bound.current) emit.current(emitted.current)
         updateMenu()
         caretSize()
       })
@@ -155,6 +173,7 @@ export function Editor({
       created.onDidChangeCursorPosition(caretSize)
       created.onDidBlurEditorText(close)
       caretSize()
+      setMade(true)
 
       function close() {
         trigger.current = null
@@ -274,12 +293,25 @@ export function Editor({
     void useLanguage(monaco, language).then(() => preview.current?.refresh())
   }, [path])
 
+  // A session can arrive after the editor is up — sharing a document you already had open —
+  // so this waits for whichever of the two is second.
+  useEffect(() => {
+    const instance = editor.current
+    const monaco = api.current
+    if (!made || !instance || !monaco || !session) return
+    return bindSession(instance, monaco, session)
+  }, [made, session])
+
   // A value that did not come from this editor is a write from somewhere else — another
   // window, an editor on disk, a shell. Replacing the whole document would drop the undo
   // stack and put the caret at one end, so the edit is applied as an edit.
+  //
+  // A bound session is the exception: the room is where the document comes from while one is
+  // live, and reconciling a stale `markdown` into the model would undo what a peer just typed.
   useEffect(() => {
     const instance = editor.current
     const model = instance?.getModel()
+    if (session) return
     if (!instance || !model || value === emitted.current) return
     emitted.current = value
     const selections = instance.getSelections()

@@ -2304,7 +2304,7 @@ body[data-resizing='column'] {
 }
 
 .sync[data-state='syncing'],
-.session[data-state='connecting'] {
+.session[data-state='joining'] {
   color: var(--opal-cyan);
 }
 .sync[data-state='conflict'],
@@ -2319,6 +2319,85 @@ body[data-resizing='column'] {
 }
 .session[data-state='live'] {
   color: var(--opal-mint);
+}
+.session[data-state='solo'] {
+  color: var(--faint);
+}
+
+/* A share, in the status line: a dot per person in the profile colour their caret wears in
+   the text, so the line and the page say the same thing. */
+.session {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+}
+
+.session:hover {
+  background: none;
+  color: var(--white);
+}
+
+.peer-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+}
+
+/* The link is the document, so it is given room to be read and selected rather than
+   truncated into an ellipsis somebody has to trust. */
+.share-link {
+  word-break: break-all;
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  line-height: 1.6;
+  padding: 0.6rem 0.75rem;
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: 0.35rem;
+}
+
+.share-note {
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin-top: 0.9rem;
+}
+
+/* Two versions, side by side, with no third one offered — there is no merge on this screen
+   and the layout should not suggest there is. */
+.divergence {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.divergence h3 {
+  font-size: 0.75rem;
+  font-family: var(--mono);
+  color: var(--muted);
+  margin-bottom: 0.4rem;
+}
+
+.divergence pre {
+  max-height: 45vh;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  padding: 0.6rem 0.75rem;
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: 0.35rem;
+}
+
+/* Somebody else's caret and selection, drawn from awareness. The colour comes from a class
+   the editor injects per profile colour — see `src/editor/collab.ts`. */
+.peer-caret {
+  position: relative;
 }
 
 .notice {

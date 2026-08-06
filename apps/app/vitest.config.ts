@@ -12,6 +12,8 @@ export default defineConfig({
     name: '@broodmother/app',
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
+    // The site and the client only. The backend beside them is its own project, in node.
+    include: ['{app,src}/**/*.test.{ts,tsx}'],
     passWithNoTests: true,
   },
 })

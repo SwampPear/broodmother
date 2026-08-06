@@ -1,4 +1,4 @@
-import { startServer } from '@broodmother/server'
+import { startServer } from '../server'
 
 startServer().catch((error: unknown) => {
   console.error(error)

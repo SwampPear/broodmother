@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import type { GithubRepo } from '@/types'
+import { useState } from 'react'
+import { useAttempt, useLoad } from '../../hooks'
 import { useApp } from '../../state'
 import { Button, Select } from '../ui'
 
@@ -28,18 +28,18 @@ export function RemoteField({
   suggested: string
 }) {
   const app = useApp()
-  const [repos, setRepos] = useState<GithubRepo[] | null>(null)
+  const attempt = useAttempt()
   const [picked, setPicked] = useState('')
   const [name, setName] = useState('')
-  const [failed, setFailed] = useState<string | null>(null)
-  const [busy, setBusy] = useState(false)
 
   const connected = Boolean(app.profile?.github)
-
-  useEffect(() => {
-    if (!connected) return setRepos(null)
-    void app.githubRepos().then(setRepos)
-  }, [app, connected])
+  // The client is what the read goes through; `app` itself is a fresh object every render,
+  // and asking on that is asking again forever.
+  const repos = useLoad(connected ? () => app.githubRepos() : null, [
+    app.client,
+    connected,
+  ])
+  const known = repos.value ?? []
 
   if (!connected)
     return (
@@ -54,20 +54,20 @@ export function RemoteField({
       </label>
     )
 
-  const making = picked === NEW || (repos !== null && repos.length === 0)
+  const making = picked === NEW || repos.value?.length === 0
 
   async function create() {
-    setBusy(true)
-    setFailed(null)
-    const repo = await app.createGithubRepo({
-      name: name.trim() || suggested,
-      private: true,
+    await attempt.run(async () => {
+      const repo = await app.createGithubRepo({
+        name: name.trim() || suggested,
+        private: true,
+      })
+      if (typeof repo === 'string') return repo
+      repos.set((were) => [repo, ...(were ?? [])])
+      setPicked(repo.fullName)
+      onChange(repo.cloneUrl)
+      return null
     })
-    setBusy(false)
-    if (typeof repo === 'string') return setFailed(repo)
-    setRepos((known) => [repo, ...(known ?? [])])
-    setPicked(repo.fullName)
-    onChange(repo.cloneUrl)
   }
 
   return (
@@ -78,7 +78,7 @@ export function RemoteField({
           label="Repository"
           value={making ? NEW : picked}
           options={[
-            ...(repos ?? []).map((repo) => ({
+            ...known.map((repo) => ({
               value: repo.fullName,
               label: repo.private ? `${repo.fullName} · private` : repo.fullName,
             })),
@@ -86,8 +86,8 @@ export function RemoteField({
           ]}
           onChange={(next) => {
             setPicked(next)
-            setFailed(null)
-            const repo = (repos ?? []).find((one) => one.fullName === next)
+            attempt.say(null)
+            const repo = known.find((one) => one.fullName === next)
             onChange(repo?.cloneUrl ?? '')
           }}
         />
@@ -106,15 +106,15 @@ export function RemoteField({
           {/* Made before anything is written on this side: a name GitHub refuses is worth
               hearing about here rather than halfway through creating a vault. Once it is
               made it is simply the one that is picked, which is what the list now says. */}
-          <Button onClick={() => void create()} disabled={busy}>
-            {busy ? 'creating…' : 'create repository'}
+          <Button onClick={() => void create()} disabled={attempt.busy}>
+            {attempt.busy ? 'creating…' : 'create repository'}
           </Button>
         </>
       )}
 
-      {failed && (
+      {attempt.failed && (
         <p className="field-error" role="alert">
-          {failed}
+          {attempt.failed}
         </p>
       )}
 

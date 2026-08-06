@@ -18,7 +18,7 @@ A Mac app for reading and writing a folder of markdown. Everything runs on one l
 ## Workspace
 
 npm workspaces, TypeScript 5.9, no build step: the shared code sits in a top-level `src/`
-reached as `@/*`, and the two apps transpile it.
+reached as `@/*`, and the app transpiles it.
 
 |                |                                                                          |
 | -------------- | ------------------------------------------------------------------------ |
@@ -28,24 +28,39 @@ reached as `@/*`, and the two apps transpile it.
 | `src/dream`    | the dream parser, serializer, run order and starters                     |
 | `src/markdown` | markdown ↔ `DocNode` codec and markdown → HTML; markdown-it 14           |
 | `src/editor`   | Monaco 0.56, live preview, editing commands                              |
-| `apps/server`  | Hono 4: vault, project, git, sync, terminals                             |
-| `apps/app`     | Next.js 16 and React 19, plus the Electron 43 shell in `electron/`       |
+| `src/collab`   | live sessions: Yjs, seed vs adopt, the sealed relay transport            |
+| `apps/app`     | the whole app, in four folders                                           |
+| `apps/relay`   | the one deployable thing: rooms as socket sets, holding no document      |
+| `apps/cli`     | `broodmother` — start the app, run a relay, ask a deployed one           |
+
+`apps/app` is one workspace holding the three things that run and the code they share:
+
+|             |                                                                    |
+| ----------- | ------------------------------------------------------------------ |
+| `app/`      | the site: Next.js 16 routes                                        |
+| `server/`   | the backend: Hono 4 — vault, project, git, sync, terminals         |
+| `electron/` | the Mac shell: Electron 43, which starts the other two             |
+| `src/`      | the React 19 client — `components/`, `hooks/`, `api/`, `state.tsx` |
 
 ## Commands
 
 From the root.
 
-|                     |                                                          |
-| ------------------- | -------------------------------------------------------- |
-| `npm run check`     | typecheck and tests — the one to run before saying done  |
-| `npm run localhost` | server and site together at 127.0.0.1:6767, hot reloaded |
-| `npm run app`       | build everything and launch the Mac app                  |
-| `npm run typecheck` | `tsc --noEmit` over the workspace                        |
-| `npm test`          | vitest 4, both apps                                      |
-| `npm run format`    | prettier                                                 |
-| `npm run build`     | typecheck, then build the site                           |
+|                     |                                                         |
+| ------------------- | ------------------------------------------------------- |
+| `npm run check`     | typecheck and tests — the one to run before saying done |
+| `npm run localhost` | app and relay together; the site is 127.0.0.1:6767      |
+| `npm run relay`     | the relay alone, 127.0.0.1:3002                         |
+| `npm run app`       | build everything and launch the Mac app                 |
+| `npm run typecheck` | `tsc --noEmit` over the workspace                       |
+| `npm test`          | vitest 4, every project                                 |
+| `npm run format`    | prettier                                                |
+| `npm run build`     | typecheck, then build the site                          |
 
-`npm test -w @broodmother/app` runs one workspace.
+`npm run localhost` and `npm run start` both hand off to `apps/app`, which knows how to
+run itself: `npm run server -w @broodmother/app` and `npm run site -w @broodmother/app`
+start the two halves alone. Tests are one vitest project per folder — `--project server`,
+`--project @broodmother/app`, `--project src`.
 
 ## Boundaries
 

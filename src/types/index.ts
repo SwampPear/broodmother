@@ -1,5 +1,15 @@
 export type * from './api'
 export type { Branch } from './branch'
+export type {
+  Cursor,
+  Invite,
+  Peer,
+  RelayClientMessage,
+  RelayServerMessage,
+  RoomId,
+  SessionMode,
+  SessionState,
+} from './collab'
 export type { BroodmotherConfig } from './core'
 export type { DiffBasis, DiffChange, DiffFile, GitChange, TreeChanges } from './diff'
 export type {

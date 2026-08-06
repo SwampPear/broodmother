@@ -1,10 +1,11 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { basename, projectOf } from '@/core'
 import { serializeDream, starterDreams } from '@/dream'
-import type { DocRoot, DreamRun, DreamSummary, StarterDream } from '@/types'
+import type { DocRoot, DreamRun, StarterDream } from '@/types'
+import { useLoad } from '../../hooks'
 import { useApp } from '../../state'
 import { docRoute } from '../shell'
 import { withVault } from '../../window-vault'
@@ -40,29 +41,18 @@ function tookOf(run: DreamRun): string | null {
 export function DreamsView() {
   const app = useApp()
   const router = useRouter()
-  const [dreams, setDreams] = useState<DreamSummary[] | null>(null)
-  const [runs, setRuns] = useState<DreamRun[] | null>(null)
   const [opened, setOpened] = useState<string | null>(null)
 
-  useEffect(() => {
-    let alive = true
-    const ask = () => {
-      void app.client
-        .request('GET /api/dreams', null)
-        .then((result) => alive && setDreams(result.dreams))
-        .catch(() => null)
-      void app.client
-        .request('GET /api/dream/log', null)
-        .then((result) => alive && setRuns(result.runs))
-        .catch(() => null)
-    }
-    ask()
-    const timer = setInterval(ask, POLL_MS)
-    return () => {
-      alive = false
-      clearInterval(timer)
-    }
-  }, [app.client])
+  const { value: dreams } = useLoad(
+    () => app.client.request('GET /api/dreams', null).then((result) => result.dreams),
+    [app.client],
+    POLL_MS,
+  )
+  const { value: runs } = useLoad(
+    () => app.client.request('GET /api/dream/log', null).then((result) => result.runs),
+    [app.client],
+    POLL_MS,
+  )
 
   const now = Date.now()
 

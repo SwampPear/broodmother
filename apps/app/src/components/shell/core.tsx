@@ -12,6 +12,7 @@ import {
 import { projectOf, projectRoot, tilde } from '@/core'
 import { DREAM_EXTENSION, emptyDream, isDreamPath, serializeDream } from '@/dream'
 import type { DiffBasis, DiffFile, DocRef, DocRoot } from '@/types'
+import { useKeyDown } from '../../hooks'
 import { useApp } from '../../state'
 import { withVault } from '../../window-vault'
 import {
@@ -25,6 +26,17 @@ import {
   untitledIn,
 } from '../tree'
 import { deleteFlow, type Flow, type FlowCtx, Palette } from '../palette'
+import {
+  askJoin,
+  askShare,
+  CollabStatus,
+  JoinModal,
+  leave,
+  liveOf,
+  ShareCard,
+  useSessionState,
+  useShares,
+} from '../collab'
 import { BranchMenu } from '../branch'
 import { changesOf, DiffBar, DiffView, entriesFor } from '../diff'
 import { CreateProject } from '../project'
@@ -69,6 +81,10 @@ export function Shell({ children }: { children: ReactNode }) {
   // leave, but how you were reading the difference is a preference and stays.
   const [basis, setBasis] = useState<DiffBasis>('now')
   const [diff, setDiff] = useState<DiffFile[]>([])
+  // Whether the share card is up. The share itself is not this — it outlives the card, and
+  // is ended by leaving rather than by closing a panel.
+  const [sharing, setSharing] = useState(false)
+  const [joining, setJoining] = useState(false)
 
   // Every in-app route keeps the window's vault on it: the address bar is what says where
   // this window stands, and a route that dropped it would quietly rebind the window.
@@ -103,6 +119,12 @@ export function Shell({ children }: { children: ReactNode }) {
   const [panels, setPanels] = useState<Record<string, DocRoot>>({})
 
   const doc = currentDoc(pathname)
+
+  // The share the open document is in, if it is in one. Watched here so that the status line
+  // and the card both turn over when somebody joins or the share ends.
+  useShares()
+  const shared = liveOf(doc)
+  const sharedState = useSessionState(shared)
 
   /* Settings and Dreams are pages about the app rather than places in it: nothing here is
      opened in a tab or run in a shell, so the plus and the terminal have nothing to offer
@@ -200,23 +222,19 @@ export function Shell({ children }: { children: ReactNode }) {
   // with itself is a blank pane and a question about what went wrong.
   useEffect(() => setAgainst(null), [app.scopeKey])
 
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (!event.metaKey && !event.ctrlKey) return
-      if (event.key === 'k') {
-        event.preventDefault()
-        setFlow({ kind: 'search' })
-      } else if (event.key === 'j') {
-        event.preventDefault()
-        if (!dreamPage) toggleTerminal()
-      } else if (event.shiftKey && event.key.toLowerCase() === 's') {
-        event.preventDefault()
-        void app.syncNow()
-      }
+  useKeyDown((event) => {
+    if (!event.metaKey && !event.ctrlKey) return
+    if (event.key === 'k') {
+      event.preventDefault()
+      setFlow({ kind: 'search' })
+    } else if (event.key === 'j') {
+      event.preventDefault()
+      if (!dreamPage) toggleTerminal()
+    } else if (event.shiftKey && event.key.toLowerCase() === 's') {
+      event.preventDefault()
+      void app.syncNow()
     }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [toggleTerminal, app, dreamPage])
+  })
 
   /**
    * A note is made by making it. `Untitled` in the folder you asked from, open in the pane,
@@ -308,6 +326,15 @@ export function Shell({ children }: { children: ReactNode }) {
     projects: () => setWhereMenu(true),
     createProject: () => setCreating(true),
     toggleTerminal,
+    // Both are about the document in the pane: sharing puts that one in a room, and joining
+    // brings somebody else's into it. A folder or an app page is not a document, so neither
+    // has anything to act on.
+    share: () => {
+      if (!doc) return
+      askShare(doc)
+      setSharing(true)
+    },
+    join: () => doc && setJoining(true),
   }
 
   const newTab = (what: NewTab) =>
@@ -505,7 +532,29 @@ export function Shell({ children }: { children: ReactNode }) {
         notice={app.notice}
         onClearConflict={() => void app.clearConflict()}
         onDismissNotice={app.dismissNotice}
+        collab={<CollabStatus doc={doc} onOpen={() => setSharing(true)} />}
       />
+      {sharing && shared && (
+        <ShareCard
+          invite={shared.invite}
+          peers={sharedState?.peers.length ?? 0}
+          onClose={() => setSharing(false)}
+          onLeave={() => {
+            setSharing(false)
+            leave(shared.ref)
+          }}
+        />
+      )}
+      {joining && doc && (
+        <JoinModal
+          into={doc.path}
+          onClose={() => setJoining(false)}
+          onJoin={(invite) => {
+            setJoining(false)
+            askJoin(doc, invite)
+          }}
+        />
+      )}
       {(profiling || needsProfile) && (
         <ProfilePicker
           existing={app.profiles}

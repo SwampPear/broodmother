@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from 'react'
 import type { NewProject, ProjectGit } from '@/types'
+import { useAttempt } from '../../hooks'
 import { useApp } from '../../state'
 import { RemoteField } from '../github'
 import { Button, Choices, Modal, Select, type Choice } from '../ui'
@@ -45,25 +46,22 @@ export function CreateProject({
   const [git, setGit] = useState<ProjectGit>('local')
   const [remoteUrl, setRemoteUrl] = useState('')
   const [branch, setBranch] = useState('main')
-  const [busy, setBusy] = useState(false)
-  const [failed, setFailed] = useState<string | null>(null)
+  const attempt = useAttempt()
 
   const called = name.trim()
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
-    setBusy(true)
-    setFailed(null)
-    const reason = await onCreate({
-      name: called,
-      vault: vault || null,
-      git,
-      remoteUrl: git === 'remote' ? remoteUrl.trim() : null,
-      branch: git === 'none' ? null : branch,
-    })
-    setBusy(false)
-    if (reason) return setFailed(reason)
-    onClose()
+    const made = await attempt.run(() =>
+      onCreate({
+        name: called,
+        vault: vault || null,
+        git,
+        remoteUrl: git === 'remote' ? remoteUrl.trim() : null,
+        branch: git === 'none' ? null : branch,
+      }),
+    )
+    if (made) onClose()
   }
 
   return (
@@ -76,9 +74,9 @@ export function CreateProject({
           <Button onClick={onClose}>cancel</Button>
           <Button
             form="new-project"
-            disabled={busy || !called || (git === 'remote' && !remoteUrl.trim())}
+            disabled={attempt.busy || !called || (git === 'remote' && !remoteUrl.trim())}
           >
-            {busy ? 'creating…' : 'create project'}
+            {attempt.busy ? 'creating…' : 'create project'}
           </Button>
         </>
       }
@@ -92,7 +90,7 @@ export function CreateProject({
             placeholder={EXAMPLE}
             onChange={(event) => {
               setName(event.target.value)
-              setFailed(null)
+              attempt.say(null)
             }}
             required
           />
@@ -133,9 +131,9 @@ export function CreateProject({
           </label>
         )}
 
-        {failed && (
+        {attempt.failed && (
           <p className="field-error" role="alert">
-            {failed}
+            {attempt.failed}
           </p>
         )}
       </form>

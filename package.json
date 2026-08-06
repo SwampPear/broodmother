@@ -26,8 +26,9 @@
   ],
   "scripts": {
     "setup": "npm install && npm link",
-    "localhost": "concurrently -k -n server,app -c magenta,cyan \"npm run dev -w @broodmother/server\" \"npm run dev -w @broodmother/app\"",
-    "start": "concurrently -k -n server,app -c magenta,cyan \"npm run start -w @broodmother/server\" \"npm run start -w @broodmother/app\"",
+    "localhost": "concurrently -k -n app,relay -c cyan,yellow \"npm run dev -w @broodmother/app\" \"npm run dev -w @broodmother/relay\"",
+    "relay": "npm run dev -w @broodmother/relay",
+    "start": "npm run start -w @broodmother/app",
     "app": "npm run app -w @broodmother/app",
     "build": "npm run typecheck && npm run build -w @broodmother/app",
     "typecheck": "tsc --noEmit",
@@ -78,6 +79,7 @@
     "fuzzysort": "^3.1.0",
     "hono": "^4.12.32",
     "katex": "^0.18.1",
+    "lib0": "^0.2.117",
     "markdown-it": "^14.3.0",
     "monaco-editor": "^0.56.0",
     "next": "^16.2.12",
@@ -85,6 +87,8 @@
     "react-dom": "^19.2.8",
     "shiki": "^4.3.1",
     "ws": "^8.21.1",
+    "y-protocols": "^1.0.7",
+    "yjs": "^13.6.32",
     "zod": "^4.4.3"
   },
   "bin": {

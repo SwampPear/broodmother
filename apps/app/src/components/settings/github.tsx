@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import type { GithubDevice } from '@/types'
+import { useTimer } from '../../hooks'
 import { useApp } from '../../state'
 import { Button, LinkButton } from '../ui'
 import { Section } from './layout'
@@ -21,23 +22,16 @@ export function GithubAccount() {
   const app = useApp()
   const [step, setStep] = useState<Step>(null)
   const [busy, setBusy] = useState(false)
-  const waiting = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // The poll outlives nothing: a panel that is gone has nobody to tell.
+  const waiting = useTimer()
 
   const login = app.profile?.github ?? null
-
-  // The poll outlives nothing: a panel that is gone has nobody to tell, and a timer that
-  // fires into an unmounted tree is a warning in the console at best.
-  useEffect(() => {
-    return () => {
-      if (waiting.current) clearTimeout(waiting.current)
-    }
-  }, [])
 
   if (!app.githubReady || !app.profile) return null
 
   /** Asks once, then again on GitHub's own interval until the browser has been answered. */
   function collect(device: GithubDevice) {
-    waiting.current = setTimeout(() => {
+    waiting.set(() => {
       void app.connectGithub(device.deviceCode).then((answer) => {
         if (answer === true) return setStep(null)
         if (typeof answer === 'string') return setStep({ device, failed: answer })
@@ -56,7 +50,7 @@ export function GithubAccount() {
   }
 
   function stop() {
-    if (waiting.current) clearTimeout(waiting.current)
+    waiting.clear()
     setStep(null)
   }
 

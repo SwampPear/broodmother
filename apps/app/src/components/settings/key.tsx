@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { tilde } from '@/core'
+import { useAttempt, useLoad, useTimer } from '../../hooks'
 import { useApp } from '../../state'
 import { Button, LinkButton } from '../ui'
 import { Section } from './layout'
@@ -9,6 +10,10 @@ import { Section } from './layout'
 /** Where the key goes once you have copied it, for the host most people are pasting into.
  *  A link beats a description of where to look. */
 const GITHUB_KEYS = 'https://github.com/settings/ssh/new'
+
+/** Long enough to be read as an answer, short enough that the button is a button again by
+ *  the time you look back at it. */
+const COPIED_MS = 1500
 
 /**
  * The key a profile offers, and the one gesture that makes one. broodmother already uses
@@ -20,52 +25,48 @@ const GITHUB_KEYS = 'https://github.com/settings/ssh/new'
  */
 export function ProfileKey() {
   const app = useApp()
-  const [publicKey, setPublicKey] = useState<string | null>(null)
-  const [busy, setBusy] = useState(false)
-  const [failed, setFailed] = useState<string | null>(null)
+  const attempt = useAttempt()
+  const flash = useTimer()
   const [copied, setCopied] = useState(false)
 
   const profile = app.profile?.name ?? null
 
-  useEffect(() => {
-    if (!profile) return setPublicKey(null)
-    void app.client
-      .request('GET /api/profiles/key', null)
-      .then((result) => setPublicKey(result.publicKey))
-      .catch(() => setPublicKey(null))
-  }, [app.client, profile])
+  const key = useLoad(
+    profile
+      ? () =>
+          app.client
+            .request('GET /api/profiles/key', null)
+            .then((result) => result.publicKey)
+      : null,
+    [app.client, profile],
+  )
 
   if (!app.profile) return null
 
   async function generate() {
-    setBusy(true)
-    setFailed(null)
-    try {
+    await attempt.run(async () => {
       const result = await app.client.request('POST /api/profiles/key', null)
-      setPublicKey(result.publicKey)
-    } catch (error) {
-      setFailed(error instanceof Error ? error.message : String(error))
-    } finally {
-      setBusy(false)
-    }
+      key.set(result.publicKey)
+      return null
+    })
   }
 
   async function copy() {
-    if (!publicKey) return
-    await navigator.clipboard.writeText(publicKey)
+    if (!key.value) return
+    await navigator.clipboard.writeText(key.value)
     setCopied(true)
-    setTimeout(() => setCopied(false), 1500)
+    flash.set(() => setCopied(false), COPIED_MS)
   }
 
   return (
     <Section title="Key">
-      {publicKey ? (
+      {key.value ? (
         <>
           <p className="hint">
             The public half. Paste it into your git host and this profile can push. The
             private half stays in {tilde(app.home || '~/.broodmother')}.
           </p>
-          <output className="public-key">{publicKey}</output>
+          <output className="public-key">{key.value}</output>
           <div className="row">
             <Button onClick={() => void copy()}>{copied ? 'copied' : 'copy key'}</Button>
             <LinkButton href={GITHUB_KEYS}>add to GitHub</LinkButton>
@@ -79,16 +80,16 @@ export function ProfileKey() {
             one only if you have none, or want this profile to push with its own.
           </p>
           <div className="row">
-            <Button onClick={() => void generate()} disabled={busy}>
-              {busy ? 'generating…' : 'generate a key'}
+            <Button onClick={() => void generate()} disabled={attempt.busy}>
+              {attempt.busy ? 'generating…' : 'generate a key'}
             </Button>
           </div>
         </>
       )}
 
-      {failed && (
+      {attempt.failed && (
         <p className="field-error" role="alert">
-          {failed}
+          {attempt.failed}
         </p>
       )}
     </Section>

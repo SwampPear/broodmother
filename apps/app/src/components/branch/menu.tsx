@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from 'react'
 import type { Branch } from '@/types'
+import { useAttempt } from '../../hooks'
 import { Button, Confirm, Icon, Menu, type MenuSection, Modal } from '../ui'
 
 /** A branch name git will take: no spaces, no `..`, and not ending in `.lock`. */
@@ -138,23 +139,17 @@ function NewBranch({
   onClose: () => void
 }) {
   const [name, setName] = useState('')
-  const [error, setError] = useState('')
-  const [busy, setBusy] = useState(false)
+  const attempt = useAttempt()
 
   const submit = (event: FormEvent) => {
     event.preventDefault()
     const target = name.trim()
 
     if (branches.some((one) => one.name.toLowerCase() === target.toLowerCase()))
-      return setError(`${target} is already a branch here.`)
-    if (!NAME.test(target)) return setError('git will not take that as a branch name.')
+      return attempt.say(`${target} is already a branch here.`)
+    if (!NAME.test(target)) return attempt.say('git will not take that as a branch name.')
 
-    setBusy(true)
-    void onCreate(target).then((reason) => {
-      setBusy(false)
-      if (reason) setError(reason)
-      else onClose()
-    })
+    void attempt.run(() => onCreate(target)).then((made) => made && onClose())
   }
 
   return (
@@ -169,8 +164,8 @@ function NewBranch({
       footer={
         <>
           <Button onClick={onClose}>cancel</Button>
-          <Button form="new-branch" disabled={busy || !name.trim()}>
-            {busy ? 'creating…' : 'create branch'}
+          <Button form="new-branch" disabled={attempt.busy || !name.trim()}>
+            {attempt.busy ? 'creating…' : 'create branch'}
           </Button>
         </>
       }
@@ -184,7 +179,7 @@ function NewBranch({
             placeholder="fix/login"
             onChange={(event) => {
               setName(event.target.value)
-              setError('')
+              attempt.say(null)
             }}
             required
           />
@@ -193,9 +188,9 @@ function NewBranch({
           The branch is checked out into a folder of its own beside the others, so nothing
           is stashed and nothing is swapped.
         </p>
-        {error && (
+        {attempt.failed && (
           <p className="field-error" role="alert">
-            {error}
+            {attempt.failed}
           </p>
         )}
       </form>

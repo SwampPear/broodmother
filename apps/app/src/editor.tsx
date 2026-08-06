@@ -1,8 +1,10 @@
 'use client'
 
+import type { CollabSession } from '@/collab'
 import { Editor as MarkdownEditor, type EditMode } from '@/editor'
 import { render } from '@/markdown'
 import { useEffect, useMemo, useState } from 'react'
+import { useKeyDown } from './hooks'
 
 export type Mode = EditMode | 'reading'
 
@@ -25,11 +27,15 @@ export function Editor({
   markdown,
   onChange,
   path,
+  session,
 }: {
   markdown: string
   onChange: (markdown: string) => void
   /** The project path, which is what decides the language and whether preview applies. */
   path: string
+  /** A document somebody else is in. Passed straight through: what it changes is the
+   *  buffer's ownership, which is the inner editor's business. */
+  session?: CollabSession | null
 }) {
   const [mode, setMode] = useState<Mode>(() => remembered.get(path) ?? 'live')
 
@@ -41,16 +47,12 @@ export function Editor({
     setMode(markdownFile ? (remembered.get(path) ?? 'live') : 'live')
   }, [path, markdownFile])
 
-  useEffect(() => {
+  useKeyDown((event) => {
     if (!markdownFile) return
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'e' || !(event.metaKey || event.ctrlKey)) return
-      event.preventDefault()
-      choose(mode === 'reading' ? 'live' : 'reading')
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [mode, markdownFile, path])
+    if (event.key !== 'e' || !(event.metaKey || event.ctrlKey)) return
+    event.preventDefault()
+    choose(mode === 'reading' ? 'live' : 'reading')
+  })
 
   function choose(next: Mode) {
     remembered.set(path, next)
@@ -70,7 +72,13 @@ export function Editor({
       />
     ) : (
       <div className="broodmother-editor">
-        <MarkdownEditor markdown={markdown} onChange={onChange} mode={mode} path={path} />
+        <MarkdownEditor
+          markdown={markdown}
+          onChange={onChange}
+          mode={mode}
+          path={path}
+          session={session}
+        />
       </div>
     )
 

@@ -36,6 +36,8 @@ function commands(ctx: FlowCtx): Choice[] {
       pick('Move', (ref) => moveFlow(ctx, ref)),
     ),
     command('Delete document', 'x', () => pick('Delete', (ref) => deleteFlow(ctx, ref))),
+    command('Share this document', 'arrow-left-right', () => done(() => ctx.share())),
+    command('Join a shared document', 'user', () => done(() => ctx.join())),
     command('Toggle terminal', 'terminal', () => done(() => ctx.toggleTerminal())),
     command('Sync now', 'chevrons-up-down', () => done(() => ctx.syncNow())),
     command('Switch project', 'folder', () => done(() => ctx.projects())),

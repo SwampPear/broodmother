@@ -18,6 +18,11 @@ export interface FlowCtx {
   /** The dreams page: what is scheduled, and how running has been going. */
   dreams(): void
   toggleTerminal(): void
+  /** Puts the open document in a room and hands you a link. Nothing to ask first: what it
+   *  would ask — which document — is the one you are looking at. */
+  share(): void
+  /** The other end of that, which does ask, because the link is the whole of it. */
+  join(): void
   vaults(): void
   projects(): void
   createProject(): void

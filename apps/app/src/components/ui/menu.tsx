@@ -3,7 +3,6 @@
 import * as Dropdown from '@radix-ui/react-dropdown-menu'
 import fuzzysort from 'fuzzysort'
 import {
-  useEffect,
   useRef,
   useState,
   type KeyboardEvent,
@@ -11,6 +10,7 @@ import {
   type ReactNode,
   type RefObject,
 } from 'react'
+import { useTimer } from '../../hooks'
 import { Icon, type IconName } from './icons'
 
 /**
@@ -81,27 +81,22 @@ const DOUBLE_CLICK_MS = 200
 /** The click behaviour a row with a second gesture needs: the select waits to see whether
  *  another click is coming, and the menu is told not to close in the meantime. */
 function useTwoGestures(action: MenuAction) {
-  const waiting = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const stop = () => {
-    if (waiting.current) clearTimeout(waiting.current)
-    waiting.current = null
-  }
-  useEffect(() => stop, [])
+  const waiting = useTimer()
 
   if (!action.onSecondClick) return { onSelect: action.onSelect }
   return {
     onSelect: (event: Event) => event.preventDefault(),
     onClick: (event: MouseEvent) => {
-      stop()
+      waiting.clear()
       if (event.detail > 1) action.onSecondClick?.()
-      else waiting.current = setTimeout(action.onSelect, DOUBLE_CLICK_MS)
+      else waiting.set(action.onSelect, DOUBLE_CLICK_MS)
     },
     // The waiting select is dropped rather than left to fire: a right click is not a
     // pick, and switching project a moment after asking what could be done to it is not
     // what was meant. The browser's own menu is refused so ours is not buried under it.
     onContextMenu: (event: MouseEvent) => {
       event.preventDefault()
-      stop()
+      waiting.clear()
       action.onSecondClick?.()
     },
   }
