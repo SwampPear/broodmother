@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, type FormEvent } from 'react'
-import type { GitAuthor, Identity, Profile } from '@broodmother/shared'
+import type { GitAuthor, Identity, Profile } from '@/types'
 import { opal, opalFrom } from '../../colors'
 
 export interface ProfileDraft extends Identity {
@@ -42,6 +42,7 @@ export function ProfileForm({
   const [email, setEmail] = useState('')
   const [sshKeyPath, setSshKeyPath] = useState('')
   const [claudeCfgDir, setclaudeCfgDir] = useState('')
+  const [cursorCfgDir, setCursorCfgDir] = useState('')
   const [color, setColor] = useState(
     opal.find((option) => !existing.some((profile) => profile.color === option.hex))
       ?.hex ?? opal[0]!.hex,
@@ -83,6 +84,7 @@ export function ProfileForm({
       gitAuthor: { name: author.name || trimmed, email: author.email },
       sshKeyPath: sshKeyPath.trim() || null,
       claudeCfgDir: claudeCfgDir.trim() || null,
+      cursorCfgDir: cursorCfgDir.trim() || null,
       // Who claude is while it works as this profile. Written on the profile's own page
       // rather than here: a new profile is a name and an author, not an essay.
       soul: null,
@@ -122,8 +124,8 @@ export function ProfileForm({
         ))}
       </fieldset>
 
-      {/* Who you are to git, and to Claude. Two programs, two boxes: what goes in each is
-          read off what it is for rather than off a list of five fields in a row. */}
+      {/* Who you are to git, and to each agent. One box per program: what goes in each is
+          read off what it is for rather than off a list of six fields in a row. */}
       <fieldset className="field-group">
         <legend>Git</legend>
         <label>
@@ -157,6 +159,8 @@ export function ProfileForm({
         </label>
       </fieldset>
 
+      {/* The box's legend says whose it is; the aria name repeats it because two fields
+          reading "Config directory" alone cannot be told apart by ear. */}
       <fieldset className="field-group">
         <legend>Claude</legend>
         <label>
@@ -165,6 +169,20 @@ export function ProfileForm({
             value={claudeCfgDir}
             onChange={(event) => setclaudeCfgDir(event.target.value)}
             placeholder="~/.claude"
+            aria-label="Claude config directory"
+          />
+        </label>
+      </fieldset>
+
+      <fieldset className="field-group">
+        <legend>Cursor</legend>
+        <label>
+          Config directory
+          <input
+            value={cursorCfgDir}
+            onChange={(event) => setCursorCfgDir(event.target.value)}
+            placeholder="~/.cursor"
+            aria-label="Cursor config directory"
           />
         </label>
       </fieldset>

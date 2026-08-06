@@ -1,7 +1,8 @@
+import { existsSync } from 'node:fs'
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
-import type { TreeEvent } from '@broodmother/shared'
+import type { TreeEvent } from '@/types'
 import { cleanup, delay, tempDir, until } from '../test'
 import { Tree } from './core'
 import { isSkipped, TreeWatcher } from './watcher'
@@ -115,17 +116,15 @@ describe('TreeWatcher', { retry: 2 }, () => {
     }
   })
 
-  /* A repository with its dependencies on disk is tens of thousands of directories, and a
-     watch is a file descriptor apiece. None of it is content and the tree does not list any
-     of it, so none of it is watched — which is what the server ran out of descriptors and
-     died of. */
-  it('does not watch what the repository ignores', async () => {
+  /* None of what a repository ignores is content and the tree does not list any of it, so
+     none of it is reported. */
+  it('does not report what the repository ignores', async () => {
     const root = await tempDir()
     const seen: TreeEvent[] = []
     await mkdir(path.join(root, 'node_modules/left-pad'), { recursive: true })
     const watcher = new TreeWatcher(root, (event) => seen.push(event), {
       debounceMs: 10,
-      skipped: new Set(['node_modules']),
+      skipped: async () => new Set(['node_modules']),
     })
     await watcher.ready
     try {
@@ -138,6 +137,42 @@ describe('TreeWatcher', { retry: 2 }, () => {
       await watcher.close()
     }
   })
+
+  /* The ignore list is git's answer about what was on disk when it was asked, and a fresh
+     checkout has no dependency folder to answer about. The one an install lays down after
+     the watch opened is the case that filled the descriptor table and took the server with
+     it, so the list has to be asked for again rather than kept. */
+  it('asks again what to skip when a folder appears after the watch opened', async () => {
+    const root = await tempDir()
+    const seen: TreeEvent[] = []
+    let asked = 0
+    const watcher = new TreeWatcher(root, (event) => seen.push(event), {
+      debounceMs: 10,
+      // What git says: nothing is ignored until the folder it ignores is on disk.
+      skipped: async () => {
+        asked++
+        return existsSync(path.join(root, 'node_modules'))
+          ? new Set(['node_modules'])
+          : new Set<string>()
+      },
+    })
+    await watcher.ready
+    try {
+      expect(asked).toBe(1)
+      await mkdir(path.join(root, 'node_modules/left-pad'), { recursive: true })
+      await until(() => asked > 1, 20_000)
+
+      // Reported before the answer changed, which is the folder itself and nothing under it.
+      seen.length = 0
+      await writeFile(path.join(root, 'node_modules/left-pad/index.js'), 'module')
+      await writeFile(path.join(root, 'note.md'), '# note')
+      await until(() => seen.length > 0, 20_000)
+      await delay(200)
+      expect(seen.map((e) => (e.type === 'moved' ? e.to : e.path))).toEqual(['note.md'])
+    } finally {
+      await watcher.close()
+    }
+  }, 25_000)
 
   it('ignores the reserved names and coalesces a burst into one event', async () => {
     const w = await watching()
@@ -164,8 +199,8 @@ describe('changes made by something else', { retry: 2 }, () => {
     const watcher = new TreeWatcher(root, (event) => seen.push(event), { debounceMs: 10 })
     await watcher.ready
 
-    // Generous: chokidar's directory events go through the OS, and a machine running the
-    // whole suite at once is a machine that delivers them late.
+    // Generous: directory events come from the OS, and a machine running the whole suite
+    // at once is a machine that delivers them late.
     await mkdir(path.join(root, 'Section'))
     await until(
       () => seen.some((e) => e.type === 'created' && e.path === 'Section'),
@@ -183,10 +218,9 @@ describe('changes made by something else', { retry: 2 }, () => {
     // suite at once delivers them late. This is waiting on the kernel, not on the code.
   }, 25_000)
 
-  /* An agent laying down a folder and a file in it in one go is a race with the watcher:
-     the file can land before chokidar has begun watching the folder, and that `add` is
-     lost. Reporting the folder is what saves it — the tree reloads either way, which is
-     the thing that has to be true. */
+  /* An agent laying down a folder and a file in it in one go has to reach the tree — as
+     the folder, as the file, or as both. The tree reloads either way, which is the thing
+     that has to be true. */
   it('reports something when a folder and a file arrive together', async () => {
     const root = await tempDir()
     const seen: TreeEvent[] = []

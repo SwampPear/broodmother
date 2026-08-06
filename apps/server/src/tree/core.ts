@@ -1,6 +1,6 @@
 import { mkdir, readFile, readdir, rename, rm, stat } from 'node:fs/promises'
 import path from 'node:path'
-import type { TreeEntry, DocPath } from '@broodmother/shared'
+import type { DocPath, TreeEntry } from '@/types'
 import { PathError, RESERVED, atomicWrite, normalize, resolveInRoot } from '../fs'
 import { Git } from '../git'
 

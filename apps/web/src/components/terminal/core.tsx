@@ -2,7 +2,7 @@
 
 import '@xterm/xterm/css/xterm.css'
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react'
-import type { DocRoot } from '@broodmother/shared'
+import type { DocRoot } from '@/types'
 import { opal } from '../../colors'
 import { useApp } from '../../state'
 import { Icon, Resizer } from '../ui'

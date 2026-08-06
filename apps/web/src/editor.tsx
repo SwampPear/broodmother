@@ -1,7 +1,7 @@
 'use client'
 
-import { Editor as MarkdownEditor, type EditMode } from '@broodmother/editor'
-import { render } from '@broodmother/markdown'
+import { Editor as MarkdownEditor, type EditMode } from '@/editor'
+import { render } from '@/markdown'
 import { useEffect, useMemo, useState } from 'react'
 
 export type Mode = EditMode | 'reading'

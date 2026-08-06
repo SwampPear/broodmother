@@ -1,7 +1,7 @@
 'use client'
 
-import type { NotebookCell } from '@broodmother/notebook'
-import type { KernelState } from '@broodmother/shared'
+import type { NotebookCell } from '@/types'
+import type { KernelState } from '@/types'
 import { Icon } from '../ui'
 
 export function Toolbar({

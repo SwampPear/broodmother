@@ -1,4 +1,4 @@
-import type { GitAuthor, GitSettings, SyncStatus, DocPath } from '@broodmother/shared'
+import type { DocPath, GitAuthor, GitSettings, SyncStatus } from '@/types'
 import type { Git } from './core'
 
 const same = (a: SyncStatus, b: SyncStatus) =>

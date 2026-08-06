@@ -1,8 +1,8 @@
 'use client'
 
 import type { FocusEvent } from 'react'
-import { CellEditor } from '@broodmother/editor'
-import { render } from '@broodmother/markdown'
+import { CellEditor } from '@/editor'
+import { render } from '@/markdown'
 
 export function MarkdownCell({
   source,

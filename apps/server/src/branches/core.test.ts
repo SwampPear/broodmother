@@ -70,8 +70,9 @@ describe('listBranches', () => {
     expect(listed[0]!.name).toBe('main')
   })
 
-  /* The point of the list: work started elsewhere shows up without being checked out. */
-  it('offers a branch that exists only on the remote', async () => {
+  /* The point of the list: work started elsewhere shows up without being checked out —
+     wearing the remote's name, so where it lives is legible beside the local rows. */
+  it('offers a branch that exists only on the remote, as origin/<name>', async () => {
     const { dir, local, checkouts } = await vault()
     await git(local, 'push', 'origin', 'main')
     await git(local, 'branch', 'from-elsewhere')
@@ -79,12 +80,35 @@ describe('listBranches', () => {
     await git(local, 'branch', '-D', 'from-elsewhere')
 
     const found = (await listBranches(checkouts)).find(
-      (one) => one.name === 'from-elsewhere',
+      (one) => one.name === 'origin/from-elsewhere',
     )
     expect(found).toBeTruthy()
     expect(found!.checkedOut).toBe(false)
-    // Where it would go, which is what opening it will make.
+    expect(found!.remote).toBe(true)
+    // Where it would go, which is what opening it will make: the local branch's folder.
     expect(found!.path).toBe(path.join(dir, 'from-elsewhere'))
+  })
+
+  /* `origin/feat` and a local `feat` are the one branch they describe, and the local
+     checkout is where that work goes on — so the pair is one row, not two. */
+  it('folds a remote branch into the local one that carries its name', async () => {
+    const { local, checkouts } = await vault()
+    await git(local, 'branch', 'shared')
+    await git(local, 'push', 'origin', 'shared')
+
+    const listed = await names(checkouts)
+    expect(listed).toContain('shared')
+    expect(listed).not.toContain('origin/shared')
+  })
+
+  it('lists local branches before the remotes’ own', async () => {
+    const { local, checkouts } = await vault()
+    await git(local, 'branch', 'zzz')
+    await git(local, 'branch', 'aaa-remote-only')
+    await git(local, 'push', 'origin', 'aaa-remote-only')
+    await git(local, 'branch', '-D', 'aaa-remote-only')
+
+    expect(await names(checkouts)).toEqual(['main', 'zzz', 'origin/aaa-remote-only'])
   })
 
   it('names a checkout with no repository after its folder', async () => {
@@ -126,17 +150,23 @@ describe('openBranch', () => {
     expect(again.path).toBe(made.path)
   })
 
+  /* Opened by the name the list offered it under, and what opening makes is the local
+     branch: the prefix has done its telling, and the work continues here as `theirs`. */
   it('picks up a branch that is only on the remote', async () => {
-    const { local, checkouts } = await vault()
+    const { dir, local, checkouts } = await vault()
     await git(local, 'push', 'origin', 'main')
     await git(local, 'branch', 'theirs')
     await git(local, 'push', 'origin', 'theirs')
     await git(local, 'branch', '-D', 'theirs')
 
-    const made = await openBranch(checkouts, 'theirs')
+    const made = await openBranch(checkouts, 'origin/theirs')
 
+    expect(made.name).toBe('theirs')
     expect(made.checkedOut).toBe(true)
+    expect(made.path).toBe(path.join(dir, 'theirs'))
     expect(await stat(path.join(made.path, 'README.md'))).toBeTruthy()
+    // The list now carries it as the local branch it has become.
+    expect(await names(checkouts)).toContain('theirs')
   })
 
   /* A branch name is a path and a folder name is not, so the separators flatten. */

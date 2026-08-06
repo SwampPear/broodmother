@@ -1,7 +1,8 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { z } from 'zod'
-import { defaultGitSettings, type BroodmotherConfig } from '@broodmother/shared'
+import { defaultGitSettings } from '@/core'
+import type { BroodmotherConfig } from '@/types'
 import { atomicWrite } from './fs'
 
 /** `https://token@host` is a credential in a file we sync; `ssh://git@host` is a username. */
@@ -163,6 +164,7 @@ export function repair(raw: unknown, defaults: BroodmotherConfig): LoadedConfig 
 export class ConfigStore {
   private current: BroodmotherConfig
   private lastReset: string[] = []
+  private queue: Promise<unknown> = Promise.resolve()
 
   constructor(
     readonly file: string,
@@ -194,6 +196,16 @@ export class ConfigStore {
     this.current = loaded.config
     this.lastReset = loaded.reset
     return loaded
+  }
+
+  /** Serialized read-modify-write: each change reads the config as the one before left it,
+   *  so two racing updates cannot drop each other's fields. */
+  async update(
+    change: (config: BroodmotherConfig) => BroodmotherConfig,
+  ): Promise<BroodmotherConfig> {
+    const turn = this.queue.then(() => this.save(change(this.current)))
+    this.queue = turn.catch(() => undefined)
+    return turn
   }
 
   async save(config: BroodmotherConfig): Promise<BroodmotherConfig> {

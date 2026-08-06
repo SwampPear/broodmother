@@ -1,7 +1,7 @@
 import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
-import type { BroodmotherConfig } from '@broodmother/shared'
+import type { BroodmotherConfig } from '@/types'
 import { defaultConfig } from './config'
 import { migrate } from './migrate'
 import { listProfiles } from './profiles'

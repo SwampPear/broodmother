@@ -1,15 +1,21 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, it, vi } from 'vitest'
-import type { Profile } from '@broodmother/shared'
+import type { Profile } from '@/types'
 import { createMockClient, type MockClient } from '../../api/mock'
 import { AppProvider } from '../../state'
+import { browse, withVault } from '../../window-vault'
 import { Shell } from './core'
 
 let pathname = '/'
+// The real usePathname answers without the query, and every in-app route now carries the
+// window's vault on its query — so the mock router strips it the way the browser would.
 const push = vi.fn((next: string) => {
-  pathname = next
+  pathname = next.split('?')[0]!
 })
+
+/** What a route looks like when the shell pushes it: the window's vault rides along. */
+const pushed = (route: string) => withVault(route)
 
 vi.mock('next/navigation', () => ({
   usePathname: () => pathname,
@@ -50,6 +56,7 @@ const profile = (name: string): Profile => ({
   gitAuthor: { name, email: `${name}@example.com` },
   sshKeyPath: null,
   claudeCfgDir: null,
+  cursorCfgDir: null,
   soul: null,
   github: null,
 })
@@ -97,8 +104,9 @@ it('asks who you are on a fresh machine, and nothing else', async () => {
 
   const { profiles } = await client.request('GET /api/profiles', null)
   expect(profiles.map((profile) => profile.name)).toEqual(['ada'])
-  // And then it gets out of the way rather than asking the next question for you.
-  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  // And then the window reloads into the new profile's first run rather than asking the
+  // next question for you.
+  await waitFor(() => expect(browse.assign).toHaveBeenCalledWith('/'))
 })
 
 /* The first vault is made the way the tenth is: from the selector at the head of the
@@ -176,7 +184,7 @@ it('closes a tab and goes back to the vault when it was the last one', async () 
   await userEvent.click(screen.getByRole('button', { name: 'Close Overview' }))
 
   expect(screen.queryByRole('tab')).not.toBeInTheDocument()
-  expect(push).toHaveBeenCalledWith('/')
+  expect(push).toHaveBeenCalledWith(pushed('/'))
 })
 
 /* Settings is a page about the app rather than a place in it: there is nothing there to
@@ -332,8 +340,10 @@ it('opens the document you clicked when the click also moves the scope', async (
   )
   // Every navigation the click caused went to the file — no stop at the home screen or
   // wherever the vault was last left on the way there.
-  expect(push).toHaveBeenCalledWith('/doc/vault/README.md')
-  expect(push.mock.calls.every(([route]) => route === '/doc/vault/README.md')).toBe(true)
+  expect(push).toHaveBeenCalledWith(pushed('/doc/vault/README.md'))
+  expect(
+    push.mock.calls.every(([route]) => route === pushed('/doc/vault/README.md')),
+  ).toBe(true)
 })
 
 it('forgets a terminal that was closed rather than left running', async () => {
@@ -423,11 +433,11 @@ it('keeps a tab set per project branch, terminals included', async () => {
   await screen.findByRole('tab', { name: /terminal/ })
 })
 
-/* A project lives inside its vault, so the sidebar draws the open vault's and nobody
-   else's. Working as someone else opens one of their vaults — or none — and the projects of
-   the vault you left used to stay in the tree, listed under the name of a vault they are
-   not in and scoped to as though you could go and work in one. */
-it('lists the open vault’s projects, and drops them with the vault', async () => {
+/* Working as someone else is a move into their vault, and a move between vaults is a full
+   page load: the window leaves for the other vault's address rather than redressing this
+   one in place. Everything of the vault it left — projects, scope, tabs — goes with the
+   page. */
+it('leaves for the other profile’s vault when you switch profile', async () => {
   const home = '/Users/you/.broodmother'
   const client = createMockClient({
     home,
@@ -446,15 +456,14 @@ it('lists the open vault’s projects, and drops them with the vault', async () 
   await userEvent.click(await screen.findByRole('menuitemradio', { name: /ada/ }))
 
   await waitFor(() =>
-    expect(screen.getByRole('button', { name: /notes/ })).toBeInTheDocument(),
+    expect(browse.assign).toHaveBeenCalledWith(
+      `/?vault=${encodeURIComponent(`${home}/ada/notes`)}`,
+    ),
   )
-  expect(screen.queryByRole('treeitem', { name: 'api' })).not.toBeInTheDocument()
-  // And the scope came with it: a project of a vault nobody has open is nowhere to stand.
-  expect(screen.getByRole('button', { name: /notes/ })).not.toHaveTextContent('api')
 })
 
-/* A new profile has no vaults yet, so making one closes the one you were in. */
-it('empties the tree of projects when the new profile has no vault', async () => {
+/* A new profile has no vaults yet, so making one leaves for the first-run home. */
+it('leaves for the first-run home when the new profile has no vault', async () => {
   const home = '/Users/you/.broodmother'
   const client = createMockClient({
     home,
@@ -470,10 +479,7 @@ it('empties the tree of projects when the new profile has no vault', async () =>
   await userEvent.type(screen.getByLabelText('Author email'), 'ada@example.com')
   await userEvent.click(screen.getByRole('button', { name: 'add profile' }))
 
-  await waitFor(() =>
-    expect(screen.getByRole('button', { name: /No vault/ })).toBeInTheDocument(),
-  )
-  expect(screen.queryByRole('treeitem', { name: 'api' })).not.toBeInTheDocument()
+  await waitFor(() => expect(browse.assign).toHaveBeenCalledWith('/'))
 })
 
 /* Settings is the app's own chrome, not a place in a tree: a scope switch made while it
@@ -620,7 +626,7 @@ it('makes a note called Untitled and opens its row to be named', async () => {
   await userEvent.click(await screen.findByRole('menuitem', { name: /New note/ }))
 
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-  await waitFor(() => expect(push).toHaveBeenCalledWith('/doc/vault/Untitled.md'))
+  await waitFor(() => expect(push).toHaveBeenCalledWith(pushed('/doc/vault/Untitled.md')))
   const field = await screen.findByRole('textbox', { name: 'Rename Untitled.md' })
   expect(field).toHaveValue('Untitled')
   expect(field).toHaveFocus()
@@ -643,7 +649,7 @@ it('follows the note to the name it is given', async () => {
   await waitFor(() =>
     expect(entries.some((entry) => entry.path === 'Ideas.md')).toBe(true),
   )
-  await waitFor(() => expect(push).toHaveBeenCalledWith('/doc/vault/Ideas.md'))
+  await waitFor(() => expect(push).toHaveBeenCalledWith(pushed('/doc/vault/Ideas.md')))
 })
 
 /* Rename used to be "Rename or move…", a dialog asking for a whole path. The name is typed
@@ -708,7 +714,9 @@ it('numbers the next Untitled rather than colliding with it', async () => {
   await screen.findByRole('textbox', { name: 'Rename Untitled.md' })
   await note()
 
-  await waitFor(() => expect(push).toHaveBeenCalledWith('/doc/vault/Untitled 2.md'))
+  await waitFor(() =>
+    expect(push).toHaveBeenCalledWith(pushed('/doc/vault/Untitled 2.md')),
+  )
 })
 
 /* A deleted file is not a file, so nothing is left standing for it: the tab used to stay in
@@ -731,7 +739,7 @@ it('closes the tab of a document that is deleted', async () => {
   await waitFor(() =>
     expect(screen.queryByRole('tab', { name: /README/ })).not.toBeInTheDocument(),
   )
-  expect(push).toHaveBeenCalledWith('/')
+  expect(push).toHaveBeenCalledWith(pushed('/'))
 })
 
 /* A folder takes everything in it, and each of those is a document something had open. */
@@ -753,7 +761,7 @@ it('closes the tabs of every document inside a deleted folder', async () => {
   await waitFor(() =>
     expect(screen.queryByRole('tab', { name: /Overview/ })).not.toBeInTheDocument(),
   )
-  expect(push).toHaveBeenCalledWith('/')
+  expect(push).toHaveBeenCalledWith(pushed('/'))
 })
 
 it('opens the new-branch modal from the menu', async () => {
@@ -787,7 +795,7 @@ it('leaves the document behind when you switch checkout', async () => {
 
   // Nothing was open in `fix`, so it goes to the home screen rather than showing a file
   // that is not on this branch.
-  await waitFor(() => expect(push).toHaveBeenCalledWith('/'))
+  await waitFor(() => expect(push).toHaveBeenCalledWith(pushed('/')))
 })
 
 it('goes back to what was open when you return', async () => {
@@ -807,7 +815,7 @@ it('goes back to what was open when you return', async () => {
   // Away…
   await userEvent.click(screen.getByRole('button', { name: 'Branch' }))
   await userEvent.click(await screen.findByRole('menuitemradio', { name: /fix/ }))
-  await waitFor(() => expect(push).toHaveBeenCalledWith('/'))
+  await waitFor(() => expect(push).toHaveBeenCalledWith(pushed('/')))
   pathname = '/'
   rerender(tree(client))
 
@@ -817,7 +825,7 @@ it('goes back to what was open when you return', async () => {
   await userEvent.click(await screen.findByRole('menuitemradio', { name: /main/ }))
 
   await waitFor(() =>
-    expect(push).toHaveBeenCalledWith('/doc/vault/Handbook/Overview.md'),
+    expect(push).toHaveBeenCalledWith(pushed('/doc/vault/Handbook/Overview.md')),
   )
 })
 
@@ -840,7 +848,7 @@ it('remembers the page a checkout was left on across a relaunch', async () => {
   // Left on `fix`, which is where the window closes.
   await userEvent.click(screen.getByRole('button', { name: 'Branch' }))
   await userEvent.click(await screen.findByRole('menuitemradio', { name: /fix/ }))
-  await waitFor(() => expect(push).toHaveBeenCalledWith('/'))
+  await waitFor(() => expect(push).toHaveBeenCalledWith(pushed('/')))
   pathname = '/'
   unmount()
 
@@ -852,7 +860,7 @@ it('remembers the page a checkout was left on across a relaunch', async () => {
   await userEvent.click(await screen.findByRole('menuitemradio', { name: /main/ }))
 
   await waitFor(() =>
-    expect(push).toHaveBeenCalledWith('/doc/vault/Handbook/Overview.md'),
+    expect(push).toHaveBeenCalledWith(pushed('/doc/vault/Handbook/Overview.md')),
   )
 })
 

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import type { Identity } from '@broodmother/shared'
+import type { Identity } from '@/types'
 import { opalFrom } from '../../colors'
 import { InlineEditor } from '../../editor'
 import { useApp } from '../../state'
@@ -22,6 +22,7 @@ export function ProfilePanel() {
         gitAuthor: app.profile.gitAuthor,
         sshKeyPath: app.profile.sshKeyPath,
         claudeCfgDir: app.profile.claudeCfgDir,
+        cursorCfgDir: app.profile.cursorCfgDir,
         soul: app.profile.soul,
       })
   }, [app.profile])
@@ -95,6 +96,8 @@ export function ProfilePanel() {
         <ProfileKey />
       </fieldset>
 
+      {/* The box's legend says whose it is; the aria name repeats it because two fields
+          reading "Config directory" alone cannot be told apart by ear. */}
       <fieldset className="field-group">
         <legend>Claude</legend>
         <label>
@@ -102,6 +105,7 @@ export function ProfilePanel() {
           <input
             value={identity.claudeCfgDir ?? ''}
             placeholder="~/.claude"
+            aria-label="Claude config directory"
             onChange={(event) =>
               setIdentity({ ...identity, claudeCfgDir: event.target.value || null })
             }
@@ -109,6 +113,23 @@ export function ProfilePanel() {
         </label>
 
         <p className="hint">The Claude login this profile&rsquo;s terminals run as.</p>
+      </fieldset>
+
+      <fieldset className="field-group">
+        <legend>Cursor</legend>
+        <label>
+          Config directory
+          <input
+            value={identity.cursorCfgDir ?? ''}
+            placeholder="~/.cursor"
+            aria-label="Cursor config directory"
+            onChange={(event) =>
+              setIdentity({ ...identity, cursorCfgDir: event.target.value || null })
+            }
+          />
+        </label>
+
+        <p className="hint">The Cursor login this profile&rsquo;s terminals run as.</p>
       </fieldset>
 
       {/* Markdown, and edited as markdown: what goes in it is a page about a person, not a

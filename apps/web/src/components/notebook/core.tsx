@@ -1,14 +1,9 @@
 'use client'
 
 import { Fragment, useEffect, useRef, useState, type KeyboardEvent } from 'react'
-import {
-  NotebookParseError,
-  parseNotebook,
-  serializeNotebook,
-  type Notebook,
-  type NotebookCell,
-} from '@broodmother/notebook'
-import type { DocRef } from '@broodmother/shared'
+import { NotebookParseError, parseNotebook, serializeNotebook } from '@/core'
+import type { Notebook, NotebookCell } from '@/types'
+import type { DocRef } from '@/types'
 import { Editor } from '../../editor'
 import { CodeCell } from './code-cell'
 import { CellGutter, InsertHere } from './controls'

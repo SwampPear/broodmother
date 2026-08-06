@@ -11,6 +11,7 @@ const IDENTITY = {
   gitAuthor: { name: 'Test', email: 'test@localhost' },
   sshKeyPath: null,
   claudeCfgDir: null,
+  cursorCfgDir: null,
   soul: null,
 }
 

@@ -1,4 +1,4 @@
-import type { DiffChange, DiffFile, DocPath, TreeEntry } from '@broodmother/shared'
+import type { DiffChange, DiffFile, DocPath, TreeEntry } from '@/types'
 
 /**
  * The tree a comparison draws: the paths that differ, and the folders on the way to them.

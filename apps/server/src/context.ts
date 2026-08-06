@@ -1,31 +1,28 @@
-import { mkdir, readdir, rm, stat } from 'node:fs/promises'
+import { mkdir, stat } from 'node:fs/promises'
 import path from 'node:path'
-import {
-  defaultGitSettings,
-  projectOf,
-  projectRoot,
-  type AccessCheck,
-  type Branch,
-  type BroodmotherConfig,
-  type DiffBasis,
-  type DiffFile,
-  type DocPath,
-  type DocRoot,
-  type GitSettings,
-  type GithubDevice,
-  type GithubRepo,
-  type GitState,
-  type Identity,
-  type NewProject,
-  type Persona,
-  type Profile,
-  type ProjectSummary,
-  type ServerMessage,
-  type TreeChanges,
-  type TreeEntry,
-  type TreeEvent,
-  type VaultSummary,
-} from '@broodmother/shared'
+import { defaultGitSettings, projectOf, projectRoot } from '@/core'
+import type {
+  AccessCheck,
+  Branch,
+  BroodmotherConfig,
+  DiffBasis,
+  DiffFile,
+  DocPath,
+  DocRoot,
+  GithubRepo,
+  GitSettings,
+  GitState,
+  Identity,
+  NewProject,
+  Persona,
+  Profile,
+  ProjectSummary,
+  ServerMessage,
+  TreeChanges,
+  TreeEntry,
+  TreeEvent,
+  VaultSummary,
+} from '@/types'
 import { brief, type BriefState } from './brief'
 import {
   BranchError,
@@ -36,38 +33,18 @@ import {
   removeBranch,
   type Checkouts,
 } from './branches'
-import { ConfigStore, defaultConfig } from './config'
+import type { ConfigStore } from './config'
 import { diffFiles, mergeBase, readBlob, resolveRef } from './diff'
-import {
-  Crontab,
-  Dreams,
-  RunStore,
-  TriggerStore,
-  systemCrontab,
-  type CrontabIO,
-  type DreamSite,
-} from './dreams'
+import type { DreamSite } from './dreams'
 import {
   GithubError,
   createRepo as createGithubRepo,
   login as githubLogin,
   poll as githubPoll,
   repos as githubRepos,
-  startDevice,
 } from './github'
 import { Git, GitWatcher, SyncLoop } from './git'
-import { migrate } from './migrate'
 import {
-  ProjectError,
-  createProject,
-  deleteProject,
-  listProjects,
-  projectCheckouts,
-} from './project'
-import {
-  ProfileError,
-  broodmotherHome,
-  createProfile,
   expandHome,
   findProfile,
   generateKey,
@@ -79,31 +56,26 @@ import {
   writeAccount,
   writeIdentity,
 } from './profiles'
-import { Relay, Terminals, type TerminalSession } from './sockets'
+import type { TerminalSession } from './sockets'
 import { Tree, TreeWatcher } from './tree'
 import {
   LinkIndex,
   PRIMARY,
-  VaultError,
   checkoutPath,
-  createVault,
-  deleteVault,
   findVault,
   listVaults,
-  readPersona,
   scanPersonas,
   scanSkills,
   vaultCheckouts,
-  type NewVault,
   type Skill,
 } from './vault'
-
-export interface ContextOptions {
-  root?: string
-  home?: string
-  /** The system crontab unless a test hands in a tamer one. */
-  cron?: CrontabIO
-}
+import {
+  ProjectError,
+  createProject,
+  deleteProject,
+  listProjects,
+  projectCheckouts,
+} from './project'
 
 export class NoVaultError extends Error {}
 export class NoProjectError extends Error {}
@@ -126,9 +98,8 @@ export interface OpenVault {
 
 /**
  * The same for each project the vault links. Every one of them is open — the sidebar draws
- * them all and switching between them is a click — but only the one you are in is watched:
- * a `TreeWatcher` is chokidar over the whole folder, and a code repository's `node_modules`
- * is not something to hold four of.
+ * them all and switching between them is a click — but only the one you are in is watched,
+ * because nobody is looking at the others and every write in one is an event to carry.
  */
 export interface OpenProject {
   name: string
@@ -141,32 +112,34 @@ export interface OpenProject {
   gitWatcher: GitWatcher | null
 }
 
-/** Everything that touches disk, and the one place any root can be swapped. */
-export class AppContext {
+/** What a vault's context borrows from the process it lives in: the shared config, the one
+ *  relay every window listens on, and the address agents are told to call back. */
+export interface VaultDeps {
+  home: string
+  store: ConfigStore
+  broadcast: (message: ServerMessage) => void
+  url: () => string
+}
+
+/**
+ * One open vault: its checkout, its projects, the profile it commits as and its own sync
+ * loop. Several can stand at once — each window works in its own — so nothing here reaches
+ * for machine-global state beyond the shared config, and the vault a context is about never
+ * changes underneath it. Null is the first-run state: a profile perhaps, but no vault yet.
+ */
+export class VaultContext {
   private vaultOpen: OpenVault | null = null
   private readonly projectsOpen = new Map<string, OpenProject>()
   private activeProfile: Profile | null = null
   /** The open profile's host token, read once when the profile is: every checkout's git is
    *  built with it, and reading a file per git command is a file read per git command. */
   private hostToken: string | null = null
-  /** The address the brief hands to agents, known only once the server is listening. */
-  private url = ''
   readonly sync: SyncLoop
-  readonly relay: Relay
-  readonly terminals: Terminals
-  readonly dreams: Dreams
-  private readonly runStore: RunStore
 
   private constructor(
-    readonly store: ConfigStore,
-    readonly home: string,
-    cron: CrontabIO,
+    readonly vaultPath: string | null,
+    private readonly deps: VaultDeps,
   ) {
-    this.relay = new Relay()
-    this.runStore = new RunStore(path.join(home, 'dreams.db'))
-    // The root the shell was opened from, then the vault, then the home — which is only
-    // where you stand on first run, when there is nothing to stand in yet.
-    this.terminals = new Terminals((root) => this.session(root))
     // Sync is the vault's alone: committing markdown you are typing is what it is for, and
     // committing a code repository nobody asked it to would be a different program.
     this.sync = new SyncLoop({
@@ -175,61 +148,22 @@ export class AppContext {
       author: () => this.activeProfile?.gitAuthor ?? null,
       onStatus: (status) => this.broadcast({ type: 'sync', status }),
     })
-    // Dreams run wherever a dream file can live: the vault, and every open project.
-    this.dreams = new Dreams({
-      sites: () => {
-        const sites: DreamSite[] = []
-        if (this.vaultOpen)
-          sites.push({
-            root: 'vault',
-            tree: this.vaultOpen.tree,
-            path: this.vaultOpen.path,
-          })
-        for (const project of this.projectsOpen.values())
-          sites.push({
-            root: projectRoot(project.name),
-            tree: project.tree,
-            path: project.path,
-          })
-        return sites
-      },
-      vault: () => this.vaultOpen?.tree ?? null,
-      url: () => this.url,
-      cron: new Crontab(cron),
-      store: new TriggerStore(path.join(home, 'triggers.json')),
-      runs: this.runStore,
-      scratch: () => path.join(home, 'dreams', 'runs'),
-      env: (): Record<string, string> => {
-        const claudeCfgDir = this.activeProfile?.claudeCfgDir
-        return claudeCfgDir ? { CLAUDE_CONFIG_DIR: expandHome(claudeCfgDir) } : {}
-      },
-      persona: (name) =>
-        this.vaultOpen ? readPersona(this.vaultOpen.path, name) : Promise.resolve(null),
-    })
   }
 
-  static async create(options: ContextOptions = {}): Promise<AppContext> {
-    const home = options.home ?? broodmotherHome()
-    await mkdir(home, { recursive: true })
-
-    // App state lives above the profiles rather than inside one, so the choice of vault
-    // survives switching between them — and a vault is a git working tree, which is no
-    // place for state the sync loop would offer to commit.
-    const store = new ConfigStore(path.join(home, 'config.json'), defaultConfig(null))
-    const migrated = await migrate(home, await store.load())
-    const context = new AppContext(store, home, options.cron ?? systemCrontab())
-
-    const vaultPath = await resolveVault(options.root, migrated.config, home)
-    // A vault sits inside the profile it commits as, so the open one settles who you are.
-    const profile = vaultPath
-      ? path.basename(path.dirname(vaultPath))
-      : migrated.config.profile
-    const config = { ...migrated.config, vaultPath, profile }
-    // Persist the resolution, or the open vault and the reported config disagree.
-    if (JSON.stringify(config) !== JSON.stringify(store.config)) await store.save(config)
+  static async open(vaultPath: string | null, deps: VaultDeps): Promise<VaultContext> {
+    const context = new VaultContext(vaultPath, deps)
+    // The profile is settled before the vault opens: it is what picks the key git offers.
     await context.loadProfile()
-    await context.useVault(vaultPath)
+    await context.useVault()
     return context
+  }
+
+  private get store(): ConfigStore {
+    return this.deps.store
+  }
+
+  get home(): string {
+    return this.deps.home
   }
 
   get config(): BroodmotherConfig {
@@ -238,7 +172,7 @@ export class AppContext {
 
   /** The open vault as the web app sees it, or null on first run. */
   get vault(): VaultSummary | null {
-    const target = this.config.vaultPath
+    const target = this.vaultPath
     if (!target) return null
     return {
       name: path.basename(target),
@@ -255,8 +189,7 @@ export class AppContext {
   /** Where you are working: the vault, or one of its projects. A project named here that is
    *  no longer linked is the vault, which is what unlinking the one you were in leaves. */
   get scope(): DocRoot {
-    const vault = this.config.vaultPath
-    const name = vault ? this.config.project[vault] : null
+    const name = this.vaultPath ? this.config.project[this.vaultPath] : null
     return name && this.projectsOpen.has(name) ? projectRoot(name) : 'vault'
   }
 
@@ -275,7 +208,7 @@ export class AppContext {
   /** How the open vault syncs. A vault nobody has configured uses the defaults, which sync
    *  nothing — git is opt-in, the same way it is optional. */
   get gitSettings(): GitSettings {
-    return this.settingsFor(this.config.vaultPath)
+    return this.settingsFor(this.vaultPath)
   }
 
   settingsFor(vaultPath: string | null): GitSettings {
@@ -284,10 +217,10 @@ export class AppContext {
 
   async setGitSettings(settings: GitSettings): Promise<GitSettings> {
     const target = this.requireVault.path
-    await this.store.save({
-      ...this.config,
-      git: { ...this.config.git, [target]: settings },
-    })
+    await this.store.update((config) => ({
+      ...config,
+      git: { ...config.git, [target]: settings },
+    }))
     await this.sync.refresh()
     return settings
   }
@@ -364,17 +297,7 @@ export class AppContext {
   }
 
   broadcast(message: ServerMessage): void {
-    this.relay.broadcast(message)
-  }
-
-  async setConfig(config: BroodmotherConfig): Promise<BroodmotherConfig> {
-    const previous = this.config.vaultPath
-    await this.store.save(config)
-    if (config.vaultPath !== previous) {
-      await this.loadProfile()
-      await this.useVault(config.vaultPath)
-    }
-    return this.config
+    this.deps.broadcast(message)
   }
 
   /** The profile's vaults. A machine with no profile yet has none to list. */
@@ -382,84 +305,27 @@ export class AppContext {
     return this.vaultHome ? listVaults(this.vaultHome) : []
   }
 
-  /** Deleting the vault you are in falls back the way startup does: whatever is left, or
-   *  nothing, which is the first-run state again. */
-  async removeVault(name: string): Promise<VaultSummary | null> {
-    const home = this.vaultHome
-    const gone = home ? await findVault(name, home) : null
-    if (!home || !gone) throw new VaultError(`no vault named "${name}"`)
-    await deleteVault(name, home)
-
-    // Nothing filed under the path outlives it: a folder of that name made later is a
-    // different vault, and it does not inherit this one's sync settings or the projects
-    // that were inside it.
-    const config = this.forget(gone.path)
-    if (this.config.vaultPath !== gone.path) {
-      await this.store.save(config)
-      return this.vault
-    }
-
-    const next = (await listVaults(home))[0] ?? null
-    await this.store.save({ ...config, vaultPath: next?.path ?? null })
-    await this.loadProfile()
-    await this.useVault(next?.path ?? null)
-    return this.vault
-  }
-
-  /** Everything this machine filed under a vault path, dropped. */
-  private forget(vaultPath: string): BroodmotherConfig {
-    const git = { ...this.config.git }
-    const checkouts = { ...this.config.checkouts }
-    const project = { ...this.config.project }
-    delete git[vaultPath]
-    delete checkouts[vaultPath]
-    delete project[vaultPath]
-    const projectBranch = Object.fromEntries(
-      Object.entries(this.config.projectBranch).filter(
-        ([key]) => !key.startsWith(`${vaultPath}#`),
-      ),
-    )
-    return { ...this.config, git, checkouts, project, projectBranch }
-  }
-
-  /**
-   * Everything broodmother has on disk: every profile, the vaults inside them, the projects
-   * inside those, and this machine's config. The home folder itself stays — it is a folder
-   * someone chose, and emptying it is what was asked for — and what stands in it afterwards
-   * is a first run.
-   */
-  async removeEverything(): Promise<BroodmotherConfig> {
-    // A latched conflict outlives a refresh, and it is about a vault that is going.
-    this.sync.clearConflict()
-    // Closed before the folders go, or the watcher reports the deletion of a vault nobody
-    // is in and the shells sit in a working directory that no longer exists.
-    await this.useVault(null)
-    this.terminals.close()
-    for (const entry of await readdir(this.home))
-      await rm(path.join(this.home, entry), { recursive: true, force: true })
-    this.activeProfile = null
-    return this.store.save(defaultConfig(null))
-  }
-
-  async listProfiles(): Promise<Profile[]> {
-    return listProfiles(this.home)
-  }
-
-  /** A profile made from the vault menu is one you meant to work as, so it is worked as on
-   *  the spot. It holds no vaults yet, which is the first-run state with a name on it. */
-  async addProfile(input: { name: string } & Identity): Promise<Profile> {
-    const profile = await createProfile(input, this.home)
-    await this.useProfile(profile)
-    return profile
-  }
-
-  /** Working as someone else is standing in their folder, so what opens is one of their
-   *  vaults. Null when they have none yet, which is where a new profile starts. */
-  async selectProfile(name: string): Promise<VaultSummary | null> {
-    const profile = await findProfile(name, this.home)
-    if (!profile) throw new ProfileError(`no profile named "${name}"`)
-    await this.useProfile(profile)
-    return this.vault
+  /** Where dreams can live in this context: the vault, and every open project — each
+   *  naming the vault it belongs to, because `vault` alone is any window's root. */
+  dreamSites(): DreamSite[] {
+    const vaultPath = this.vaultPath
+    if (!vaultPath) return []
+    const sites: DreamSite[] = []
+    if (this.vaultOpen)
+      sites.push({
+        vault: vaultPath,
+        root: 'vault',
+        tree: this.vaultOpen.tree,
+        path: this.vaultOpen.path,
+      })
+    for (const project of this.projectsOpen.values())
+      sites.push({
+        vault: vaultPath,
+        root: projectRoot(project.name),
+        tree: project.tree,
+        path: project.path,
+      })
+    return sites
   }
 
   /** Whether the root named can reach its remote, and which reason it cannot. */
@@ -484,7 +350,7 @@ export class AppContext {
       ...profile,
       sshKeyPath: keyFile(profile),
     })
-    await this.useVault(this.config.vaultPath)
+    await this.useVault()
     return { profile: this.activeProfile, publicKey }
   }
 
@@ -503,7 +369,7 @@ export class AppContext {
     const login = await githubLogin(answer.token)
     this.activeProfile = await writeAccount(profile, { login, token: answer.token })
     this.hostToken = answer.token
-    await this.useVault(this.config.vaultPath)
+    await this.useVault()
     return { pending: false, profile: this.activeProfile }
   }
 
@@ -512,7 +378,7 @@ export class AppContext {
   async disconnectGithub(): Promise<Profile> {
     this.activeProfile = await writeAccount(this.requireProfile, null)
     this.hostToken = null
-    await this.useVault(this.config.vaultPath)
+    await this.useVault()
     return this.activeProfile
   }
 
@@ -523,10 +389,6 @@ export class AppContext {
     if (!account)
       throw new GithubError(`${this.requireProfile.name} is not connected to GitHub`)
     return account.token
-  }
-
-  async startGithub(): Promise<GithubDevice> {
-    return startDevice()
   }
 
   async githubRepos(): Promise<GithubRepo[]> {
@@ -541,25 +403,15 @@ export class AppContext {
     this.activeProfile = await writeIdentity(this.requireProfile, identity)
     // The key a checkout's git offers is fixed when it opens, so both are reopened to pick
     // up a changed one.
-    await this.useVault(this.config.vaultPath)
+    await this.useVault()
     return this.activeProfile
-  }
-
-  private async useProfile(profile: Profile): Promise<void> {
-    this.activeProfile = profile
-    this.hostToken = (await readAccount(profile))?.token ?? null
-    const target = (await listVaults(profileDir(profile)))[0]?.path ?? null
-    await this.store.save({ ...this.config, profile: profile.name, vaultPath: target })
-    // The key a checkout's git offers is fixed when it opens, so both are reopened to pick
-    // up the new profile's.
-    await this.useVault(target)
   }
 
   /** The open vault sits inside the profile it commits as, so the path names it. With no
    *  vault the config remembers who you were working as, and a name pointing at nothing
    *  falls back to whichever profile is on disk. */
   private async loadProfile(): Promise<void> {
-    const target = this.config.vaultPath
+    const target = this.vaultPath
     const name = target ? path.basename(path.dirname(target)) : this.config.profile
     this.activeProfile = name ? await findProfile(name, this.home) : null
     if (!this.activeProfile && !target)
@@ -571,16 +423,18 @@ export class AppContext {
 
   /** Where a shell opens: the root it was opened from, the vault if that root is gone, and
    *  the home only on a first run with neither. */
-  private session(root: DocRoot | null): TerminalSession {
+  session(root: DocRoot | null): TerminalSession {
     const name = root ? projectOf(root) : projectOf(this.scope)
     const project = name ? this.projectsOpen.get(name) : null
     const claudeCfgDir = this.activeProfile?.claudeCfgDir
+    const cursorCfgDir = this.activeProfile?.cursorCfgDir
     const cwd = project?.path ?? this.vaultOpen?.path ?? this.home
     const here = project ? projectRoot(project.name) : 'vault'
     return {
       cwd,
       env: {
         ...(claudeCfgDir ? { CLAUDE_CONFIG_DIR: expandHome(claudeCfgDir) } : {}),
+        ...(cursorCfgDir ? { CURSOR_CONFIG_DIR: expandHome(cursorCfgDir) } : {}),
         BROODMOTHER_BRIEF: brief(this.briefState(cwd, here)),
       },
     }
@@ -593,7 +447,7 @@ export class AppContext {
     const vault = this.vault
     const state = this.sync.state.state
     return {
-      api: this.url,
+      api: this.deps.url(),
       profile: this.activeProfile?.name ?? null,
       soul: this.activeProfile?.soul ?? null,
       vault:
@@ -609,41 +463,6 @@ export class AppContext {
       cwd,
       sync: state === 'conflict' ? 'conflicted' : state === 'off' ? 'off' : 'on',
     }
-  }
-
-  /**
-   * A vault is created as the profile you are working as, and stays bound to it. A vault
-   * given a remote starts syncing, because asking for one is asking for that; a plain
-   * folder or a local repository does not, because there is nowhere for it to sync to.
-   */
-  async addVault(input: NewVault): Promise<VaultSummary> {
-    const profile = this.requireProfile
-    const vault = await createVault(input, profile)
-    await this.store.save({
-      ...this.config,
-      vaultPath: vault.path,
-      profile: profile.name,
-      git: {
-        ...this.config.git,
-        [vault.path]: { ...defaultGitSettings(), enabled: input.git === 'remote' },
-      },
-    })
-    await this.useVault(vault.path)
-    return vault
-  }
-
-  /** Opens a vault. Nothing about git is copied out of it: how it syncs is its own setting,
-   *  and where it syncs is a question for the repository every time it is asked. */
-  async openVault(vaultPath: string): Promise<BroodmotherConfig> {
-    const config = await this.store.save({
-      ...this.config,
-      vaultPath,
-      profile: path.basename(path.dirname(vaultPath)),
-    })
-    // The profile is settled before the vault opens: it is what picks the key git offers.
-    await this.loadProfile()
-    await this.useVault(vaultPath)
-    return config
   }
 
   async listProjects(): Promise<ProjectSummary[]> {
@@ -676,10 +495,10 @@ export class AppContext {
     const name = projectOf(root)
     if (name && !this.projectsOpen.has(name))
       throw new ProjectError(`no project named "${name}"`)
-    const config = await this.store.save({
-      ...this.config,
-      project: { ...this.config.project, [vault]: name },
-    })
+    const config = await this.store.update((current) => ({
+      ...current,
+      project: { ...current.project, [vault]: name },
+    }))
     await this.watchScope()
     return config
   }
@@ -690,35 +509,29 @@ export class AppContext {
     const vault = this.requireVault.path
     await this.closeProject(name)
     await deleteProject(vault, name)
-    const { [this.branchKey(vault, name)]: _gone, ...projectBranch } =
-      this.config.projectBranch
     const scoped = this.config.project[vault] === name
-    await this.store.save({
-      ...this.config,
-      projectBranch,
-      project: scoped ? { ...this.config.project, [vault]: null } : this.config.project,
+    await this.store.update((config) => {
+      const { [this.branchKey(vault, name)]: _gone, ...projectBranch } =
+        config.projectBranch
+      return {
+        ...config,
+        projectBranch,
+        project: scoped ? { ...config.project, [vault]: null } : config.project,
+      }
     })
     if (scoped) await this.watchScope()
   }
 
-  start(url: string): void {
-    this.url = url
+  start(): void {
     this.sync.start()
-    this.dreams.start()
   }
 
   async close(): Promise<void> {
     this.sync.stop()
-    this.dreams.stop()
-    this.runStore.close()
-    this.relay.close()
-    this.terminals.close()
     await this.vaultOpen?.watcher.close()
     await this.vaultOpen?.gitWatcher.close()
-    for (const project of this.projectsOpen.values()) {
-      await project.watcher?.close()
-      await project.gitWatcher?.close()
-    }
+    for (const name of [...this.projectsOpen.keys()]) await this.closeProject(name)
+    this.vaultOpen = null
   }
 
   /**
@@ -732,7 +545,7 @@ export class AppContext {
 
   /** The directory the vault's document tree, git and sync all sit in. */
   get root(): string | null {
-    const vault = this.config.vaultPath
+    const vault = this.vaultPath
     return vault ? checkoutPath(vault, this.checkoutFor(vault)) : null
   }
 
@@ -753,7 +566,7 @@ export class AppContext {
   async listBranches(root: DocRoot): Promise<Branch[]> {
     const name = projectOf(root)
     if (name && !this.projectsOpen.has(name)) return []
-    if (!this.config.vaultPath) return []
+    if (!this.vaultPath) return []
     return listBranches(await this.checkoutsFor(root))
   }
 
@@ -867,21 +680,21 @@ export class AppContext {
     const vault = this.requireVault.path
     const folder = path.basename(branch.path)
     if (root === 'vault') {
-      await this.store.save({
-        ...this.config,
-        checkouts: { ...this.config.checkouts, [vault]: folder },
-      })
-      await this.useVault(vault)
+      await this.store.update((config) => ({
+        ...config,
+        checkouts: { ...config.checkouts, [vault]: folder },
+      }))
+      await this.useVault()
       return
     }
     const name = projectOf(root)!
-    await this.store.save({
-      ...this.config,
+    await this.store.update((config) => ({
+      ...config,
       projectBranch: {
-        ...this.config.projectBranch,
+        ...config.projectBranch,
         [this.branchKey(vault, name)]: folder,
       },
-    })
+    }))
     await this.reopenProject(name)
   }
 
@@ -895,7 +708,7 @@ export class AppContext {
   /** One project, back onto whichever checkout the config now names — what moving it onto
    *  another branch leaves to do. The others are untouched. */
   private async reopenProject(name: string): Promise<void> {
-    const vaultPath = this.config.vaultPath
+    const vaultPath = this.vaultPath
     await this.closeProject(name)
     if (!vaultPath) return
     const target = await this.checkoutOf(vaultPath, name)
@@ -911,9 +724,12 @@ export class AppContext {
     await this.watchScope()
   }
 
-  private async useVault(vaultPath: string | null): Promise<void> {
+  /** The vault's checkout and projects, (re)opened off disk — what a changed key, token or
+   *  branch leaves to do, since all three are fixed when a checkout's git opens. */
+  private async useVault(): Promise<void> {
     await this.vaultOpen?.watcher.close()
     await this.vaultOpen?.gitWatcher.close()
+    const vaultPath = this.vaultPath
     if (!vaultPath) {
       this.vaultOpen = null
       await this.useProjects()
@@ -934,7 +750,7 @@ export class AppContext {
       personas: await scanPersonas(target),
       git: new Git(target, this.activeProfile?.sshKeyPath ?? null, this.hostToken),
       watcher: new TreeWatcher(target, (event) => this.onTreeEvent('vault', event), {
-        skipped: await this.ignoredIn(target),
+        skipped: () => this.ignoredIn(target),
       }),
       gitWatcher: new GitWatcher(target, () => this.onGitEvent('vault')),
     }
@@ -951,7 +767,7 @@ export class AppContext {
    */
   private async useProjects(): Promise<void> {
     for (const name of [...this.projectsOpen.keys()]) await this.closeProject(name)
-    const vaultPath = this.config.vaultPath
+    const vaultPath = this.vaultPath
     if (!vaultPath) return
 
     for (const project of await listProjects(vaultPath)) {
@@ -1006,7 +822,7 @@ export class AppContext {
         project.watcher = new TreeWatcher(
           project.path,
           (event) => this.onTreeEvent(projectRoot(project.name), event),
-          { skipped: await this.ignoredIn(project.path) },
+          { skipped: () => this.ignoredIn(project.path) },
         )
       } else if (project.name !== here && project.watcher) {
         await project.watcher.close()
@@ -1066,23 +882,3 @@ const exists = (target: string) =>
     () => true,
     () => false,
   )
-
-/**
- * An explicit path always wins, then whatever was open last, then the first vault the
- * profile has — the only other thing a folder there can mean is a vault someone dropped in
- * by hand. Falling through to null is normal on first run: nothing is invented, and the web
- * app asks where you work.
- */
-async function resolveVault(
-  root: string | undefined,
-  config: BroodmotherConfig,
-  home: string,
-): Promise<string | null> {
-  const explicit = root ?? process.env.BROODMOTHER_VAULT
-  if (explicit) return path.resolve(explicit)
-  if (config.vaultPath && (await exists(config.vaultPath))) return config.vaultPath
-  const profile = config.profile ?? (await listProfiles(home))[0]?.name
-  if (!profile) return null
-  const vaults = await listVaults(path.join(home, profile))
-  return vaults[0]?.path ?? null
-}

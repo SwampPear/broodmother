@@ -1,7 +1,7 @@
 import { utimes, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { afterAll, expect, it } from 'vitest'
-import type { DreamNode } from '@broodmother/shared'
+import type { DreamNode } from '@/types'
 import { cleanup, tempDir } from '../test'
 import { TriggerStore } from './state'
 import { eventCheck, type TriggerTools } from './triggers'

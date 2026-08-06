@@ -1,6 +1,6 @@
 import path from 'node:path'
 import { afterAll, expect, it } from 'vitest'
-import type { DreamRun } from '@broodmother/shared'
+import type { DreamRun } from '@/types'
 import { cleanup, tempDir } from '../test'
 import { RunStore } from './db'
 

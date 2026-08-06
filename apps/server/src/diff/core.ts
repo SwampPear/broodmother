@@ -1,14 +1,19 @@
-import type { DiffChange, DiffFile, DocPath } from '@broodmother/shared'
+import type { DiffChange, DiffFile, DocPath } from '@/types'
 import type { Git } from '../git'
 
 /**
  * The ref a branch name stands for, spelled in full so nothing else can answer to it — a
  * file called `main` beside a branch called `main` is a question git would otherwise have
  * to guess at. A branch nobody has checked out yet is only on the remote, and that is the
- * ordinary way to meet one here, so it is looked for there too.
+ * ordinary way to meet one here, so it is looked for there too — under its bare name, or
+ * already wearing the remote's, which is how the branch list offers one.
  */
 export async function resolveRef(git: Git, name: string): Promise<string | null> {
-  for (const ref of [`refs/heads/${name}`, `refs/remotes/origin/${name}`]) {
+  for (const ref of [
+    `refs/heads/${name}`,
+    `refs/remotes/origin/${name}`,
+    `refs/remotes/${name}`,
+  ]) {
     const result = await git.run(['rev-parse', '--verify', '--quiet', ref])
     if (result.exitCode === 0 && String(result.stdout).trim()) return ref
   }

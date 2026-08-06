@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import type { VaultSummary } from '@broodmother/shared'
+import type { VaultSummary } from '@/types'
+import { browse, vaultHref } from '../../window-vault'
 import { Confirm, Icon, Menu, type MenuSection } from '../ui'
 
 const logo = <img className="logo" src="/logo.png" alt="" width={20} height={20} />
@@ -42,7 +43,7 @@ export function VaultMenu({
   onOpenChange: (open: boolean) => void
   onSelect: (path: string) => void
   onAdd: () => void
-  onDelete: (name: string) => void
+  onDelete: (vault: VaultSummary) => void
   onCreateProject: () => void
   onSettings: () => void
   onDreams: () => void
@@ -64,6 +65,17 @@ export function VaultMenu({
       heading: into.vault.name,
       actions: [
         {
+          // The same vault twice is the same context mirrored; the point is a second
+          // window standing somewhere else, and this is the doorway to one.
+          id: 'open-window',
+          label: 'Open in new window',
+          icon: 'chevrons-right',
+          onSelect: () => {
+            close()
+            browse.newWindow(vaultHref(into.vault.path))
+          },
+        },
+        {
           id: 'delete',
           label: 'Delete vault…',
           icon: 'x',
@@ -77,13 +89,14 @@ export function VaultMenu({
     },
   ]
 
+  // Every profile's vaults are here, so a row names whose it is once there is more than
+  // one profile to tell apart.
+  const manyProfiles = new Set(vaults.map((vault) => vault.profile)).size > 1
   const vaultSection: MenuSection = {
     heading: 'Vaults',
-    // No profile on the rows: these are the folders in one profile's folder, and the
-    // section below says which profile that is.
     actions: vaults.map((vault) => ({
       id: vault.path,
-      label: vault.name,
+      label: manyProfiles ? `${vault.name} · ${vault.profile}` : vault.name,
       selected: vault.path === active?.path,
       onSelect: () => {
         close()
@@ -144,7 +157,7 @@ export function VaultMenu({
           title={`Delete ${confirming.vault.name}?`}
           description={`${confirming.vault.path} and everything in it are removed from disk. Anything not pushed is gone with it.`}
           action="delete vault"
-          onConfirm={() => onDelete(confirming.vault.name)}
+          onConfirm={() => onDelete(confirming.vault)}
           onClose={() => setConfirming(null)}
         >
           A vault is a folder, so this is the folder going away — the git history inside

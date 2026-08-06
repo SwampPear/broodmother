@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import type { Branch, DiffBasis } from '@broodmother/shared'
+import type { Branch, DiffBasis } from '@/types'
 import { Icon, Menu, type IconName, type MenuSection } from '../ui'
 
 /** Under this the whole list is on the surface already, and a field over it is chrome. */

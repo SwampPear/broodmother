@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises'
-import { DreamError, type DreamNode } from '@broodmother/shared'
+import { DreamError } from '@/dream'
+import type { DreamNode } from '@/types'
 import type { Tree } from '../../tree'
 import { claudeBlock } from './claude'
 import { shellBlock } from './shell'

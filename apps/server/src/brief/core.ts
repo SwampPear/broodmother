@@ -1,4 +1,5 @@
-import { projectOf, tilde, type DocRoot } from '@broodmother/shared'
+import { projectOf, tilde } from '@/core'
+import type { DocRoot } from '@/types'
 import type { Skill } from '../vault'
 import { DEFAULT_SOUL } from './soul'
 

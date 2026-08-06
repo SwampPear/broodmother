@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import type { GithubRepo } from '@broodmother/shared'
+import type { GithubRepo } from '@/types'
 import { useApp } from '../../state'
 import { Button, Select } from '../ui'
 

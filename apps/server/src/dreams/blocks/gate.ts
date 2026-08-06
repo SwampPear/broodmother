@@ -1,4 +1,4 @@
-import type { GateNode } from '@broodmother/shared'
+import type { GateNode } from '@/types'
 import type { StepCtx, StepResult } from './core'
 
 /** The gate ran either way; a miss keeps no route, so the branch beyond it goes quiet. */

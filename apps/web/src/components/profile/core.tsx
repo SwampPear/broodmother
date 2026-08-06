@@ -1,7 +1,8 @@
 'use client'
 
 import { useCallback, useState } from 'react'
-import { tilde, type GitAuthor, type Profile } from '@broodmother/shared'
+import { tilde } from '@/core'
+import type { GitAuthor, Profile } from '@/types'
 import { opal } from '../../colors'
 import { Button, Modal } from '../ui'
 import { type ProfileDraft, ProfileForm, type ProfileFormState } from './form'

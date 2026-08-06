@@ -1,4 +1,5 @@
-import { basename, projectOf, type DocRef } from '@broodmother/shared'
+import { basename, projectOf } from '@/core'
+import type { DocRef } from '@/types'
 import { displayName, fileTag, type IconName } from '../ui'
 import { deleteFlow, type Flow, type FlowCtx, moveFlow } from './flows'
 

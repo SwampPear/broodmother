@@ -4,7 +4,7 @@ import { expect, it, vi } from 'vitest'
 import { NotebookView } from './core'
 
 /** The real cell editor is Monaco; what this file is about is cells, modes and keys. */
-vi.mock('@broodmother/editor', () => ({
+vi.mock('@/editor', () => ({
   CellEditor: ({
     value,
     onChange,

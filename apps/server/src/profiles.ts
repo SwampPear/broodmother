@@ -3,7 +3,7 @@ import { execa } from 'execa'
 import os from 'node:os'
 import path from 'node:path'
 import { z } from 'zod'
-import type { GitAuthor, Identity, Profile } from '@broodmother/shared'
+import type { GitAuthor, Identity, Profile } from '@/types'
 import { DEFAULT_SOUL } from './brief'
 import { atomicWrite } from './fs'
 import { nameProblem } from './fs'
@@ -23,6 +23,7 @@ export const identitySchema = z.object({
   gitAuthor: z.object({ name: z.string().min(1), email: z.string().min(1) }),
   sshKeyPath: credential,
   claudeCfgDir: credential,
+  cursorCfgDir: credential,
   soul: credential,
 })
 
@@ -126,6 +127,7 @@ async function identityOf(file: string, name: string): Promise<Identity> {
     gitAuthor: { name, email: `${name}@localhost` },
     sshKeyPath: null,
     claudeCfgDir: null,
+    cursorCfgDir: null,
     soul: null,
   }
   const source = await rawProfile(file)

@@ -2,7 +2,7 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import WebSocket from 'ws'
 import { afterAll, describe, expect, it } from 'vitest'
-import type { ServerMessage } from '@broodmother/shared'
+import type { ServerMessage } from '@/types'
 import { cleanup, fakeCrontab, tempDir, until } from '../test'
 import { type ServerHandle, startServer } from '../index'
 
@@ -33,8 +33,9 @@ interface Client {
   close: () => void
 }
 
-async function connect(handle: ServerHandle): Promise<Client> {
-  const socket = new WebSocket(`ws://127.0.0.1:${handle.port}/ws`)
+async function connect(handle: ServerHandle, vault?: string): Promise<Client> {
+  const query = vault ? `?vault=${encodeURIComponent(vault)}` : ''
+  const socket = new WebSocket(`ws://127.0.0.1:${handle.port}/ws${query}`)
   const messages: ServerMessage[] = []
 
   socket.on('message', (data) => messages.push(JSON.parse(String(data)) as ServerMessage))
@@ -70,7 +71,7 @@ describe('relay', { retry: 2 }, () => {
      through the watcher, which is what lets an open document follow the file. */
   it('pushes a write made behind its back, straight to disk', async () => {
     const handle = await server()
-    await handle.context.opened!.watcher.ready
+    await handle.manager.current.opened!.watcher.ready
     const a = await connect(handle)
 
     await writeFile(
@@ -86,12 +87,34 @@ describe('relay', { retry: 2 }, () => {
     })
   })
 
+  /* Two windows in two vaults: what one vault does is not news in the other. */
+  it('scopes events to the vault a window stands in', async () => {
+    const handle = await server()
+    const here = handle.manager.config.vaultPath!
+    const other = path.join(handle.manager.home, 'elsewhere', 'notes')
+    await mkdir(other, { recursive: true })
+
+    const a = await connect(handle, here)
+    const b = await connect(handle, other)
+
+    await fetch(`${handle.url}/api/doc`, {
+      method: 'PUT',
+      headers: {
+        'content-type': 'application/json',
+        'x-broodmother-vault': encodeURIComponent(here),
+      },
+      body: JSON.stringify({ root: 'vault', path: 'watched.md', markdown: '# watched' }),
+    })
+    await until(() => a.messages.some((m) => m.type === 'tree'))
+    expect(b.messages.filter((m) => m.type === 'tree')).toEqual([])
+  })
+
   it('drops a client that goes away', async () => {
     const handle = await server()
     const a = await connect(handle)
-    await until(() => handle.context.relay.connectionCount === 1)
+    await until(() => handle.manager.relay.connectionCount === 1)
 
     a.close()
-    await until(() => handle.context.relay.connectionCount === 0)
+    await until(() => handle.manager.relay.connectionCount === 0)
   })
 })

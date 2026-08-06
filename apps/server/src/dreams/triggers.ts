@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { stat } from 'node:fs/promises'
 import path from 'node:path'
-import type { DreamNode, FileTrigger, HttpTrigger } from '@broodmother/shared'
+import type { DreamNode, FileTrigger, HttpTrigger } from '@/types'
 
 /** What a trigger remembers between checks: a small JSON cursor — an mtime, an etag, a
  *  last-seen id — whatever the source hands out that says "seen up to here". */

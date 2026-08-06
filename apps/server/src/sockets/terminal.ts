@@ -1,11 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { spawn, type IPty } from '@lydell/node-pty'
 import type { WebSocket } from 'ws'
-import type {
-  DocRoot,
-  TerminalClientMessage,
-  TerminalServerMessage,
-} from '@broodmother/shared'
+import type { DocRoot, TerminalClientMessage, TerminalServerMessage } from '@/types'
 
 const SHELL = process.env.SHELL ?? '/bin/bash'
 const TERM = 'xterm-256color'
@@ -65,15 +61,19 @@ export interface TerminalSession {
  * Which shell a socket is asking for. The name is the client's — a tab's, which outlives the
  * page it was drawn on — so asking again after a reload reaches the same shell, and asking
  * after this process was restarted opens a new one under the name the tab still calls it.
+ * The vault scopes the name: two windows in different vaults both call their first tab
+ * `terminal:1`, and each means its own.
  */
 export interface TerminalRequest {
   root?: DocRoot | null
   session?: string | null
+  vault?: string | null
 }
 
 /** A running shell and whoever is currently watching it, which may be nobody. */
 interface Shell {
   id: string
+  vault: string | null
   pty: IPty
   /** The tail of what it has said, for whoever attaches next. */
   buffer: string
@@ -98,7 +98,10 @@ export class Terminals {
   private readonly reaper: NodeJS.Timeout
 
   constructor(
-    private readonly session: (root: DocRoot | null) => TerminalSession,
+    private readonly session: (
+      vault: string | null,
+      root: DocRoot | null,
+    ) => TerminalSession,
     private readonly detachedMs = DETACHED_MS,
   ) {
     this.reaper = setInterval(() => this.reapNow(), REAP_MS)
@@ -122,12 +125,15 @@ export class Terminals {
    * nobody was looking is answered with a new shell rather than an error — the tab is still
    * on screen and it still needs something to type into, and `ready` says which it got.
    */
-  accept(socket: WebSocket, { root = null, session = null }: TerminalRequest = {}): void {
-    const found = session ? this.shells.get(session) : undefined
+  accept(
+    socket: WebSocket,
+    { root = null, session = null, vault = null }: TerminalRequest = {},
+  ): void {
+    const found = session ? this.shells.get(keyOf(vault, session)) : undefined
     // Filed under the name it was asked for, so the tab that asks again after a reload —
     // or after this whole process was restarted — is asking a question that can be answered
     // rather than holding an id that means nothing any more.
-    const shell = found ?? this.spawn(root, session ?? randomUUID())
+    const shell = found ?? this.spawn(vault, root, session ?? randomUUID())
     // Two tabs cannot watch one shell: the second would type into the first's line. The
     // one that was there goes, and this socket is the one that has it.
     if (found?.socket && found.socket !== socket) found.socket.close()
@@ -153,7 +159,7 @@ export class Terminals {
 
     // Not `kill`: what closed may be a laptop lid. The shell keeps running and the next
     // socket to ask for it by name gets it back, with what it missed.
-    socket.on('close', () => this.detach(shell.id, socket))
+    socket.on('close', () => this.detach(shell, socket))
   }
 
   /**
@@ -164,22 +170,23 @@ export class Terminals {
    * Answers how many went, so that closing something already gone is not an error — the
    * shell may have exited on its own a moment before.
    */
-  finish(name: string): number {
-    const going = [...this.shells.keys()].filter(
-      (id) => id === name || id.startsWith(`${name}/`),
+  finish(name: string, vault: string | null = null): number {
+    const going = [...this.shells.values()].filter(
+      (shell) =>
+        shell.vault === vault && (shell.id === name || shell.id.startsWith(`${name}/`)),
     )
-    for (const id of going) this.kill(id)
+    for (const shell of going) this.kill(shell)
     return going.length
   }
 
   /** Everything, for a server on its way down. */
   close(): void {
     clearInterval(this.reaper)
-    for (const id of [...this.shells.keys()]) this.kill(id)
+    for (const shell of [...this.shells.values()]) this.kill(shell)
   }
 
-  private spawn(root: DocRoot | null, id: string): Shell {
-    const { cwd, env } = this.session(root)
+  private spawn(vault: string | null, root: DocRoot | null, id: string): Shell {
+    const { cwd, env } = this.session(vault, root)
     const pty = spawn(SHELL, ['-l'], {
       name: TERM,
       cwd,
@@ -187,8 +194,8 @@ export class Terminals {
       cols: 80,
       rows: 24,
     })
-    const shell: Shell = { id, pty, buffer: '', socket: null, detachedAt: null }
-    this.shells.set(shell.id, shell)
+    const shell: Shell = { id, vault, pty, buffer: '', socket: null, detachedAt: null }
+    this.shells.set(keyOf(vault, id), shell)
 
     // Kept whether anyone is listening or not: what a shell said while the lid was shut is
     // the thing somebody is coming back to read.
@@ -197,7 +204,7 @@ export class Terminals {
       if (shell.socket) send(shell.socket, { type: 'output', data })
     })
     pty.onExit(({ exitCode }) => {
-      this.shells.delete(shell.id)
+      this.shells.delete(keyOf(shell.vault, shell.id))
       if (!shell.socket) return
       send(shell.socket, { type: 'exit', code: exitCode })
       shell.socket.close()
@@ -206,19 +213,16 @@ export class Terminals {
   }
 
   /** The socket went away. The shell has not. */
-  private detach(id: string, socket: WebSocket): void {
-    const shell = this.shells.get(id)
+  private detach(shell: Shell, socket: WebSocket): void {
     // A socket that has already been replaced closes after the one that took over from it,
     // and it is not the one to say the shell is unwatched.
-    if (!shell || shell.socket !== socket) return
+    if (shell.socket !== socket) return
     shell.socket = null
     shell.detachedAt = Date.now()
   }
 
-  private kill(id: string): void {
-    const shell = this.shells.get(id)
-    if (!shell) return
-    this.shells.delete(id)
+  private kill(shell: Shell): void {
+    this.shells.delete(keyOf(shell.vault, shell.id))
     // Let go of the socket before the pty goes, so that the exit is not reported to whoever
     // is on the other end of it. A tab remounting asks for its shell again in the moment
     // between these two, and telling that one its shell had exited would close a pane that
@@ -234,8 +238,14 @@ export class Terminals {
   reapNow(detachedMs = this.detachedMs): void {
     const deadline = Date.now() - detachedMs
     for (const shell of [...this.shells.values()])
-      if (shell.detachedAt !== null && shell.detachedAt <= deadline) this.kill(shell.id)
+      if (shell.detachedAt !== null && shell.detachedAt <= deadline) this.kill(shell)
   }
+}
+
+/** The map's key: the client's name inside the vault it was said in. NUL cannot appear in a
+ *  path or a session name, so the two halves cannot collide by concatenation. */
+function keyOf(vault: string | null, id: string): string {
+  return `${vault ?? ''}\u0000${id}`
 }
 
 /** The last of the output, cut on a line where there is one to cut on: half a line at the

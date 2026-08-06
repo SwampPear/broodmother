@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import type { Profile } from '@broodmother/shared'
+import type { Profile } from '@/types'
 import { ProfilePicker } from './core'
 
 const existing: Profile[] = [
@@ -12,6 +12,7 @@ const existing: Profile[] = [
     gitAuthor: { name: 'Ada Lovelace', email: 'ada@example.com' },
     sshKeyPath: null,
     claudeCfgDir: null,
+    cursorCfgDir: null,
     soul: null,
     github: null,
   },
@@ -71,6 +72,7 @@ it('creates a profile from the name and identity you typed', async () => {
       gitAuthor: { name: 'Personal', email: 'you@example.com' },
       sshKeyPath: null,
       claudeCfgDir: null,
+      cursorCfgDir: null,
       soul: null,
     }),
   )
@@ -81,13 +83,15 @@ it('carries the credentials it was given, expanded by the server not here', asyn
   const { onCreate } = show()
   await fill('Personal', 'you@example.com')
   await userEvent.type(screen.getByLabelText('SSH key'), '~/.ssh/id_personal')
-  await userEvent.type(screen.getByLabelText('Config directory'), '~/.claude-work')
+  await userEvent.type(screen.getByLabelText('Claude config directory'), '~/.claude-work')
+  await userEvent.type(screen.getByLabelText('Cursor config directory'), '~/.cursor-work')
 
   await userEvent.click(screen.getByRole('button', { name: 'add profile' }))
 
   expect(onCreate.mock.calls[0][0]).toMatchObject({
     sshKeyPath: '~/.ssh/id_personal',
     claudeCfgDir: '~/.claude-work',
+    cursorCfgDir: '~/.cursor-work',
     soul: null,
   })
 })

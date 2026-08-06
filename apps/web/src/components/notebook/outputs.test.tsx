@@ -1,6 +1,6 @@
 import { render } from '@testing-library/react'
 import { expect, it } from 'vitest'
-import type { CellOutput } from '@broodmother/shared'
+import type { CellOutput } from '@/types'
 import { Outputs } from './outputs'
 
 function show(...outputs: CellOutput[]) {

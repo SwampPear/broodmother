@@ -1,6 +1,7 @@
 'use client'
 
-import { basename, type DocRef, type DocRoot } from '@broodmother/shared'
+import { basename } from '@/core'
+import type { DocRef, DocRoot } from '@/types'
 import {
   ContextMenu,
   displayName,

@@ -1,5 +1,5 @@
 {
   "extends": "./tsconfig.base.json",
-  "include": ["apps", "packages", "*.config.ts"],
+  "include": ["apps", "src", "*.config.ts"],
   "exclude": ["**/node_modules", "**/.next", "**/dist", "apps/web/wasm"]
 }

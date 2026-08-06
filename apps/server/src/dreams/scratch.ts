@@ -1,6 +1,6 @@
 import { mkdir, readFile, rm } from 'node:fs/promises'
 import path from 'node:path'
-import type { DreamNode } from '@broodmother/shared'
+import type { DreamNode } from '@/types'
 
 /**
  * One folder per run, under the broodmother home: the files the steps handed each other,

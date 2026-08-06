@@ -1,11 +1,8 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
-import {
-  defaultGitSettings,
-  type GitSettings,
-  type SyncStatus,
-} from '@broodmother/shared'
+import { defaultGitSettings } from '@/core'
+import type { GitSettings, SyncStatus } from '@/types'
 import { bareRemote, cleanup, cloneOf, git, tempDir } from '../test'
 import { Git } from './core'
 import { SyncLoop, commitMessage } from './sync'

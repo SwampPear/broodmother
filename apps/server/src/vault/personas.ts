@@ -1,6 +1,6 @@
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import type { Persona } from '@broodmother/shared'
+import type { Persona } from '@/types'
 
 /** A persona that exists is worth naming even when nobody has said what for. */
 const NO_DESCRIPTION = 'no description — read its PERSONA.md'

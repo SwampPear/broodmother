@@ -1,4 +1,4 @@
-import type { KernelState } from '@broodmother/shared'
+import type { KernelState } from '@/types'
 
 export interface KernelStatus {
   state: KernelState

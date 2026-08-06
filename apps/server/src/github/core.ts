@@ -1,4 +1,4 @@
-import type { GithubDevice, GithubRepo } from '@broodmother/shared'
+import type { GithubDevice, GithubRepo } from '@/types'
 
 export class GithubError extends Error {}
 

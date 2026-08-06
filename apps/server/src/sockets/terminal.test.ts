@@ -2,7 +2,7 @@ import os from 'node:os'
 import path from 'node:path'
 import WebSocket from 'ws'
 import { afterAll, describe, expect, it } from 'vitest'
-import type { TerminalClientMessage, TerminalServerMessage } from '@broodmother/shared'
+import type { TerminalClientMessage, TerminalServerMessage } from '@/types'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { defaultConfig } from '../config'
 import { createProfile } from '../profiles'
@@ -21,6 +21,7 @@ const IDENTITY = {
   gitAuthor: { name: 'Test', email: 'test@localhost' },
   sshKeyPath: null,
   claudeCfgDir: null,
+  cursorCfgDir: null,
   soul: null,
 }
 
@@ -46,8 +47,15 @@ interface Shell {
   send: (message: TerminalClientMessage) => void
 }
 
-async function open(handle: ServerHandle, session?: string): Promise<Shell> {
-  const query = session ? `?session=${encodeURIComponent(session)}` : ''
+async function open(
+  handle: ServerHandle,
+  session?: string,
+  vault?: string,
+): Promise<Shell> {
+  const params = new URLSearchParams()
+  if (session) params.set('session', session)
+  if (vault) params.set('vault', vault)
+  const query = params.size ? `?${params}` : ''
   const socket = new WebSocket(`ws://127.0.0.1:${handle.port}/terminal${query}`)
   const messages: TerminalServerMessage[] = []
   socket.on('message', (data) =>
@@ -72,11 +80,13 @@ async function open(handle: ServerHandle, session?: string): Promise<Shell> {
   }
 }
 
-describe('terminals', () => {
+/* Real ptys: the shell under each test starts on the operating system's clock, which a
+   fully loaded suite can push past a single try. Retried for the reason the relay is. */
+describe('terminals', { retry: 2 }, () => {
   it('runs what is typed and answers with the shell output', async () => {
     const handle = await server()
     const shell = await open(handle)
-    await until(() => handle.context.terminals.count === 1)
+    await until(() => handle.manager.terminals.count === 1)
 
     shell.send({ type: 'input', data: 'echo broodmother-$((1 + 0))\r' })
     await until(() => shell.output().includes('broodmother-1\r\n'))
@@ -87,25 +97,43 @@ describe('terminals', () => {
     const shell = await open(handle)
 
     shell.send({ type: 'input', data: 'pwd\r' })
-    await until(() => shell.output().includes(handle.context.config.vaultPath!))
+    await until(() => shell.output().includes(handle.manager.config.vaultPath!))
   })
 
   /* The shell opens on the vault, so switching vault has to move where the next one lands. */
   it('follows the vault you switch to', async () => {
     const handle = await server()
-    const other = path.join(handle.context.home, 'tester', 'notes')
+    const other = path.join(handle.manager.home, 'tester', 'notes')
     await mkdir(other, { recursive: true })
-    await handle.context.openVault(other)
+    await handle.manager.openVault(other)
 
     const shell = await open(handle)
     shell.send({ type: 'input', data: 'pwd\r' })
     await until(() => shell.output().includes(other))
   })
 
+  /* Two windows in different vaults both call their first shell by the same name, and each
+     means its own: the name is scoped to the vault the window stands in. */
+  it('keeps the same session name apart across vaults', async () => {
+    const handle = await server()
+    const here = handle.manager.config.vaultPath!
+    const other = path.join(handle.manager.home, 'tester', 'notes')
+    await mkdir(other, { recursive: true })
+
+    const a = await open(handle, 'panel:vault:claude', here)
+    const b = await open(handle, 'panel:vault:claude', other)
+    await until(() => handle.manager.terminals.count === 2)
+    expect(b.resumed).toBe(false)
+
+    a.send({ type: 'input', data: 'echo apart-$((1 + 0))\r' })
+    await until(() => a.output().includes('apart-1\r\n'))
+    expect(b.output()).not.toContain('apart-1')
+  })
+
   /* And a project open inside it wins: agents run in the repository the work is in. */
   it('opens in the project when one is open', async () => {
     const handle = await server()
-    const project = await handle.context.addProject({ name: 'api' })
+    const project = await handle.manager.current.addProject({ name: 'api' })
 
     const shell = await open(handle)
     shell.send({ type: 'input', data: 'pwd\r' })
@@ -115,12 +143,31 @@ describe('terminals', () => {
   /* A profile carries the Claude login its shells run as, or Claude picks its own. */
   it('runs the shell with the profile’s Claude config directory', async () => {
     const handle = await server()
-    await handle.context.setIdentity({ ...IDENTITY, claudeCfgDir: '~/claude-work' })
+    await handle.manager.current.setIdentity({
+      ...IDENTITY,
+      claudeCfgDir: '~/claude-work',
+    })
 
     const shell = await open(handle)
     shell.send({ type: 'input', data: 'echo "dir=$CLAUDE_CONFIG_DIR"\r' })
     await until(() =>
       shell.output().includes(`dir=${path.join(os.homedir(), 'claude-work')}`),
+    )
+  })
+
+  /* And the Cursor login the same way: the config directory is where its credentials
+     live, so pointing profiles at different ones is working as different accounts. */
+  it('runs the shell with the profile’s Cursor config directory', async () => {
+    const handle = await server()
+    await handle.manager.current.setIdentity({
+      ...IDENTITY,
+      cursorCfgDir: '~/cursor-work',
+    })
+
+    const shell = await open(handle)
+    shell.send({ type: 'input', data: 'echo "dir=$CURSOR_CONFIG_DIR"\r' })
+    await until(() =>
+      shell.output().includes(`dir=${path.join(os.homedir(), 'cursor-work')}`),
     )
   })
 
@@ -147,7 +194,7 @@ describe('terminals', () => {
      or the pty's echo of the command answers for it. */
   it('carries the brief in the shell’s environment', async () => {
     const handle = await server()
-    const project = await handle.context.addProject({ name: 'api' })
+    const project = await handle.manager.current.addProject({ name: 'api' })
 
     const shell = await open(handle)
     const holds = (pattern: string, mark: string) =>
@@ -173,7 +220,7 @@ describe('terminals', () => {
     shell.send({ type: 'input', data: 'exit 3\r' })
     await until(() => shell.exits().length === 1)
     expect(shell.exits()[0]!.code).toBe(3)
-    await until(() => handle.context.terminals.count === 0)
+    await until(() => handle.manager.terminals.count === 0)
   })
 
   /* The whole of why a session has a name. A laptop that slept, a tab the browser froze and
@@ -182,12 +229,12 @@ describe('terminals', () => {
   it('keeps the shell running when the socket closes', async () => {
     const handle = await server()
     const shell = await open(handle)
-    await until(() => handle.context.terminals.count === 1)
+    await until(() => handle.manager.terminals.count === 1)
 
     shell.socket.close()
-    await until(() => handle.context.terminals.detached === 1)
+    await until(() => handle.manager.terminals.detached === 1)
     await delay(100)
-    expect(handle.context.terminals.count).toBe(1)
+    expect(handle.manager.terminals.count).toBe(1)
   })
 
   it('hands the same shell back to a socket that asks for it by name', async () => {
@@ -196,7 +243,7 @@ describe('terminals', () => {
     shell.send({ type: 'input', data: 'marker=$((20 + 3))\r' })
     await until(() => shell.output().includes('marker='))
     shell.socket.close()
-    await until(() => handle.context.terminals.detached === 1)
+    await until(() => handle.manager.terminals.detached === 1)
 
     const back = await open(handle, shell.session)
     expect(back.resumed).toBe(true)
@@ -204,7 +251,7 @@ describe('terminals', () => {
     // The variable is proof it is the same shell: a new one has never heard of it.
     back.send({ type: 'input', data: 'echo "back-$marker"\r' })
     await until(() => back.output().includes('back-23\r\n'))
-    expect(handle.context.terminals.count).toBe(1)
+    expect(handle.manager.terminals.count).toBe(1)
   })
 
   /* Coming back to a blank screen would be coming back to a shell with no idea what it had
@@ -215,7 +262,7 @@ describe('terminals', () => {
     shell.send({ type: 'input', data: 'echo before-the-drop\r' })
     await until(() => shell.output().includes('before-the-drop\r\n'))
     shell.socket.close()
-    await until(() => handle.context.terminals.detached === 1)
+    await until(() => handle.manager.terminals.detached === 1)
 
     const back = await open(handle, shell.session)
     await until(() => back.output().includes('before-the-drop'))
@@ -233,7 +280,7 @@ describe('terminals', () => {
     shell.send({ type: 'input', data: 'named=$((6 * 7))\r' })
     await until(() => shell.output().includes('named='))
     shell.socket.close()
-    await until(() => handle.context.terminals.detached === 1)
+    await until(() => handle.manager.terminals.detached === 1)
 
     // The same tab, on the page that came back.
     const back = await open(handle, 'terminal:4')
@@ -266,7 +313,7 @@ describe('terminals', () => {
     expect(second.resumed).toBe(true)
     second.send({ type: 'input', data: 'echo moved-$((1 + 0))\r' })
     await until(() => second.output().includes('moved-1\r\n'))
-    expect(handle.context.terminals.count).toBe(1)
+    expect(handle.manager.terminals.count).toBe(1)
   })
 
   /* The one thing that ends a shell early: whoever has it saying they are finished. It is a
@@ -275,17 +322,17 @@ describe('terminals', () => {
     const handle = await server()
     const shell = await open(handle, 'terminal:1')
     const pane = await open(handle, 'terminal:1/pane:2')
-    await until(() => handle.context.terminals.count === 2)
+    await until(() => handle.manager.terminals.count === 2)
 
-    expect(handle.context.terminals.finish('terminal:1')).toBe(2)
-    expect(handle.context.terminals.count).toBe(0)
+    expect(handle.manager.terminals.finish('terminal:1')).toBe(2)
+    expect(handle.manager.terminals.count).toBe(0)
     expect(pane.session).toBe('terminal:1/pane:2')
     expect(shell.session).toBe('terminal:1')
   })
 
   it('is not an error to finish with a shell that has already gone', async () => {
     const handle = await server()
-    expect(handle.context.terminals.finish('terminal:9')).toBe(0)
+    expect(handle.manager.terminals.finish('terminal:9')).toBe(0)
   })
 
   /* And the way a tab actually says it: no socket of its own is open by then — the pane it
@@ -293,34 +340,34 @@ describe('terminals', () => {
   it('ends a shell over the route a closed tab asks on', async () => {
     const handle = await server()
     const shell = await open(handle, 'terminal:3')
-    await until(() => handle.context.terminals.count === 1)
+    await until(() => handle.manager.terminals.count === 1)
     shell.socket.close()
-    await until(() => handle.context.terminals.detached === 1)
+    await until(() => handle.manager.terminals.detached === 1)
 
     const response = await fetch(`${handle.url}/api/terminal?session=terminal:3`, {
       method: 'DELETE',
     })
 
     expect(await response.json()).toEqual({ closed: 1 })
-    expect(handle.context.terminals.count).toBe(0)
+    expect(handle.manager.terminals.count).toBe(0)
   })
 
   it('collects a shell nobody has come back for', async () => {
     const handle = await server()
     const shell = await open(handle)
     shell.socket.close()
-    await until(() => handle.context.terminals.detached === 1)
+    await until(() => handle.manager.terminals.detached === 1)
 
     // The reaper runs on its own minute and measures half an hour. What is under test is
     // what it does when that window is up, not how long the window is.
-    handle.context.terminals.reapNow(0)
-    expect(handle.context.terminals.count).toBe(0)
+    handle.manager.terminals.reapNow(0)
+    expect(handle.manager.terminals.count).toBe(0)
   })
 
   it('ignores a malformed message and a zero-sized resize', async () => {
     const handle = await server()
     const shell = await open(handle)
-    await until(() => handle.context.terminals.count === 1)
+    await until(() => handle.manager.terminals.count === 1)
 
     shell.socket.send('not json')
     shell.send({ type: 'resize', cols: 0, rows: 0 })
@@ -329,6 +376,6 @@ describe('terminals', () => {
     shell.send({ type: 'resize', cols: 100, rows: 30 })
     shell.send({ type: 'input', data: 'tput cols\r' })
     await until(() => shell.output().includes('100'))
-    expect(handle.context.terminals.count).toBe(1)
+    expect(handle.manager.terminals.count).toBe(1)
   })
 })

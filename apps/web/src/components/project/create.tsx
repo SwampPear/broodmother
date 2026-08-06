@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, type FormEvent } from 'react'
-import type { NewProject, ProjectGit } from '@broodmother/shared'
+import type { NewProject, ProjectGit } from '@/types'
 import { useApp } from '../../state'
 import { RemoteField } from '../github'
 import { Button, Choices, Modal, Select, type Choice } from '../ui'

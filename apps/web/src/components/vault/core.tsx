@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, type FormEvent } from 'react'
-import { tilde } from '@broodmother/shared'
+import { tilde } from '@/core'
 import { useApp } from '../../state'
 import { RemoteField } from '../github'
 import { Button, Choices, Modal, type Choice } from '../ui'

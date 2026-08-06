@@ -1,6 +1,6 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 import { join } from 'node:path'
-import { app, BrowserWindow, shell } from 'electron'
+import { app, BrowserWindow, Menu, shell } from 'electron'
 
 const SITE = 'http://127.0.0.1:6767'
 
@@ -62,8 +62,6 @@ function startBackends(): void {
       },
     ),
   )
-  // Half of broodmother is not broodmother: with either process gone the window is talking to air,
-  // so the first exit takes the app down instead of leaving a broken tab open.
   for (const child of children) child.on('exit', () => !quitting && app.quit())
 }
 
@@ -85,11 +83,6 @@ async function waitForSite(): Promise<boolean> {
   return false
 }
 
-/**
- * The window controls float over the page, landing on the top-left of the app's own chrome.
- * The app is told how wide they are; where to put them is its business, not ours. Full
- * screen takes the controls away, and the room they were holding goes back to the page.
- */
 function sendTitlebarInset(window: BrowserWindow): void {
   const inset = window.isFullScreen() ? '0px' : '5rem'
   void window.webContents.executeJavaScript(
@@ -97,7 +90,7 @@ function sendTitlebarInset(window: BrowserWindow): void {
   )
 }
 
-async function createWindow(): Promise<void> {
+async function createWindow(url: string = SITE): Promise<void> {
   const window = new BrowserWindow({
     width: 1280,
     height: 820,
@@ -112,29 +105,51 @@ async function createWindow(): Promise<void> {
   window.webContents.on('did-finish-load', inset)
   window.on('enter-full-screen', inset)
   window.on('leave-full-screen', inset)
-  // A link to somewhere on the web is the browser's job; this window is the app.
-  window.webContents.setWindowOpenHandler(({ url }) => {
-    void shell.openExternal(url)
+  window.webContents.setWindowOpenHandler(({ url: opened }) => {
+    if (opened.startsWith(SITE)) void createWindow(opened)
+    else void shell.openExternal(opened)
     return { action: 'deny' }
   })
 
   await window.loadFile(join(__dirname, 'loading.html'))
-  if (await waitForSite()) await window.loadURL(SITE)
+  if (await waitForSite()) await window.loadURL(url)
+}
+
+function installMenu(): void {
+  Menu.setApplicationMenu(
+    Menu.buildFromTemplate([
+      { role: 'appMenu' },
+      {
+        label: 'File',
+        submenu: [
+          {
+            label: 'New Window',
+            accelerator: 'CmdOrCtrl+Shift+N',
+            click: () => void createWindow(),
+          },
+          { type: 'separator' },
+          { role: 'close' },
+        ],
+      },
+      { role: 'editMenu' },
+      { role: 'viewMenu' },
+      { role: 'windowMenu' },
+    ]),
+  )
 }
 
 void app.whenReady().then(async () => {
-  // Packaged, the Dock reads the icon off the bundle. Run from a checkout it is Electron's
-  // own binary down there wearing Electron's own mark, so the app puts its logo there
-  // itself — the app is the same app either way and should look like it.
+  // ensure icon set
   if (!app.isPackaged) app.dock?.setIcon(icon)
+
+  installMenu()
   startBackends()
+
   await createWindow()
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) void createWindow()
   })
 })
 
-// One window is the whole app: closing it is quitting, not hiding a running vault
-// server.
-app.on('window-all-closed', () => app.quit())
-app.on('before-quit', stopBackends)
+app.on('window-all-closed', () => app.quit()) // quit on last window closed
+app.on('before-quit', stopBackends) // cleanup

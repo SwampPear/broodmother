@@ -1,6 +1,6 @@
 'use client'
 
-import type { DocRef, DocRoot, GitChange, TreeEntry } from '@broodmother/shared'
+import type { DocRef, DocRoot, GitChange, TreeEntry } from '@/types'
 import {
   ContextMenu,
   displayName,

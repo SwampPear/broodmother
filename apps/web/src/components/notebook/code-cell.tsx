@@ -1,7 +1,7 @@
 'use client'
 
-import { CellEditor } from '@broodmother/editor'
-import type { NotebookCell } from '@broodmother/notebook'
+import { CellEditor } from '@/editor'
+import type { NotebookCell } from '@/types'
 import { Outputs } from './outputs'
 
 export function CodeCell({

@@ -1,5 +1,5 @@
 import { execa } from 'execa'
-import type { ClaudeNode } from '@broodmother/shared'
+import type { ClaudeNode } from '@/types'
 import { ambient } from '../../sockets'
 import { finish, flowEnv, type StepCtx, type StepResult } from './core'
 import { timeoutOf } from './shell'

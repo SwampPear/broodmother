@@ -1,7 +1,7 @@
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
-import type { Profile } from '@broodmother/shared'
+import type { Profile } from '@/types'
 import { bareRemote, cleanup, git, tempDir } from '../test'
 import { Git } from '../git'
 import { PRIMARY, VaultError, assertVaultName, createVault, listVaults } from './vaults'
@@ -15,6 +15,7 @@ const profile: Profile = {
   gitAuthor: { name: 'Test', email: 'test@localhost' },
   sshKeyPath: null,
   claudeCfgDir: null,
+  cursorCfgDir: null,
   soul: null,
   github: null,
 }

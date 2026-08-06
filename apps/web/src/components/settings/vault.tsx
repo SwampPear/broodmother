@@ -1,6 +1,6 @@
 'use client'
 
-import { tilde } from '@broodmother/shared'
+import { tilde } from '@/core'
 import { useApp } from '../../state'
 import { GitSettingsSection } from './git'
 import { Panel } from './layout'

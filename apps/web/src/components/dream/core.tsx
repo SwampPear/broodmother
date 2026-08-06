@@ -10,17 +10,8 @@ import {
   type ReactNode,
   type WheelEvent as ReactWheelEvent,
 } from 'react'
-import {
-  parseDream,
-  runOrder,
-  serializeDream,
-  type DocRef,
-  type Dream,
-  type DreamKind,
-  type DreamNode,
-  type DreamRun,
-  type Persona,
-} from '@broodmother/shared'
+import { parseDream, runOrder, serializeDream } from '@/dream'
+import type { DocRef, Dream, DreamKind, DreamNode, DreamRun, Persona } from '@/types'
 import {
   Icon,
   Menu,

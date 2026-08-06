@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useRef, useState, type DragEvent } from 'react'
-import { basename, type DocRef, type DocRoot, type TreeEntry } from '@broodmother/shared'
+import { basename } from '@/core'
+import type { DocRef, DocRoot, TreeEntry } from '@/types'
 import { dropFolder, movable, refKey } from './paths'
 
 const SPRING_MS = 600

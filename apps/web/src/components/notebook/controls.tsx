@@ -1,6 +1,6 @@
 'use client'
 
-import type { NotebookCell } from '@broodmother/notebook'
+import type { NotebookCell } from '@/types'
 import { Icon } from '../ui'
 
 /**

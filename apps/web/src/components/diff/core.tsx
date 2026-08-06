@@ -1,8 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { DiffEditor } from '@broodmother/editor'
-import { basename, isImage, type DiffBasis, type DocRef } from '@broodmother/shared'
+import { DiffEditor } from '@/editor'
+import { basename, isImage } from '@/core'
+import type { DiffBasis, DocRef } from '@/types'
 import { useApp } from '../../state'
 
 interface Sides {

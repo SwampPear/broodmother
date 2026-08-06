@@ -6,7 +6,7 @@ import type {
   ServerMessage,
   TerminalClientMessage,
   TerminalServerMessage,
-} from '@broodmother/shared'
+} from '@/types'
 
 export interface Connection<Message = never> {
   send(message: Message): void

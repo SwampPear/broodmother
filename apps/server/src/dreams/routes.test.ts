@@ -1,7 +1,8 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { afterAll, expect, it } from 'vitest'
-import { serializeDream, type ApiResponse, type Dream } from '@broodmother/shared'
+import { serializeDream } from '@/dream'
+import type { ApiResponse, Dream } from '@/types'
 import { startServer, type ServerHandle } from '../index'
 import { createProfile } from '../profiles'
 import { cleanup, fakeCrontab, tempDir, until } from '../test'
@@ -30,6 +31,7 @@ async function server() {
       gitAuthor: { name: 'Test', email: 'test@localhost' },
       sshKeyPath: null,
       claudeCfgDir: null,
+      cursorCfgDir: null,
       soul: null,
     },
     home,

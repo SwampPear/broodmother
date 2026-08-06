@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, type FormEvent } from 'react'
-import type { Branch } from '@broodmother/shared'
+import type { Branch } from '@/types'
 import { Button, Confirm, Icon, Menu, type MenuSection, Modal } from '../ui'
 
 /** A branch name git will take: no spaces, no `..`, and not ending in `.lock`. */

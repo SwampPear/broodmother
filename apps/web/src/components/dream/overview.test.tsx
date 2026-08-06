@@ -1,9 +1,11 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, it, vi } from 'vitest'
-import { serializeDream, type Dream } from '@broodmother/shared'
+import { serializeDream } from '@/dream'
+import type { Dream } from '@/types'
 import { createMockClient, type MockClient } from '../../api/mock'
 import { AppProvider } from '../../state'
+import { withVault } from '../../window-vault'
 import { DreamsView } from './overview'
 
 const push = vi.fn()
@@ -49,7 +51,7 @@ it('tables each dream with where it lives and what fires it', async () => {
 it('opens the dream itself from its row', async () => {
   await show()
   await userEvent.click(await screen.findByRole('button', { name: 'Nightly' }))
-  expect(push).toHaveBeenCalledWith('/doc/vault/Nightly.dream')
+  expect(push).toHaveBeenCalledWith(withVault('/doc/vault/Nightly.dream'))
 })
 
 it('installs a starter into the vault and opens it, never over an existing one', async () => {
@@ -63,11 +65,11 @@ it('installs a starter into the vault and opens it, never over an existing one',
     path: 'Repo watchdog.dream',
   })
   expect(markdown).toContain('agent.gate')
-  expect(push).toHaveBeenCalledWith('/doc/vault/Repo watchdog.dream')
+  expect(push).toHaveBeenCalledWith(withVault('/doc/vault/Repo watchdog.dream'))
 
   // The name is taken now, so adding it again lands beside it.
   await userEvent.click(within(starters).getAllByRole('button', { name: 'Add' })[1])
-  expect(push).toHaveBeenCalledWith('/doc/vault/Repo watchdog 2.dream')
+  expect(push).toHaveBeenCalledWith(withVault('/doc/vault/Repo watchdog 2.dream'))
 })
 
 it('logs the runs, and a run opens into its steps', async () => {

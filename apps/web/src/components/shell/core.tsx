@@ -9,20 +9,11 @@ import {
   type CSSProperties,
   type ReactNode,
 } from 'react'
-import {
-  DREAM_EXTENSION,
-  emptyDream,
-  isDreamPath,
-  projectOf,
-  projectRoot,
-  serializeDream,
-  tilde,
-  type DiffBasis,
-  type DiffFile,
-  type DocRef,
-  type DocRoot,
-} from '@broodmother/shared'
+import { projectOf, projectRoot, tilde } from '@/core'
+import { DREAM_EXTENSION, emptyDream, isDreamPath, serializeDream } from '@/dream'
+import type { DiffBasis, DiffFile, DocRef, DocRoot } from '@/types'
 import { useApp } from '../../state'
+import { withVault } from '../../window-vault'
 import {
   fileRefs,
   FileTree,
@@ -79,7 +70,9 @@ export function Shell({ children }: { children: ReactNode }) {
   const [basis, setBasis] = useState<DiffBasis>('now')
   const [diff, setDiff] = useState<DiffFile[]>([])
 
-  const navigate = useCallback((route: string) => router.push(route), [router])
+  // Every in-app route keeps the window's vault on it: the address bar is what says where
+  // this window stands, and a route that dropped it would quietly rebind the window.
+  const navigate = useCallback((route: string) => router.push(withVault(route)), [router])
   const {
     tabs,
     terminals,
@@ -309,8 +302,8 @@ export function Shell({ children }: { children: ReactNode }) {
     move: (root, from, to) => void app.move(root, from, to),
     remove: (ref) => void app.remove(ref),
     syncNow: () => void app.syncNow(),
-    settings: () => router.push('/settings'),
-    dreams: () => router.push('/dreams'),
+    settings: () => navigate('/settings'),
+    dreams: () => navigate('/dreams'),
     vaults: () => setPicker(true),
     projects: () => setWhereMenu(true),
     createProject: () => setCreating(true),
@@ -369,13 +362,13 @@ export function Shell({ children }: { children: ReactNode }) {
         head={
           <VaultMenu
             vaults={app.vaults}
-            activePath={app.config?.vaultPath ?? ''}
+            activePath={app.vault?.path ?? ''}
             activeProject={app.project?.name ?? null}
             open={whereMenu}
             onOpenChange={setWhereMenu}
             onSelect={(path) => void app.openVault(path)}
             onAdd={() => setPicker(true)}
-            onDelete={(name) => void app.deleteVault(name)}
+            onDelete={(vault) => void app.deleteVault(vault.name, vault.profile)}
             onCreateProject={() => setCreating(true)}
             onSettings={ctx.settings}
             onDreams={ctx.dreams}

@@ -1,4 +1,5 @@
-import { DreamError, type NoteNode } from '@broodmother/shared'
+import { DreamError } from '@/dream'
+import type { NoteNode } from '@/types'
 import type { StepCtx, StepResult } from './core'
 
 /** Writes what fed it into the vault, and passes the same context onward untouched. */

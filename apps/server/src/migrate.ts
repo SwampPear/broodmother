@@ -9,7 +9,7 @@ import {
   writeFile,
 } from 'node:fs/promises'
 import path from 'node:path'
-import type { BroodmotherConfig } from '@broodmother/shared'
+import type { BroodmotherConfig } from '@/types'
 import type { LoadedConfig } from './config'
 import { Git } from './git'
 import { PROFILE_FILE, listProfiles } from './profiles'

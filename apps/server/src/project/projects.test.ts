@@ -1,7 +1,7 @@
 import { mkdir, readFile, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
-import type { Profile } from '@broodmother/shared'
+import type { Profile } from '@/types'
 import { cleanup, git, tempDir } from '../test'
 import {
   ProjectError,
@@ -22,6 +22,7 @@ const PROFILE: Profile = {
   gitAuthor: { name: 'Tester', email: 'tester@example.com' },
   sshKeyPath: null,
   claudeCfgDir: null,
+  cursorCfgDir: null,
   soul: null,
   github: null,
 }

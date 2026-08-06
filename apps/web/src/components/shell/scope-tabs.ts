@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { DocPath, DocRef, DocRoot } from '@broodmother/shared'
+import type { DocPath, DocRef, DocRoot } from '@/types'
 import type { RootEvent } from '../../state'
 import { docTab, type Tab } from './tabs'
 import { type TerminalKind } from '../terminal'

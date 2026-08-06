@@ -1,6 +1,6 @@
 import { mkdir, readdir, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import type { Profile, VaultSummary } from '@broodmother/shared'
+import type { Profile, VaultSummary } from '@/types'
 import type { Checkouts } from '../branches'
 import { Git, classifyRemoteError } from '../git'
 import { profileDir, readAccount } from '../profiles'

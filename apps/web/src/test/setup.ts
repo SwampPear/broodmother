@@ -1,8 +1,31 @@
 import '@testing-library/jest-dom/vitest'
 import { cleanup } from '@testing-library/react'
-import { afterEach } from 'vitest'
+import { afterEach, beforeEach, vi } from 'vitest'
+import { browse } from '../window-vault'
 
 afterEach(cleanup)
+
+// Which vault a window stands in is read off the address bar, and moving between vaults is
+// a full page load — neither of which jsdom does. Every test window starts standing in the
+// mock client's seeded vault, and leaving records where for the test instead of going.
+const SEEDED_VAULT = '/Users/you/.broodmother/you/handbook'
+
+/** Stand the test window in a vault, the way a real one stands via its URL. */
+export function standIn(vault: string | null): void {
+  window.history.replaceState(
+    null,
+    '',
+    vault ? `/?vault=${encodeURIComponent(vault)}` : '/',
+  )
+}
+
+beforeEach(() => {
+  if (typeof window === 'undefined') return
+  standIn(SEEDED_VAULT)
+  browse.assign = vi.fn()
+  browse.replace = vi.fn()
+  browse.newWindow = vi.fn()
+})
 
 // jsdom implements neither pointer capture nor the observers a floating surface measures
 // itself with. The menu and modal primitives call all of them, so they are stubbed here

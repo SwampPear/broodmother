@@ -1,4 +1,4 @@
-import type { DocRoot } from '@broodmother/shared'
+import type { DocRoot } from '@/types'
 import { DocView } from '../../../src/components/doc'
 import { HomeView } from '../../../src/components/doc'
 

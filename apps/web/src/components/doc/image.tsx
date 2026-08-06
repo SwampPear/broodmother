@@ -1,12 +1,17 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import type { DocRef } from '@broodmother/shared'
+import type { DocRef } from '@/types'
 import { API_BASE } from '../../api/http'
+import { windowVault } from '../../window-vault'
 
-/** The URL the server serves a file's bytes from. */
-const fileUrl = ({ root, path }: DocRef) =>
-  `${API_BASE}/api/file?root=${root}&path=${encodeURIComponent(path)}`
+/** The URL the server serves a file's bytes from. The vault rides the query — an
+ *  `<img src>` has no headers to say which window is asking. */
+function fileUrl({ root, path }: DocRef): string {
+  const vault = windowVault()
+  const at = vault ? `&vault=${encodeURIComponent(vault)}` : ''
+  return `${API_BASE}/api/file?root=${root}&path=${encodeURIComponent(path)}${at}`
+}
 
 /**
  * An image is opened by looking at it. There is nothing to edit and nothing to save, so

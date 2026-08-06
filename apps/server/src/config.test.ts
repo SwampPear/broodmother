@@ -1,7 +1,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
-import { defaultGitSettings } from '@broodmother/shared'
+import { defaultGitSettings } from '@/core'
 import {
   ConfigStore,
   configSchema,

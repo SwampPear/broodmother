@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, it, vi } from 'vitest'
-import type { Profile } from '@broodmother/shared'
+import type { Profile } from '@/types'
 import { ProfileMenu } from './menu'
 
 const profiles: Profile[] = [
@@ -12,6 +12,7 @@ const profiles: Profile[] = [
     gitAuthor: { name: 'Ada Lovelace', email: 'ada@example.com' },
     sshKeyPath: '~/.ssh/id_work',
     claudeCfgDir: null,
+    cursorCfgDir: null,
     soul: null,
     github: null,
   },
@@ -22,6 +23,7 @@ const profiles: Profile[] = [
     gitAuthor: { name: 'Grace Hopper', email: 'grace@example.com' },
     sshKeyPath: null,
     claudeCfgDir: null,
+    cursorCfgDir: null,
     soul: null,
     github: null,
   },

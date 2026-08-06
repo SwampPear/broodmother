@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, it, vi } from 'vitest'
-import type { ApiRoute } from '@broodmother/shared'
+import type { ApiRoute } from '@/types'
 import { createMockClient } from '../../api/mock'
 import { AppProvider } from '../../state'
 import { SettingsView } from './core'
@@ -238,6 +238,7 @@ it('opens the palette on the colour the profile already is', async () => {
           gitAuthor: { name: 'You', email: 'you@example.com' },
           sshKeyPath: null,
           claudeCfgDir: null,
+          cursorCfgDir: null,
           soul: null,
           github: null,
         },
@@ -302,13 +303,15 @@ it('saves the credentials the profile works with', async () => {
   const client = await show()
   await open('Profile')
   await userEvent.type(screen.getByLabelText('SSH key'), '~/.ssh/id_ed25519')
-  await userEvent.type(screen.getByLabelText('Config directory'), '~/.claude-work')
+  await userEvent.type(screen.getByLabelText('Claude config directory'), '~/.claude-work')
+  await userEvent.type(screen.getByLabelText('Cursor config directory'), '~/.cursor-work')
   await userEvent.click(screen.getByRole('button', { name: 'save profile' }))
 
   const { active } = await client.request('GET /api/profiles', null)
   expect(active).toMatchObject({
     sshKeyPath: '~/.ssh/id_ed25519',
     claudeCfgDir: '~/.claude-work',
+    cursorCfgDir: '~/.cursor-work',
     soul: null,
   })
 })

@@ -3,7 +3,8 @@ import os from 'node:os'
 import path from 'node:path'
 import { execa } from 'execa'
 import { afterAll, describe, expect, it } from 'vitest'
-import { defaultGitSettings, type ApiResponse } from '@broodmother/shared'
+import { defaultGitSettings } from '@/core'
+import type { ApiResponse } from '@/types'
 import { WEB_ORIGINS } from './app'
 import { defaultConfig } from './config'
 import { createProfile } from './profiles'
@@ -15,6 +16,7 @@ const IDENTITY = {
   gitAuthor: { name: 'Test', email: 'test@localhost' },
   sshKeyPath: null,
   claudeCfgDir: null,
+  cursorCfgDir: null,
   soul: null,
 }
 
@@ -441,7 +443,9 @@ describe('git routes', () => {
 })
 
 describe('vaults', () => {
-  it('lists the folders in the profile you are working as, and nothing else', async () => {
+  /* Every profile's vaults, each naming whose it is: any window can open any of them, the
+     way Obsidian's vault picker offers everything on the machine. */
+  it('lists the folders of every profile, each under its own name', async () => {
     const { call, home } = await server()
     await createProfile({ name: 'work', ...IDENTITY }, home)
     await mkdir(path.join(home, 'tester', 'notes'))
@@ -449,7 +453,35 @@ describe('vaults', () => {
 
     const body = (await call('GET', '/api/vaults')).body as ApiResponse<'GET /api/vaults'>
     expect(body.home).toBe(home)
-    expect(body.vaults.map((vault) => vault.name)).toEqual(['handbook', 'notes'])
+    expect(body.vaults.map((vault) => `${vault.profile}/${vault.name}`).sort()).toEqual([
+      'tester/handbook',
+      'tester/notes',
+      'work/theirs',
+    ])
+  })
+
+  /* Two windows, two vaults. A window pins its vault with the header; the config's
+     vaultPath is only what a window that names none falls back to. */
+  it('opens a vault for one window without moving another', async () => {
+    const { call, home, handle, vault } = await server()
+    const other = path.join(home, 'tester', 'notes')
+    await mkdir(path.join(other, 'local'), { recursive: true })
+
+    const opened = await call('POST', '/api/vaults/open', { path: other })
+    expect((opened.body as ApiResponse<'POST /api/vaults/open'>).config.vaultPath).toBe(
+      other,
+    )
+
+    // The window still standing in the first vault still sees that vault's documents.
+    const pinned = await fetch(`${handle.url}/api/tree`, {
+      headers: { 'x-broodmother-vault': encodeURIComponent(vault) },
+    })
+    const tree = (await pinned.json()) as ApiResponse<'GET /api/tree'>
+    expect(tree.vault.map((entry) => entry.path)).toContain('index.md')
+
+    // A window that names nothing follows the last-opened vault, which is empty.
+    const drifted = (await call('GET', '/api/tree')).body as ApiResponse<'GET /api/tree'>
+    expect(drifted.vault).toEqual([])
   })
 
   it('creates a vault against a real remote, opens it and turns sync on', async () => {
@@ -942,6 +974,7 @@ describe('profiles', () => {
       gitAuthor: { name: 'Ada', email: 'ada@example.com' },
       sshKeyPath: '~/.ssh/id_ed25519',
       claudeCfgDir: '~/.claude',
+      cursorCfgDir: '~/.cursor-work',
       soul: '# Ada\n\nTerse, and never cheerful about it.',
     }
 

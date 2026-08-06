@@ -2,7 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
-import type { VaultSummary } from '@broodmother/shared'
+import type { VaultSummary } from '@/types'
 import { VaultMenu } from './menu'
 
 const vaults: VaultSummary[] = [
@@ -146,7 +146,7 @@ it('deletes the vault named by the right click, not the one in use', async () =>
   expect(await screen.findByRole('dialog', { name: 'Delete Personal?' })).toBeVisible()
   await userEvent.click(screen.getByRole('button', { name: 'delete vault' }))
 
-  expect(onDelete).toHaveBeenCalledWith('Personal')
+  expect(onDelete).toHaveBeenCalledWith(vaults[1])
 })
 
 it('deletes only after the folder it is about to remove has been named', async () => {
@@ -160,7 +160,7 @@ it('deletes only after the folder it is about to remove has been named', async (
   expect(onDelete).not.toHaveBeenCalled()
 
   await userEvent.click(screen.getByRole('button', { name: 'delete vault' }))
-  expect(onDelete).toHaveBeenCalledWith('Personal')
+  expect(onDelete).toHaveBeenCalledWith(vaults[1])
 })
 
 it('leaves the vault alone when the confirmation is cancelled', async () => {

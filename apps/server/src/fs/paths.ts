@@ -1,6 +1,6 @@
 import { realpath } from 'node:fs/promises'
 import path from 'node:path'
-import type { DocPath } from '@broodmother/shared'
+import type { DocPath } from '@/types'
 
 export class PathError extends Error {}
 

@@ -9,11 +9,5 @@
     "build": "next build",
     "start": "next start -H 127.0.0.1 -p 6767",
     "test": "vitest run"
-  },
-  "dependencies": {
-    "@broodmother/shared": "*",
-    "@broodmother/editor": "*",
-    "@broodmother/markdown": "*",
-    "@broodmother/notebook": "*"
   }
 }

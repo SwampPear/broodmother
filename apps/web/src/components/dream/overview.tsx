@@ -2,18 +2,12 @@
 
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import {
-  basename,
-  projectOf,
-  serializeDream,
-  starterDreams,
-  type DocRoot,
-  type DreamRun,
-  type DreamSummary,
-  type StarterDream,
-} from '@broodmother/shared'
+import { basename, projectOf } from '@/core'
+import { serializeDream, starterDreams } from '@/dream'
+import type { DocRoot, DreamRun, DreamSummary, StarterDream } from '@/types'
 import { useApp } from '../../state'
 import { docRoute } from '../shell'
+import { withVault } from '../../window-vault'
 import { Icon } from '../ui'
 
 const POLL_MS = 2000
@@ -91,7 +85,7 @@ export function DreamsView() {
       path,
       markdown: serializeDream(starter.dream),
     })
-    router.push(docRoute({ root: 'vault', path }))
+    router.push(withVault(docRoute({ root: 'vault', path })))
   }
 
   return (
@@ -122,7 +116,7 @@ export function DreamsView() {
                     <button
                       type="button"
                       className="dreams-open"
-                      onClick={() => router.push(docRoute(dream.ref))}
+                      onClick={() => router.push(withVault(docRoute(dream.ref)))}
                     >
                       <Icon name="moon-star" />
                       {dream.name}

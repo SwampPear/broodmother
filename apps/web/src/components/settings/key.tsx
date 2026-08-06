@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { tilde } from '@broodmother/shared'
+import { tilde } from '@/core'
 import { useApp } from '../../state'
 import { Button, LinkButton } from '../ui'
 import { Section } from './layout'

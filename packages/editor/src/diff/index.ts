@@ -1,1 +1,0 @@
-export { DiffEditor } from './core'

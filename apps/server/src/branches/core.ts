@@ -1,6 +1,6 @@
 import { mkdir, readdir, rm, stat } from 'node:fs/promises'
 import path from 'node:path'
-import type { Branch } from '@broodmother/shared'
+import type { Branch } from '@/types'
 import { Git } from '../git'
 import { nameProblem } from '../fs'
 
@@ -93,11 +93,18 @@ async function listCheckouts(checkouts: Checkouts): Promise<Checkout[]> {
   return found
 }
 
+/** The branch under a remote's display name: `origin/feat` is `feat`, brought here. */
+const localOf = (name: string) => name.slice(name.indexOf('/') + 1)
+
 /**
- * Every branch the repository knows, local and remote alike, with the remote's name dropped
- * so `origin/feat` and `feat` are the one branch they describe.
+ * Every branch the repository knows: the local ones by name, and the remotes' wearing the
+ * remote's name — `origin/feat` — so where a branch lives is legible in the list. A remote
+ * branch whose name a local one already carries is subsumed by it: they are the one branch
+ * they describe, and the local checkout is where that work goes on.
  */
-async function knownBranches(primary: string): Promise<string[]> {
+async function knownBranches(
+  primary: string,
+): Promise<{ name: string; remote: boolean }[]> {
   const result = await new Git(primary).run([
     'for-each-ref',
     '--format=%(refname)',
@@ -106,22 +113,28 @@ async function knownBranches(primary: string): Promise<string[]> {
   ])
   if (result.exitCode !== 0) return []
 
-  const names = new Set<string>()
+  const locals = new Set<string>()
+  const remotes = new Set<string>()
   for (const line of String(result.stdout).split('\n')) {
     const ref = line.trim()
     if (ref.startsWith('refs/heads/')) {
-      names.add(ref.slice('refs/heads/'.length))
+      locals.add(ref.slice('refs/heads/'.length))
       continue
     }
     if (!ref.startsWith('refs/remotes/')) continue
-    // `refs/remotes/<remote>/<branch>`, and the remote is not part of the branch's name.
+    // `refs/remotes/<remote>/<branch>`, kept whole: the remote's name is the telling half.
     const rest = ref.slice('refs/remotes/'.length)
     const cut = rest.indexOf('/')
     const name = cut === -1 ? '' : rest.slice(cut + 1)
     // `origin/HEAD` points at the default branch rather than being a branch of its own.
-    if (name && name !== 'HEAD') names.add(name)
+    if (name && name !== 'HEAD') remotes.add(rest)
   }
-  return [...names]
+  return [
+    ...[...locals].map((name) => ({ name, remote: false })),
+    ...[...remotes]
+      .filter((name) => !locals.has(localOf(name)))
+      .map((name) => ({ name, remote: true })),
+  ]
 }
 
 /**
@@ -133,12 +146,15 @@ async function knownBranches(primary: string): Promise<string[]> {
 export async function listBranches(checkouts: Checkouts): Promise<Branch[]> {
   const found = new Map<string, Branch>()
 
-  for (const name of await knownBranches(checkouts.primary)) {
+  for (const { name, remote } of await knownBranches(checkouts.primary)) {
     found.set(name, {
       name,
-      path: worktreePath(checkouts, name),
+      // Opening a remote branch makes the local one's checkout, so that is the folder
+      // a remote entry points at — where it would go, not somewhere of its own.
+      path: worktreePath(checkouts, remote ? localOf(name) : name),
       checkedOut: false,
       primary: false,
+      ...(remote ? { remote } : {}),
     })
   }
 
@@ -155,11 +171,14 @@ export async function listBranches(checkouts: Checkouts): Promise<Branch[]> {
     })
   }
 
-  // The repository's own checkout first, then the rest by name: the one you always have
-  // should not move around in the list as others come and go.
-  return [...found.values()].sort((a, b) =>
-    a.primary === b.primary ? a.name.localeCompare(b.name) : a.primary ? -1 : 1,
-  )
+  // The repository's own checkout first, the local branches by name, and the remotes'
+  // after them: the one you always have should not move around in the list as others
+  // come and go, and a branch you can only fetch reads below the ones already here.
+  return [...found.values()].sort((a, b) => {
+    if (a.primary !== b.primary) return a.primary ? -1 : 1
+    if ((a.remote ?? false) !== (b.remote ?? false)) return a.remote ? 1 : -1
+    return a.name.localeCompare(b.name)
+  })
 }
 
 export async function findBranch(
@@ -247,11 +266,15 @@ export async function openBranch(
   if (!found) throw new BranchError(`no branch named "${name}"`)
   if (found.checkedOut) return found
 
+  // `origin/feat` opens as the local `feat`: picking a branch off the remote makes the
+  // branch here, tracking it — git's own gesture — and the prefix has done its telling.
+  const remote = found.remote ? name.slice(0, name.indexOf('/')) : 'origin'
+  const local = found.remote ? localOf(name) : name
   const primary = await primaryOf(checkouts)
   // Only on the remote so far is the normal way to pick work up, so it is fetched before
   // git is asked to check it out. Already here, this changes nothing and costs a round trip.
-  await new Git(primary, sshKeyPath).run(['fetch', 'origin', name], 30_000)
-  return add(checkouts, name, (target) => ['worktree', 'add', target, name], sshKeyPath)
+  await new Git(primary, sshKeyPath).run(['fetch', remote, local], 30_000)
+  return add(checkouts, local, (target) => ['worktree', 'add', target, local], sshKeyPath)
 }
 
 /**

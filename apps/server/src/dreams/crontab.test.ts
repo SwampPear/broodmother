@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import type { Dream, DreamNode } from '@broodmother/shared'
+import type { Dream, DreamNode } from '@/types'
 import { Crontab, scheduleLines, type CrontabIO } from './crontab'
 
 function graph(nodes: DreamNode[], edges: [string, string][]): Dream {
@@ -47,6 +47,32 @@ it('turns wired schedule triggers into cron lines that call the server', () => {
   expect(lines[0]).toContain(`'{"root":"vault","path":"Nightly.dream"}'`)
   expect(lines[0]).toContain(`'${url}/api/dream/run'`)
   expect(lines[1].startsWith('30 9 * * * ')).toBe(true)
+})
+
+/* A cron line fires long after the window that scheduled it is gone, so the vault the
+   dream lives in has to ride the line itself — `{root, path}` alone would land on
+   whichever vault happened to be opened last. */
+it('names the dream’s vault on the line it fires', () => {
+  const dream = graph(
+    [at('trigger.interval', 'pulse', { minutes: 5 }), note],
+    [['pulse', 'log']],
+  )
+  const [line] = scheduleLines(
+    [
+      {
+        vault: '/Users/you/.broodmother/you/handbook',
+        ref: { root: 'vault', path: 'A.dream' },
+        dream,
+      },
+    ],
+    url,
+  )
+  // The escaping is cron's: a bare % is a newline to it, so the quoting backslashes each.
+  const encoded = encodeURIComponent('/Users/you/.broodmother/you/handbook').replaceAll(
+    '%',
+    '\\%',
+  )
+  expect(line).toContain(`'${url}/api/dream/run?vault=${encoded}'`)
 })
 
 it('rounds an interval cron cannot say to hours, and leaves the rest alone', () => {

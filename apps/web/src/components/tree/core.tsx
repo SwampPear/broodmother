@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, type KeyboardEvent, type ReactNode } from 'react'
-import type { DocRef, DocRoot } from '@broodmother/shared'
+import type { DocRef, DocRoot } from '@/types'
 import { ContextMenu, type MenuSection } from '../ui'
 import { ancestorsOf, flatten, refKey, sameRef, type Row, type TreeRoot } from './paths'
 import { type TreeCommand, TreeRow } from './row'

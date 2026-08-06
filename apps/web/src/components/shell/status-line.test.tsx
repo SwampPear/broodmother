@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import type { SyncStatus } from '@broodmother/shared'
+import type { SyncStatus } from '@/types'
 import { StatusLine } from './status-line'
 
 const sync = (status: Partial<SyncStatus> = {}): SyncStatus => ({

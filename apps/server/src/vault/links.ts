@@ -1,4 +1,5 @@
-import { basename, type Backlink, type DocPath } from '@broodmother/shared'
+import { basename } from '@/core'
+import type { Backlink, DocPath } from '@/types'
 import type { Tree } from '../tree'
 
 export interface DocLink {

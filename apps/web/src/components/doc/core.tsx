@@ -1,7 +1,9 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { isDreamPath, isImage, isNotebookPath, type DocRef } from '@broodmother/shared'
+import { isImage, isNotebookPath } from '@/core'
+import { isDreamPath } from '@/dream'
+import type { DocRef } from '@/types'
 import { Editor } from '../../editor'
 import { useApp, type RootEvent } from '../../state'
 import { DreamView } from '../dream'

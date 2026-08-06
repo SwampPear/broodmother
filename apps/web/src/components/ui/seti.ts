@@ -1,4 +1,4 @@
-import { basename, extensionOf } from '@broodmother/shared'
+import { basename, extensionOf } from '@/core'
 
 export interface FileGlyph {
   character: string

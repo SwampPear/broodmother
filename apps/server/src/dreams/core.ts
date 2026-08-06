@@ -1,19 +1,15 @@
-import {
-  DreamError,
-  basename,
-  isTrigger,
-  parseDream,
-  runOrder,
-  triggerLabel,
-  type ClaudeNode,
-  type DocRef,
-  type DocRoot,
-  type Dream,
-  type DreamRun,
-  type DreamStep,
-  type DreamSummary,
-  type TreeEntry,
-} from '@broodmother/shared'
+import { basename } from '@/core'
+import { DreamError, isTrigger, parseDream, runOrder, triggerLabel } from '@/dream'
+import type {
+  ClaudeNode,
+  DocRef,
+  DocRoot,
+  Dream,
+  DreamRun,
+  DreamStep,
+  DreamSummary,
+  TreeEntry,
+} from '@/types'
 import { writeFile } from 'node:fs/promises'
 import type { Tree } from '../tree'
 import { performStep, type StepCtx, type StepResult } from './blocks'
@@ -31,8 +27,11 @@ import {
 import type { TriggerStore } from './state'
 import { eventCheck } from './triggers'
 
-/** One place a dream can live: an open checkout, with the tree that reads it. */
+/** One place a dream can live: an open checkout, with the tree that reads it. The vault
+ *  scopes the root — `vault` in one window's vault is not `vault` in another's — and a
+ *  test harness standing in a one-vault world may leave it unsaid. */
 export interface DreamSite {
+  vault?: string
   root: DocRoot
   tree: Tree
   path: string
@@ -40,8 +39,8 @@ export interface DreamSite {
 
 export interface DreamsDeps {
   sites(): DreamSite[]
-  /** Where `agent.note` writes: notes are a vault idea, wherever the dream lives. */
-  vault(): Tree | null
+  /** Where `agent.note` writes: notes are a vault idea, so the site's vault answers. */
+  vault(site: DreamSite): Tree | null
   /** Where the cron lines point: the server's own address, empty until it listens. */
   url(): string
   /** The system crontab, holding one line per scheduled trigger. */
@@ -53,9 +52,9 @@ export interface DreamsDeps {
   /** Where each run's folder of hand-off files opens — under the broodmother home. */
   scratch(): string
   /** Extra environment for the agent, the profile's say — CLAUDE_CONFIG_DIR and kin. */
-  env?(): Record<string, string>
+  env?(site: DreamSite): Record<string, string>
   /** The system-prompt body a persona name resolves to — a vault idea, like notes. */
-  persona?(name: string): Promise<string | null>
+  persona?(name: string, site: DreamSite): Promise<string | null>
   agent?(node: ClaudeNode, ctx: StepCtx): Promise<StepResult | string>
   fetch?: typeof fetch
   now?(): number
@@ -63,8 +62,8 @@ export interface DreamsDeps {
 
 const TICK_MS = 30_000
 
-function refKey(ref: DocRef): string {
-  return `${ref.root}:${ref.path}`
+function refKey(vault: string | null | undefined, ref: DocRef): string {
+  return `${vault ?? ''}:${ref.root}:${ref.path}`
 }
 
 interface FoundDream {
@@ -102,12 +101,12 @@ export class Dreams {
     this.timer = null
   }
 
-  runsFor(ref: DocRef): DreamRun[] {
-    return this.deps.runs.runsFor(ref).map((run) => this.placed(run))
+  runsFor(ref: DocRef, vault: string | null = null): DreamRun[] {
+    return this.deps.runs.runsFor(ref, 20, vault).map((run) => this.placed(run))
   }
 
-  log(limit = 50): DreamRun[] {
-    return this.deps.runs.recent(limit).map((run) => this.placed(run))
+  log(limit = 50, vault: string | null = null): DreamRun[] {
+    return this.deps.runs.recent(limit, vault).map((run) => this.placed(run))
   }
 
   /** Where the run's files are is derived, not stored: the base and the id say it all. */
@@ -115,8 +114,8 @@ export class Dreams {
     return { ...run, scratch: runScratch(this.deps.scratch(), run.id) }
   }
 
-  private live(ref: DocRef): DreamRun | null {
-    return this.walking.get(refKey(ref)) ?? null
+  private live(vault: string | null | undefined, ref: DocRef): DreamRun | null {
+    return this.walking.get(refKey(vault, ref)) ?? null
   }
 
   /** One beat: find every dream, hold the crontab to the schedules, check the events. */
@@ -138,9 +137,14 @@ export class Dreams {
     return found
   }
 
-  /** The page's table: every dream, the wired triggers that will fire it, its last run. */
-  async summaries(): Promise<DreamSummary[]> {
-    return (await this.found()).map(({ ref, dream }) => {
+  /** The page's table: every dream in the vault asked about, the wired triggers that will
+   *  fire it, its last run. Null is a window with no vault, which has none to list. */
+  async summaries(vault: string | null = null): Promise<DreamSummary[]> {
+    const found = await this.found()
+    const here = vault
+      ? found.filter(({ site }) => (site.vault ?? null) === vault)
+      : found
+    return here.map(({ site, ref, dream }) => {
       const wired = new Set(dream.edges.map((edge) => edge.from))
       return {
         ref,
@@ -149,7 +153,7 @@ export class Dreams {
           const label = triggerLabel(node)
           return label && wired.has(node.id) ? [{ kind: node.kind, label }] : []
         }),
-        lastRun: this.deps.runs.runsFor(ref, 1)[0] ?? null,
+        lastRun: this.deps.runs.runsFor(ref, 1, site.vault ?? null)[0] ?? null,
       }
     })
   }
@@ -158,7 +162,12 @@ export class Dreams {
   private async schedule(found: FoundDream[]): Promise<void> {
     const url = this.deps.url()
     if (!url) return
-    await this.deps.cron.sync(scheduleLines(found, url)).catch(() => null)
+    const scheduled = found.map(({ site, ref, dream }) => ({
+      vault: site.vault,
+      ref,
+      dream,
+    }))
+    await this.deps.cron.sync(scheduleLines(scheduled, url)).catch(() => null)
   }
 
   private async watch(found: FoundDream[]): Promise<void> {
@@ -168,7 +177,7 @@ export class Dreams {
       for (const node of dream.nodes) {
         const check = eventCheck(node)
         if (!check || !wired.has(node.id)) continue
-        const key = `${refKey(ref)}#${node.id}`
+        const key = `${refKey(site.vault, ref)}#${node.id}`
         alive.add(key)
         const tools = { cwd: site.path, fetch: this.deps.fetch ?? fetch }
         // A source that cannot be read keeps its cursor and gets asked again next beat.
@@ -176,7 +185,7 @@ export class Dreams {
         if (!seen) continue
         await this.deps.store.set(key, seen.state)
         const firing = seen.firings[0]
-        if (firing && !this.live(ref))
+        if (firing && !this.live(site.vault, ref))
           await this.start_(site, ref, dream, { [node.id]: firing.payload }).catch(
             () => null,
           )
@@ -194,10 +203,15 @@ export class Dreams {
    * dream already running joins that run instead of stacking a second — the Run button
    * and a cron beat landing mid-run both mean "be running", not "run twice".
    */
-  async run(ref: DocRef): Promise<DreamRun> {
-    const running = this.live(ref)
+  async run(ref: DocRef, vault: string | null = null): Promise<DreamRun> {
+    const running = this.live(vault, ref)
     if (running) return running
-    const site = this.deps.sites().find((one) => one.root === ref.root)
+    const site = this.deps
+      .sites()
+      .find(
+        (one) =>
+          one.root === ref.root && (vault === null || (one.vault ?? null) === vault),
+      )
     if (!site) throw new DreamError(`no open root ${ref.root}`)
     return this.start_(site, ref, await this.read(site, ref.path))
   }
@@ -222,14 +236,14 @@ export class Dreams {
           : []
       }),
     }
-    const filed = this.deps.runs.add(opened)
+    const filed = this.deps.runs.add(opened, site.vault ?? '')
     const run: DreamRun = this.placed({ id: filed.id, ...opened })
     // The rows the store let go take their folders with them.
     void pruneScratch(this.deps.scratch(), filed.pruned).catch(() => null)
-    this.walking.set(refKey(ref), run)
+    this.walking.set(refKey(site.vault, ref), run)
     void this.walk(site, dream, run, seed)
       .catch(() => null)
-      .finally(() => this.walking.delete(refKey(ref)))
+      .finally(() => this.walking.delete(refKey(site.vault, ref)))
     return run
   }
 
@@ -341,18 +355,18 @@ export class Dreams {
   ): Promise<StepResult> {
     const ctx: StepCtx = {
       cwd: site.path,
-      vault: this.deps.vault(),
+      vault: this.deps.vault(site),
       input,
       inputPath: files?.input ?? '',
       outputPath: files?.output ?? '',
       verdictPath: files?.verdict ?? '',
       routes,
-      env: this.deps.env?.() ?? {},
+      env: this.deps.env?.(site) ?? {},
       persona: null,
     }
     if (node.kind === 'agent.claude') {
       ctx.persona = node.persona
-        ? ((await this.deps.persona?.(node.persona)) ?? null)
+        ? ((await this.deps.persona?.(node.persona, site)) ?? null)
         : null
       if (node.persona && ctx.persona === null)
         throw new DreamError(`no persona named "${node.persona}"`)

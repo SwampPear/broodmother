@@ -1,6 +1,6 @@
 'use client'
 
-import type { SyncStatus } from '@broodmother/shared'
+import type { SyncStatus } from '@/types'
 import { Button } from '../ui'
 
 function syncLabel(sync: SyncStatus): string {

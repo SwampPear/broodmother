@@ -1,6 +1,6 @@
 import { mkdir, readdir, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import type { NewProject, Profile, ProjectSummary } from '@broodmother/shared'
+import type { NewProject, Profile, ProjectSummary } from '@/types'
 import type { Checkouts } from '../branches'
 import { nameProblem } from '../fs'
 import { readAccount } from '../profiles'

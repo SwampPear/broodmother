@@ -7,13 +7,24 @@ import type {
   TerminalClientMessage,
   TerminalServerMessage,
   WsRoute,
-} from '@broodmother/shared'
+} from '@/types'
 import type { ApiClient, Connection } from './client'
+import { windowVault } from '../window-vault'
 
 /** Where the backend is. Exported because bytes are fetched by the browser directly —
  *  an `<img src>` is a request this client does not make. */
 export const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:3001'
 const base = API_BASE
+
+/** How a request says which vault its window is standing in. The server also reads it from
+ *  `?vault=`, for the requests a browser makes on its own — an `<img src>` has no headers. */
+export const VAULT_HEADER = 'x-broodmother-vault'
+
+/** `&vault=…` for a socket URL, asked fresh per attempt the way the rest of the query is. */
+function vaultParam(): string {
+  const vault = windowVault()
+  return vault ? `&vault=${encodeURIComponent(vault)}` : ''
+}
 
 /**
  * How long to wait before trying again, by how many tries have failed. It starts inside a
@@ -100,9 +111,13 @@ export function httpClient(): ApiClient {
         for (const [key, value] of Object.entries(body))
           url.searchParams.set(key, String(value))
       }
+      const vault = windowVault()
       const response = await fetch(url, {
         method,
-        headers: inQuery ? undefined : { 'content-type': 'application/json' },
+        headers: {
+          ...(inQuery ? {} : { 'content-type': 'application/json' }),
+          ...(vault ? { [VAULT_HEADER]: encodeURIComponent(vault) } : {}),
+        },
         body: inQuery || !body ? undefined : JSON.stringify(body),
       })
       const payload = await response.json()
@@ -111,13 +126,21 @@ export function httpClient(): ApiClient {
     },
 
     connect: (onMessage, onLive) =>
-      open<never, ServerMessage>('/ws', () => '', onMessage, onLive),
+      open<never, ServerMessage>(
+        '/ws',
+        () => {
+          const vault = windowVault()
+          return vault ? `?vault=${encodeURIComponent(vault)}` : ''
+        },
+        onMessage,
+        onLive,
+      ),
 
     terminal({ root, session }, onMessage, onLive) {
       // Both, every time. The name is what reaches the shell that is already running; the
       // root is where one opens when that name has none — a session reaped, exited while
       // nobody was watching, or asked for after the backend was restarted underneath it.
-      const query = `?root=${encodeURIComponent(root)}&session=${encodeURIComponent(session)}`
+      const query = `?root=${encodeURIComponent(root)}&session=${encodeURIComponent(session)}${vaultParam()}`
       // `close` lets go of the socket and nothing else. The shell goes on running, and is
       // ended by `DELETE /api/terminal` — said by whoever is finished with it, which is not
       // the same as whoever stopped watching.

@@ -1,7 +1,7 @@
 'use client'
 
-import { render } from '@broodmother/markdown'
-import type { CellOutput } from '@broodmother/shared'
+import { render } from '@/markdown'
+import type { CellOutput } from '@/types'
 import { ansiSpans } from './ansi'
 
 /** MIME bundle values arrive as a string or a list of lines, like sources do. */

@@ -8,31 +8,30 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import {
-  defaultGitSettings,
-  projectOf,
-  projectRoot,
-  type Branch,
-  type BroodmotherConfig,
-  type DocPath,
-  type DocRef,
-  type DocRoot,
-  type GitAuthor,
-  type GitSettings,
-  type GithubDevice,
-  type GithubRepo,
-  type GitState,
-  type Identity,
-  type NewProject,
-  type Profile,
-  type ProjectSummary,
-  type SyncStatus,
-  type TreeChanges,
-  type TreeEntry,
-  type TreeEvent,
-  type VaultSummary,
-} from '@broodmother/shared'
+import { defaultGitSettings, projectOf, projectRoot } from '@/core'
+import type {
+  Branch,
+  BroodmotherConfig,
+  DocPath,
+  DocRef,
+  DocRoot,
+  GitAuthor,
+  GithubDevice,
+  GithubRepo,
+  GitSettings,
+  GitState,
+  Identity,
+  NewProject,
+  Profile,
+  ProjectSummary,
+  SyncStatus,
+  TreeChanges,
+  TreeEntry,
+  TreeEvent,
+  VaultSummary,
+} from '@/types'
 import { api, type ApiClient, type Connection } from './api'
+import { browse, vaultHref, windowVault } from './window-vault'
 
 /** Why an action failed, or null when it did not. */
 export type Failure = string | null
@@ -118,7 +117,7 @@ export interface App {
     branch?: string | null
   }): Promise<Failure>
   openVault(path: string): Promise<Failure>
-  deleteVault(name: string): Promise<Failure>
+  deleteVault(name: string, profile?: string): Promise<Failure>
   /** Makes the folder if it is not there yet, then links it. The scope moves onto a project
    *  in the open vault: you meant to work in it. */
   addProject(input: NewProject): Promise<Failure>
@@ -179,10 +178,11 @@ const NO_PROJECTS: VaultProjects = { vault: null, list: [] }
  *  quiet claim. Guessing the other way would flash a git UI at a folder that has none. */
 const noGit: GitState = { repo: false, remoteUrl: null, branch: null }
 
-/** Where the config says you are working. The scope is the server's to remember — a relaunch
- *  stands where you left off — so it is read out of the config rather than held beside it. */
-function scopeOf(config: BroodmotherConfig | null): DocRoot {
-  const name = config?.vaultPath ? config.project[config.vaultPath] : null
+/** Where the config says you are working in this window's vault. The scope is the server's
+ *  to remember — a relaunch stands where you left off — so it is read out of the config
+ *  rather than held beside it, filed under the vault the window is standing in. */
+function scopeOf(config: BroodmotherConfig | null, vaultPath: string | null): DocRoot {
+  const name = vaultPath ? config?.project[vaultPath] : null
   return name ? projectRoot(name) : 'vault'
 }
 
@@ -340,8 +340,8 @@ export function AppProvider({
    *  changes when you switch vault, scope or branch. Every root's branches come in, not
    *  just the scope's: they are what lets a later scope move be one synchronous step, with
    *  nothing left to fetch between the click and the whole app standing somewhere else. */
-  const loadPlace = (config: BroodmotherConfig | null) => {
-    const vaultPath = config?.vaultPath ?? null
+  const loadPlace = () => {
+    const vaultPath = windowVault()
     return Promise.all([
       loadVaults(),
       loadTree(),
@@ -361,8 +361,8 @@ export function AppProvider({
   useEffect(() => {
     // The config first, and everything about where you are standing from it: which vault is
     // open is what the rest of the place is an answer about.
-    void Promise.allSettled([loadProfiles(), loadConfig().then(loadPlace)]).then(() =>
-      setReady(true),
+    void Promise.allSettled([loadProfiles(), loadConfig().then(() => loadPlace())]).then(
+      () => setReady(true),
     )
     void client.request('GET /api/sync', null).then(setSync)
 
@@ -382,6 +382,11 @@ export function AppProvider({
           case 'error':
             setNotice(message.message)
             break
+          case 'vault-gone':
+            // The vault this window was standing in is gone from disk. A full load, so
+            // nothing on screen keeps speaking for a place that is not there.
+            browse.assign('/')
+            break
         }
       },
       /* Everything that happened while the socket was down was sent to a socket that was not
@@ -392,7 +397,7 @@ export function AppProvider({
         if (!live) return void (dropped = true)
         if (!dropped) return
         dropped = false
-        void loadConfig().then((config) => loadPlace(config))
+        void loadConfig().then(() => loadPlace())
         void client.request('GET /api/sync', null).then(setSync)
       },
     )
@@ -401,6 +406,13 @@ export function AppProvider({
       connection.current?.close()
     }
   }, [client])
+
+  // A window that names no vault adopts the last-opened one, pinned to the address bar:
+  // what a window is about must not move because another window opened somewhere else.
+  useEffect(() => {
+    if (windowVault() || !config?.vaultPath) return
+    browse.replace(vaultHref(config.vaultPath))
+  }, [config])
 
   /**
    * Every action goes through here, and every one of them can fail. The failure still lands
@@ -425,9 +437,9 @@ export function AppProvider({
 
   /** A switch the backend has just confirmed, filed ahead of the reload: the key moves in
    *  this paint, and `loadPlace` catches the rest of the place up behind it. */
-  const branchMoved = (config: BroodmotherConfig, root: DocRoot, branch: Branch) =>
+  const branchMoved = (root: DocRoot, branch: Branch) =>
     setBranchesByRoot((all) => {
-      const key = rootKey(config.vaultPath, root)
+      const key = rootKey(windowVault(), root)
       const known = all[key]?.branches ?? []
       const branches = known.some((one) => one.name === branch.name)
         ? known.map((one) => (one.name === branch.name ? branch : one))
@@ -435,9 +447,11 @@ export function AppProvider({
       return { ...all, [key]: { branches, active: branch.name } }
     })
 
-  const scope = scopeOf(config)
+  // The window's own vault, not the config's: two windows stand in two vaults, and the
+  // config's is only what a window that names none adopts on arrival.
+  const vaultPath = windowVault()
+  const scope = scopeOf(config, vaultPath)
   const scopedProject = projectOf(scope)
-  const vaultPath = config?.vaultPath ?? null
   // Only ever the open vault's own. A list read out of another one — the vault you were in a
   // moment ago, or one whose answer arrived late — names repositories that are not here.
   const here = projects.vault === vaultPath ? projects.list : []
@@ -529,29 +543,39 @@ export function AppProvider({
         return 'sync settings saved'
       }),
 
+    /* The three below move this window into another vault, and a move is a full page load
+       on purpose: everything the page holds — tabs, shells, trees — is about the vault it
+       was loaded for, and a fresh load in the new place is the honest way to hold none of
+       the old one. Other windows feel nothing: their vault rides their own address bar. */
     createVault: (input) =>
       run(async () => {
         const result = await client.request('POST /api/vaults', input)
-        setConfig(result.config)
-        await Promise.all([loadPlace(result.config), loadProfiles()])
-        return `created ${result.vault.name}`
+        browse.assign(vaultHref(result.vault.path))
       }),
 
-    // Every switch below reloads git: whether there is a repository, and where it points,
-    // is a fact about the checkout you land in and not about the one you left.
     openVault: (path) =>
       run(async () => {
-        const result = await client.request('POST /api/vaults/open', { path })
-        setConfig(result.config)
-        await Promise.all([loadPlace(result.config), loadProfiles()])
-        return `opened ${path}`
+        await client.request('POST /api/vaults/open', { path })
+        browse.assign(vaultHref(path))
       }),
 
-    deleteVault: (name) =>
+    deleteVault: (name, profileName) =>
       run(async () => {
-        const result = await client.request('DELETE /api/vaults', { name })
+        const gone = vaults.find(
+          (one) => one.name === name && (!profileName || one.profile === profileName),
+        )
+        const result = await client.request('DELETE /api/vaults', {
+          name,
+          profile: profileName,
+        })
+        // Deleting the vault under your feet leaves for wherever is left. Deleting another
+        // vault from here is news for its windows, not this one.
+        if (gone && gone.path === windowVault()) {
+          browse.assign(vaultHref(result.active?.path ?? null))
+          return
+        }
         setConfig(result.config)
-        await Promise.all([loadPlace(result.config), loadProfiles()])
+        await Promise.all([loadPlace(), loadProfiles()])
         return `deleted ${name}`
       }),
 
@@ -559,7 +583,7 @@ export function AppProvider({
       run(async () => {
         const result = await client.request('POST /api/projects', input)
         setConfig(result.config)
-        await loadPlace(result.config)
+        await loadPlace()
         return `created ${result.project.name}`
       }),
 
@@ -598,25 +622,24 @@ export function AppProvider({
       run(async () => {
         const result = await client.request('DELETE /api/projects', { name })
         setConfig(result.config)
-        await loadPlace(result.config)
+        await loadPlace()
         return `deleted ${name}`
       }),
 
     deleteAllData: () =>
       run(async () => {
-        const result = await client.request('DELETE /api/data', null)
-        setConfig(result.config)
-        setConfigReset([])
-        await Promise.all([loadPlace(result.config), loadProfiles()])
-        return 'deleted everything in the broodmother home'
+        await client.request('DELETE /api/data', null)
+        // Everything on disk is gone, so everything on screen is about nothing: a full
+        // load lands on the first run this machine is back to.
+        browse.assign('/')
       }),
 
     addBranch: (root, name) =>
       run(async () => {
         const result = await client.request('POST /api/branches', { root, name })
         setConfig(result.config)
-        branchMoved(result.config, root, result.branch)
-        await loadPlace(result.config)
+        branchMoved(root, result.branch)
+        await loadPlace()
         return `created ${result.branch.name}`
       }),
 
@@ -624,8 +647,8 @@ export function AppProvider({
       run(async () => {
         const result = await client.request('POST /api/branches/open', { root, name })
         setConfig(result.config)
-        branchMoved(result.config, root, result.branch)
-        await loadPlace(result.config)
+        branchMoved(root, result.branch)
+        await loadPlace()
         return `switched to ${name}`
       }),
 
@@ -633,26 +656,23 @@ export function AppProvider({
       run(async () => {
         const result = await client.request('DELETE /api/branches', { root, name })
         setConfig(result.config)
-        await loadPlace(result.config)
+        await loadPlace()
         return `removed ${name}`
       }),
 
-    /* Both of these move the vault: working as someone else is standing in their folder, so
-       what opens is one of their vaults — or none, which is where a new profile starts. The
-       config is what says which, and it is read back rather than assumed, or the app goes on
-       drawing the last vault's projects under the name of a vault that is not open. */
+    /* Both of these move this window: working as someone else is standing in their folder,
+       so where it lands is one of their vaults — or the first-run home, which is where a
+       new profile starts. A full load, the same as any other vault move. */
     addProfile: (input) =>
       run(async () => {
-        const result = await client.request('POST /api/profiles', input)
-        await Promise.all([loadProfiles(), loadConfig().then(loadPlace)])
-        return `created ${result.profile.name}`
+        await client.request('POST /api/profiles', input)
+        browse.assign('/')
       }),
 
     selectProfile: (name) =>
       run(async () => {
-        await client.request('PUT /api/vaults', { profile: name })
-        await Promise.all([loadProfiles(), loadConfig().then(loadPlace)])
-        return `working as ${name}`
+        const result = await client.request('PUT /api/vaults', { profile: name })
+        browse.assign(vaultHref(result.vault?.path ?? null))
       }),
 
     saveIdentity: (identity) =>

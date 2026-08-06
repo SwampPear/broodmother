@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import type { TreeEntry } from '@broodmother/shared'
+import type { TreeEntry } from '@/types'
 import { displayName } from '../ui'
 
 /** The row typed into where it sits, editable as far as the name shows: a note hands back

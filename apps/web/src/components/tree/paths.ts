@@ -1,4 +1,4 @@
-import type { DocPath, DocRef, DocRoot, GitChange, TreeEntry } from '@broodmother/shared'
+import type { DocPath, DocRef, DocRoot, GitChange, TreeEntry } from '@/types'
 
 /** One tree the sidebar draws, and the name of the row that heads it — the vault's or the
  *  project's. Without one the entries stand on their own, with nothing to collapse into. */

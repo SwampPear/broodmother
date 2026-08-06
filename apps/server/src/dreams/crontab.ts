@@ -1,5 +1,5 @@
 import { execa } from 'execa'
-import type { DocRef, Dream, DreamNode } from '@broodmother/shared'
+import type { DocRef, Dream, DreamNode } from '@/types'
 
 const BEGIN =
   '# BROODMOTHER BEGIN — schedules managed by broodmother, edits here are overwritten'
@@ -24,8 +24,11 @@ export function systemCrontab(): CrontabIO {
   }
 }
 
-/** A dream and where it lives, which is all a cron line needs to name it. */
+/** A dream and where it lives, which is all a cron line needs to name it. The vault rides
+ *  the fired URL: `{root, path}` alone stopped being an address when windows could stand
+ *  in different vaults. */
 export interface ScheduledDream {
+  vault?: string
   ref: DocRef
   dream: Dream
 }
@@ -50,15 +53,16 @@ function quote(text: string): string {
 /** One line per wired schedule trigger: cron fires curl, curl asks the server to run. */
 export function scheduleLines(found: ScheduledDream[], url: string): string[] {
   const lines: string[] = []
-  for (const { ref, dream } of found) {
+  for (const { vault, ref, dream } of found) {
     const wired = new Set(dream.edges.map((edge) => edge.from))
     for (const node of dream.nodes) {
       const beat = cronOf(node)
       if (!beat || !wired.has(node.id)) continue
       const body = JSON.stringify({ root: ref.root, path: ref.path })
+      const at = vault ? `?vault=${encodeURIComponent(vault)}` : ''
       lines.push(
         `${beat} /usr/bin/curl -fsS -m 600 -X POST -H 'content-type: application/json' ` +
-          `-d ${quote(body)} ${quote(`${url}/api/dream/run`)} >/dev/null 2>&1`,
+          `-d ${quote(body)} ${quote(`${url}/api/dream/run${at}`)} >/dev/null 2>&1`,
       )
     }
   }

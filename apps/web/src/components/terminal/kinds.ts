@@ -5,7 +5,7 @@ import { type IconName } from '../ui'
  * here rather than beside the terminal itself because the tab strip offers them too, and a
  * strip that had to import the terminal would drag xterm in with it.
  */
-export type TerminalKind = 'shell' | 'claude' | 'opencode' | 'muse'
+export type TerminalKind = 'shell' | 'claude' | 'cursor' | 'opencode' | 'muse'
 
 /**
  * What a tab types into its shell once the shell has spoken, or null where it types
@@ -18,6 +18,10 @@ export function command(kind: TerminalKind): string | null {
   switch (kind) {
     case 'claude':
       return 'claude --dangerously-skip-permissions --append-system-prompt "$BROODMOTHER_BRIEF"\r'
+    // cursor-agent has no system-prompt flag, so the brief opens the session as its first
+    // message instead — the same telling, delivered the one way its CLI can hear it.
+    case 'cursor':
+      return 'cursor-agent --force "$BROODMOTHER_BRIEF"\r'
     case 'opencode':
       return 'opencode --auto\r'
     // Muse Spark has no CLI of its own: it rides opencode, through the meta provider the
@@ -39,6 +43,7 @@ export const TERMINALS: Record<
     name: 'claude',
     label: 'claude code (--dangerously-skip-permissions)',
   },
+  cursor: { icon: 'cursor', name: 'cursor', label: 'cursor agent (--force)' },
   opencode: { icon: 'opencode', name: 'opencode', label: 'opencode (--auto)' },
   muse: {
     icon: 'muse',
@@ -47,4 +52,4 @@ export const TERMINALS: Record<
   },
 }
 
-export const KINDS: TerminalKind[] = ['shell', 'claude', 'opencode', 'muse']
+export const KINDS: TerminalKind[] = ['shell', 'claude', 'cursor', 'opencode', 'muse']

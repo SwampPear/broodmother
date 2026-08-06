@@ -1,5 +1,5 @@
 import { execa } from 'execa'
-import type { ShellNode } from '@broodmother/shared'
+import type { ShellNode } from '@/types'
 import { ambient } from '../../sockets'
 import { finish, flowEnv, type StepCtx, type StepResult } from './core'
 

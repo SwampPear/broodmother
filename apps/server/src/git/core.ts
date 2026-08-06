@@ -1,12 +1,6 @@
 import { realpath } from 'node:fs/promises'
 import { execa } from 'execa'
-import type {
-  AccessCheck,
-  DocPath,
-  GitAuthor,
-  GitChange,
-  TreeChanges,
-} from '@broodmother/shared'
+import type { AccessCheck, DocPath, GitAuthor, GitChange, TreeChanges } from '@/types'
 import { expandHome } from '../profiles'
 
 /** Compared through the link so `/tmp` and `/private/tmp` are not two different folders. */

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import type { AccessCheck, GitSettings, GitState } from '@broodmother/shared'
+import type { AccessCheck, GitSettings, GitState } from '@/types'
 import { useApp } from '../../state'
 import { Button } from '../ui'
 import { Section } from './layout'

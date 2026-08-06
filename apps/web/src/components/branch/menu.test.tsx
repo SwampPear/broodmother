@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import type { Branch } from '@broodmother/shared'
+import type { Branch } from '@/types'
 import { BranchMenu } from './menu'
 
 const branches: Branch[] = [
