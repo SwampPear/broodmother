@@ -7,6 +7,7 @@ import { Tree } from '../tree'
 import type { StepCtx, StepResult } from './blocks'
 import { Dreams } from './core'
 import { Crontab, type CrontabIO } from './crontab'
+import { crontabScheduler } from './scheduler'
 import { RunStore } from './db'
 import { TriggerStore } from './state'
 
@@ -45,8 +46,7 @@ async function harness(
   const deps = {
     sites: () => [{ root: 'vault' as const, tree, path: dir }],
     vault: () => tree,
-    url: () => 'http://127.0.0.1:0',
-    cron: new Crontab(io),
+    scheduler: crontabScheduler(new Crontab(io), () => 'http://127.0.0.1:0'),
     store: new TriggerStore(stateFile),
     runs: new RunStore(dbFile),
     scratch: () => path.join(keep, 'runs'),

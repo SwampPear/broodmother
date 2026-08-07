@@ -11,8 +11,11 @@ export interface Profile {
   /** The GitHub login this profile is connected as. Never the token: that is the server's,
    *  and a secret that reaches the browser is a secret in a screenshot. */
   github: string | null
+  /** The lair this profile points at — the URL alone, for the same reason as `github`:
+   *  the key stays in the profile file and never reaches the browser. */
+  lair: string | null
 }
 
-// The half a person edits. The GitHub connection is not in it — it is made and broken by
-// signing in, not by typing.
-export type Identity = Omit<Profile, 'name' | 'path' | 'github'>
+// The half a person edits. The GitHub connection and the lair are not in it — they are
+// made and broken by their own routes, not by typing.
+export type Identity = Omit<Profile, 'name' | 'path' | 'github' | 'lair'>

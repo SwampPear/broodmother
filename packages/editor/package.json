@@ -12,6 +12,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@broodmother/collab": "*",
     "@broodmother/shared": "*"
   }
 }

@@ -23,6 +23,9 @@ function ctx(): FlowCtx {
     vaults: vi.fn(),
     projects: vi.fn(),
     createProject: vi.fn(),
+    liveDoc: null,
+    shareLive: vi.fn(),
+    joinLive: vi.fn(),
   }
 }
 
@@ -44,6 +47,7 @@ it('offers every command and every document, commands first', async () => {
     'New dream',
     'Move or rename document',
     'Delete document',
+    'Join a live session',
     'Toggle terminal',
     'Sync now',
     'Switch project',

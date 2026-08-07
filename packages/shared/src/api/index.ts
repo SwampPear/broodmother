@@ -39,6 +39,28 @@ export type {
   PutGit,
 } from './git'
 export type { KernelClientMessage, KernelServerMessage, KernelState } from './kernel'
+export {
+  LAIR_ROOM_ROUTE,
+  type DeleteLair,
+  type GetLair,
+  type GetLairDreams,
+  type HostedDream,
+  type LairCheck,
+  type LairCheckState,
+  type LairDreamTarget,
+  type LairKey,
+  type LairKeyGrant,
+  type LairRequest,
+  type LairResponse,
+  type LairRoute,
+  type LairSite,
+  type LairState,
+  type LairStatus,
+  type PostLairCheck,
+  type PostLairShare,
+  type PutLair,
+  type PutLairDream,
+} from './lair'
 export type {
   DeleteGithub,
   GetGithubRepos,

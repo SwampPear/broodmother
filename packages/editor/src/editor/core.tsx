@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react'
 import type * as Monaco from 'monaco-editor'
+import type { MonacoBinding } from 'y-monaco'
+import type { CollabSession } from '@broodmother/collab'
 import { COMMANDS, toggleWrap, triggerAt, type Command, type Trigger } from '../commands'
 import { INDENT, installLists } from '../lists'
 import {
@@ -28,6 +30,11 @@ interface EditorProps {
   /** A field rather than a page. Prose is given room to be read in, and a box a few lines
    *  tall does not have it to give. */
   compact?: boolean
+  /** A live session to bind the buffer to. With one, the `markdown` reconciliation and
+   *  the `onChange` emit both stand down — the session owns the document — and everyone
+   *  else's cursors render in their profile colours. Without one, the editor is exactly
+   *  what it is alone. */
+  session?: CollabSession
 }
 
 /**
@@ -99,6 +106,7 @@ export function Editor({
   path = 'untitled.md',
   theme = 'dark',
   compact = false,
+  session,
 }: EditorProps) {
   const host = useRef<HTMLDivElement>(null)
   const editor = useRef<Monaco.editor.IStandaloneCodeEditor | null>(null)
@@ -106,6 +114,8 @@ export function Editor({
   const api = useRef<MonacoApi | null>(null)
   const emit = useRef(onChange)
   const emitted = useRef(value)
+  const bound = useRef(session)
+  const binding = useRef<MonacoBinding | null>(null)
   const trigger = useRef<(Trigger & { index: number }) | null>(null)
   const [menu, setMenu] = useState<{
     trigger: Trigger
@@ -114,7 +124,9 @@ export function Editor({
     left: number
   } | null>(null)
   const [prose, setProse] = useState(true)
+  const [ready, setReady] = useState(false)
   emit.current = onChange
+  bound.current = session
 
   useEffect(() => {
     let live = true
@@ -151,7 +163,7 @@ export function Editor({
         const model = created!.getModel()
         if (!model) return
         emitted.current = model.getValue()
-        emit.current(emitted.current)
+        if (!bound.current) emit.current(emitted.current)
         updateMenu()
         caretSize()
       })
@@ -159,6 +171,7 @@ export function Editor({
       created.onDidChangeCursorPosition(caretSize)
       created.onDidBlurEditorText(close)
       caretSize()
+      setReady(true)
 
       function close() {
         trigger.current = null
@@ -204,6 +217,8 @@ export function Editor({
 
     return () => {
       live = false
+      binding.current?.destroy()
+      binding.current = null
       preview.current?.dispose()
       preview.current = null
       created?.dispose()
@@ -280,11 +295,12 @@ export function Editor({
 
   // A value that did not come from this editor is a write from somewhere else — another
   // window, an editor on disk, a shell. Replacing the whole document would drop the undo
-  // stack and put the caret at one end, so the edit is applied as an edit.
+  // stack and put the caret at one end, so the edit is applied as an edit. While a
+  // session is live it owns the buffer, and this hand stays off it.
   useEffect(() => {
     const instance = editor.current
     const model = instance?.getModel()
-    if (!instance || !model || value === emitted.current) return
+    if (session || !instance || !model || value === emitted.current) return
     emitted.current = value
     const selections = instance.getSelections()
     model.pushEditOperations(
@@ -292,7 +308,54 @@ export function Editor({
       [{ range: model.getFullModelRange(), text: value }],
       () => selections,
     )
-  }, [value])
+  }, [value, session])
+
+  // Loaded the way Monaco itself is — on use, never at module top: a static import of
+  // y-monaco drags the whole editor in with it, which every non-editor test would pay for.
+  useEffect(() => {
+    const instance = editor.current
+    const model = instance?.getModel()
+    binding.current?.destroy()
+    binding.current = null
+    if (!session || !instance || !model) return
+    let live = true
+    void import('y-monaco').then(({ MonacoBinding }) => {
+      if (!live) return
+      binding.current = new MonacoBinding(
+        session.text,
+        model,
+        new Set([instance]),
+        session.awareness,
+      )
+    })
+    return () => {
+      live = false
+      binding.current?.destroy()
+      binding.current = null
+    }
+  }, [session, ready])
+
+  // Everyone else's cursor, painted through a stylesheet because that is where y-monaco
+  // looks: a selection wash and a caret in each peer's colour, and a name flag that
+  // rides the caret and fades — repainted on every awareness move, which is what keeps
+  // the fade starting over while a peer is active.
+  useEffect(() => {
+    if (!session) return
+    const style = document.createElement('style')
+    document.head.appendChild(style)
+    const paint = () => {
+      style.textContent = session
+        .state()
+        .peers.map((peer) => peerStyle(peer.id, peer.name, peer.color))
+        .join('\n')
+    }
+    paint()
+    const off = session.onState(paint)
+    return () => {
+      off()
+      style.remove()
+    }
+  }, [session])
 
   return (
     <div className={prose ? 'monaco-host prose' : 'monaco-host'}>
@@ -321,6 +384,36 @@ export function Editor({
       )}
     </div>
   )
+}
+
+function peerStyle(id: number, name: string, color: string): string {
+  const safe = name.replace(/["\\]/g, '')
+  return `
+.yRemoteSelection-${id} { background-color: ${color}40; }
+.yRemoteSelectionHead-${id} {
+  position: absolute;
+  border-left: 2px solid ${color};
+  border-top: 2px solid ${color};
+  height: 100%;
+  box-sizing: border-box;
+}
+.yRemoteSelectionHead-${id}::after {
+  content: "${safe}";
+  position: absolute;
+  top: -1.3em;
+  left: -2px;
+  padding: 0 4px;
+  font-size: 10px;
+  line-height: 1.3;
+  white-space: nowrap;
+  color: #fff;
+  background-color: ${color};
+  border-radius: 2px 2px 2px 0;
+  opacity: 0;
+  animation: peer-flag 3s ease-out;
+  pointer-events: none;
+}
+@keyframes peer-flag { 0% { opacity: 1; } 70% { opacity: 1; } 100% { opacity: 0; } }`
 }
 
 export { COMMANDS }

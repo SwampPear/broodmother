@@ -17,8 +17,8 @@ import {
 import { writeFile } from 'node:fs/promises'
 import type { Tree } from '../tree'
 import { performStep, type StepCtx, type StepResult } from './blocks'
-import { scheduleLines, type Crontab } from './crontab'
 import type { RunStore } from './db'
+import type { Scheduler } from './scheduler'
 import {
   composeInput,
   openScratch,
@@ -40,12 +40,11 @@ export interface DreamSite {
 
 export interface DreamsDeps {
   sites(): DreamSite[]
-  /** Where `agent.note` writes: notes are a vault idea, wherever the dream lives. */
-  vault(): Tree | null
-  /** Where the cron lines point: the server's own address, empty until it listens. */
-  url(): string
-  /** The system crontab, holding one line per scheduled trigger. */
-  cron: Crontab
+  /** Where `agent.note` writes: the open vault on a laptop, the dream's own site on a
+   *  lair — notes are a vault idea, and the site is the vault a hosted dream has. */
+  vault(site: DreamSite): Tree | null
+  /** Who keeps time for schedule triggers: the system crontab, or an in-process clock. */
+  scheduler: Scheduler
   /** The cursors event triggers save between checks. */
   store: TriggerStore
   /** The record every run lands in, and where the page reads them back from. */
@@ -54,9 +53,12 @@ export interface DreamsDeps {
   scratch(): string
   /** Extra environment for the agent, the profile's say — CLAUDE_CONFIG_DIR and kin. */
   env?(): Record<string, string>
-  /** The system-prompt body a persona name resolves to — a vault idea, like notes. */
-  persona?(name: string): Promise<string | null>
+  /** The system-prompt body a persona name resolves to — a vault idea, like notes, so a
+   *  host that has no vault resolves it against the dream's own site. */
+  persona?(name: string, site: DreamSite): Promise<string | null>
   agent?(node: ClaudeNode, ctx: StepCtx): Promise<StepResult | string>
+  /** Wraps each walk, for a host that must pull before it and push after it. */
+  around?(ref: DocRef, site: DreamSite, walk: () => Promise<void>): Promise<void>
   fetch?: typeof fetch
   now?(): number
 }
@@ -154,11 +156,9 @@ export class Dreams {
     })
   }
 
-  /** The crontab mirrors the wired schedule triggers; cron does the waking from there. */
+  /** The scheduler mirrors the wired schedule triggers; the waking is its to arrange. */
   private async schedule(found: FoundDream[]): Promise<void> {
-    const url = this.deps.url()
-    if (!url) return
-    await this.deps.cron.sync(scheduleLines(found, url)).catch(() => null)
+    await this.deps.scheduler.sync(found).catch(() => null)
   }
 
   private async watch(found: FoundDream[]): Promise<void> {
@@ -227,7 +227,8 @@ export class Dreams {
     // The rows the store let go take their folders with them.
     void pruneScratch(this.deps.scratch(), filed.pruned).catch(() => null)
     this.walking.set(refKey(ref), run)
-    void this.walk(site, dream, run, seed)
+    const walking = () => this.walk(site, dream, run, seed)
+    void (this.deps.around ? this.deps.around(ref, site, walking) : walking())
       .catch(() => null)
       .finally(() => this.walking.delete(refKey(ref)))
     return run
@@ -341,7 +342,7 @@ export class Dreams {
   ): Promise<StepResult> {
     const ctx: StepCtx = {
       cwd: site.path,
-      vault: this.deps.vault(),
+      vault: this.deps.vault(site),
       input,
       inputPath: files?.input ?? '',
       outputPath: files?.output ?? '',
@@ -352,7 +353,7 @@ export class Dreams {
     }
     if (node.kind === 'agent.claude') {
       ctx.persona = node.persona
-        ? ((await this.deps.persona?.(node.persona)) ?? null)
+        ? ((await this.deps.persona?.(node.persona, site)) ?? null)
         : null
       if (node.persona && ctx.persona === null)
         throw new DreamError(`no persona named "${node.persona}"`)

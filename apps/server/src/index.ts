@@ -98,3 +98,19 @@ export async function startServer(
 
 export { createApp } from './app'
 export { AppContext } from './context'
+// What the lair composes: the same orchestrator, stores and git the laptop runs. Opened
+// one name at a time on purpose — the lair is an allowlist, not a mode of this server.
+export {
+  Dreams,
+  RunStore,
+  TriggerStore,
+  timerScheduler,
+  type DreamSite,
+  type DreamsDeps,
+  type Scheduler,
+} from './dreams'
+export { PathError, atomicWrite, normalize } from './fs'
+export { Git, sshCommand } from './git'
+export { remoteUrlSchema } from './config'
+export { Tree } from './tree'
+export { readPersona } from './vault'

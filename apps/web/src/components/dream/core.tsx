@@ -19,6 +19,7 @@ import {
   type DreamKind,
   type DreamNode,
   type DreamRun,
+  type LairSite,
   type Persona,
 } from '@broodmother/shared'
 import {
@@ -171,6 +172,8 @@ export function DreamView({
   const [dream, setDream] = useState<Dream | null>(null)
   const [picked, setPicked] = useState<Picked | null>(null)
   const [run, setRun] = useState<DreamRun | null>(null)
+  const [placing, setPlacing] = useState(false)
+  const [lairSites, setLairSites] = useState<LairSite[]>([])
   const [personas, setPersonas] = useState<Persona[]>([])
   const [view, setView] = useState<View>({ x: 40, y: 40, zoom: 1 })
   const [options, setOptions] = useState(false)
@@ -424,6 +427,38 @@ export function DreamView({
     }
   }
 
+  /** The sites are asked for when the menu opens, so the list is the lair's answer now
+   *  rather than a copy from whenever the dream was. */
+  function openPlacing(open: boolean) {
+    setPlacing(open)
+    if (!open) return
+    void app.lairDreams().then((answer) => {
+      if (typeof answer !== 'string') setLairSites(answer.sites)
+    })
+  }
+
+  function placements(): MenuSection[] {
+    return [
+      {
+        heading: 'run on the lair, under…',
+        actions: lairSites.length
+          ? lairSites.map((site) => ({
+              id: site.name,
+              label: site.name,
+              onSelect: () => void app.pushDream({ root, path, site: site.name }),
+            }))
+          : [
+              {
+                id: 'no-sites',
+                label: 'no sites yet — lair sites add <name> <remote>',
+                disabled: true,
+                onSelect: () => {},
+              },
+            ],
+      },
+    ]
+  }
+
   // --- paint ---------------------------------------------------------------------
 
   if (broken) return <div className="empty">{broken}</div>
@@ -514,6 +549,18 @@ export function DreamView({
           >
             <Icon name="chevron-right" />
           </button>
+          {app.lair.keyed && (
+            <Menu
+              label="Run on the lair"
+              sections={placements()}
+              anchorClass="dream-button"
+              anchorLabel="run on the lair"
+              open={placing}
+              onOpenChange={openPlacing}
+            >
+              <Icon name="antenna" />
+            </Menu>
+          )}
           {run && (
             <span className="dream-state" data-state={run.state}>
               {run.state}

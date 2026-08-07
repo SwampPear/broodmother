@@ -29,6 +29,7 @@ async function connected(seed: Parameters<typeof createMockClient>[0] = {}) {
         claudeCfgDir: null,
         soul: null,
         github: 'you',
+        lair: null,
       },
     ],
   })

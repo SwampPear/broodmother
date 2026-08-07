@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@broodmother/shared": "*",
+    "@broodmother/collab": "*",
     "@broodmother/editor": "*",
     "@broodmother/markdown": "*",
     "@broodmother/notebook": "*"

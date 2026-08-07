@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from 'react'
 import { useApp, type App } from '../../state'
 import { Icon, type IconName } from '../ui'
+import { LairPanel } from './lair'
 import { ProfilePanel } from './profile'
 import { ProjectPanel } from './project'
 import { VaultPanel } from './vault'
@@ -16,8 +17,8 @@ interface Section {
   panel: () => ReactNode
 }
 
-/** Who you are, where you work, and what the work is about. Everything the app can be told
- *  belongs to one of the three, so there are three. */
+/** Who you are, where you work, what the work is about — and, when you have one, the
+ *  server that works while you are away. */
 const SECTIONS: Section[] = [
   {
     id: 'profile',
@@ -25,6 +26,13 @@ const SECTIONS: Section[] = [
     icon: 'user',
     open: (app) => Boolean(app.profile),
     panel: ProfilePanel,
+  },
+  {
+    id: 'server',
+    label: 'Server',
+    icon: 'antenna',
+    open: (app) => Boolean(app.profile),
+    panel: LairPanel,
   },
   {
     id: 'vault',

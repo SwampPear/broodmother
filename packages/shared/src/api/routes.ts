@@ -7,6 +7,15 @@ import type {
 import type { DeleteData } from './data'
 import type { GetDiff, GetDiffFile } from './diff'
 import type { GetDreamLog, GetDreamRuns, GetDreams, PostDreamRun } from './dreams'
+import type {
+  DeleteLair,
+  GetLair,
+  GetLairDreams,
+  PostLairCheck,
+  PostLairShare,
+  PutLair,
+  PutLairDream,
+} from './lair'
 import type { GetPersonas } from './personas'
 import type { DeleteTerminal } from './terminal'
 import type { DeleteDoc, GetDoc, GetLinks, PostDocMove, PostFolder, PutDoc } from './docs'
@@ -77,6 +86,13 @@ interface ApiRoutes {
   'GET /api/dream/runs': GetDreamRuns
   'GET /api/dreams': GetDreams
   'GET /api/dream/log': GetDreamLog
+  'GET /api/lair': GetLair
+  'PUT /api/lair': PutLair
+  'DELETE /api/lair': DeleteLair
+  'POST /api/lair/check': PostLairCheck
+  'POST /api/lair/share': PostLairShare
+  'PUT /api/lair/dream': PutLairDream
+  'GET /api/lair/dreams': GetLairDreams
   'GET /api/personas': GetPersonas
   'GET /api/doc': GetDoc
   'PUT /api/doc': PutDoc

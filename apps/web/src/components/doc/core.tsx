@@ -6,6 +6,7 @@ import { Editor } from '../../editor'
 import { useApp, type RootEvent } from '../../state'
 import { DreamView } from '../dream'
 import { NotebookView } from '../notebook'
+import { Button, Modal } from '../ui'
 import { ImageView } from './image'
 
 const saveDebounceMs = 500
@@ -24,6 +25,13 @@ export function DocView({ root, path }: DocRef) {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   // An image has no text to read, and reading its bytes as text is how you corrupt it.
   const picture = isImage(path)
+  // The one live session, when it is about this document. While it stands, the session
+  // owns the buffer: the save debounce and the external-write adoption both stand down,
+  // because two things writing one Monaco model is the bug they would be.
+  const session =
+    app.live && app.live.ref.root === root && app.live.ref.path === path
+      ? app.live.session
+      : undefined
 
   useEffect(() => {
     if (picture) return
@@ -68,7 +76,7 @@ export function DocView({ root, path }: DocRef) {
   // moment later, which is the last-write-wins the app already had.
   const event = app.treeEvent
   useEffect(() => {
-    if (!event || !touches(event, { root, path }) || timer.current) return
+    if (session || !event || !touches(event, { root, path }) || timer.current) return
     // A picture is refetched by the browser, not by this client: bumping the revision is
     // what changes the `src` it was told to cache.
     if (picture) return setRevision((was) => was + 1)
@@ -88,12 +96,15 @@ export function DocView({ root, path }: DocRef) {
 
   const onChange = (next: string) => {
     setMarkdown(next)
+    if (session) return
     if (timer.current) clearTimeout(timer.current)
     timer.current = setTimeout(() => {
       timer.current = null
       void app.save({ root, path }, next)
     }, saveDebounceMs)
   }
+
+  const divergent = session && app.liveMode === 'divergent'
 
   if (picture)
     return (
@@ -130,8 +141,35 @@ export function DocView({ root, path }: DocRef) {
   return (
     <article className="doc">
       <div className="doc-body">
-        <Editor markdown={markdown} onChange={onChange} path={path} />
+        <Editor markdown={markdown} onChange={onChange} path={path} session={session} />
       </div>
+      {divergent && (
+        <Modal
+          title="Two versions of this document"
+          description="Your file and the shared session say different things. They are not merged, because a merge of two documents is a document nobody wrote."
+          footer={
+            <>
+              <Button onClick={() => void app.resolveLive('room')}>
+                take the session’s
+              </Button>
+              <Button onClick={() => void app.resolveLive('leave')}>
+                keep mine and leave
+              </Button>
+            </>
+          }
+        >
+          <div className="diverged">
+            <section>
+              <h3>The session’s</h3>
+              <pre>{session.state().text}</pre>
+            </section>
+            <section>
+              <h3>Yours</h3>
+              <pre>{markdown}</pre>
+            </section>
+          </div>
+        </Modal>
+      )}
     </article>
   )
 }

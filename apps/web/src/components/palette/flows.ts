@@ -15,6 +15,12 @@ export interface FlowCtx {
   remove(ref: DocRef): void
   syncNow(): void
   settings(): void
+  /** The document a share would be about — the open one, when it is shareable text. */
+  liveDoc: DocRef | null
+  /** Mints an invite for `liveDoc` and puts it on the clipboard. */
+  shareLive(): void
+  /** A pasted invite, and the path the joiner files the document under. */
+  joinLive(invite: string, path: DocPath): void
   /** The dreams page: what is scheduled, and how running has been going. */
   dreams(): void
   toggleTerminal(): void
@@ -43,6 +49,25 @@ export function moveFlow(ctx: FlowCtx, from: DocRef): Flow {
       ctx.move(from.root, from.path, to)
       return null
     },
+  }
+}
+
+/** Joining is two answers: the invite someone sent, and where the document lands in your
+ *  vault — which need not be where it lives in theirs. */
+export function joinFlow(ctx: FlowCtx): Flow {
+  return {
+    kind: 'input',
+    label: 'Paste the invite',
+    initial: '',
+    next: (invite) => ({
+      kind: 'input',
+      label: 'File the shared document as',
+      initial: 'Shared.md',
+      next: (path) => {
+        ctx.joinLive(invite, path)
+        return null
+      },
+    }),
   }
 }
 

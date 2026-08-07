@@ -83,6 +83,15 @@ export const githubSchema = z.object({
 
 export type GithubAccount = z.infer<typeof githubSchema>
 
+/** The lair a profile points at, kept exactly like the GitHub connection beside it: the
+ *  whole credential in the profile file at 0600, the URL alone handed to the app. */
+export const lairSchema = z.object({
+  url: z.string().min(1),
+  key: z.string().min(1),
+})
+
+export type LairAccount = z.infer<typeof lairSchema>
+
 const isFile = (target: string) =>
   stat(target).then(
     (info) => info.isFile(),
@@ -101,6 +110,24 @@ async function rawProfile(file: string): Promise<Record<string, unknown>> {
 export async function readAccount(profile: Profile): Promise<GithubAccount | null> {
   const parsed = githubSchema.safeParse((await rawProfile(profile.path)).github)
   return parsed.success ? parsed.data : null
+}
+
+export async function readLairAccount(profile: Profile): Promise<LairAccount | null> {
+  const parsed = lairSchema.safeParse((await rawProfile(profile.path)).lair)
+  return parsed.success ? parsed.data : null
+}
+
+/** Null forgets the lair. The key is replaced whole with the URL — half a credential is
+ *  not a state this file has. */
+export async function writeLairAccount(
+  profile: Profile,
+  account: LairAccount | null,
+): Promise<Profile> {
+  const raw = await rawProfile(profile.path)
+  const { lair: _gone, ...rest } = raw
+  const next = account ? { ...rest, lair: account } : rest
+  await atomicWrite(profile.path, `${JSON.stringify(next, null, 2)}\n`, 0o600)
+  return { ...profile, lair: account?.url ?? null }
 }
 
 /** Null disconnects. The profile keeps everything else it had — signing out of a host is
@@ -160,12 +187,15 @@ export async function listProfiles(home = broodmotherHome()): Promise<Profile[]>
       .map(async (entry) => {
         const file = profileFile(home, entry.name)
         if (!(await isFile(file))) return null
-        const account = githubSchema.safeParse((await rawProfile(file)).github)
+        const raw = await rawProfile(file)
+        const account = githubSchema.safeParse(raw.github)
+        const lair = lairSchema.safeParse(raw.lair)
         return {
           name: entry.name,
           path: file,
           ...(await identityOf(file, entry.name)),
           github: account.success ? account.data.login : null,
+          lair: lair.success ? lair.data.url : null,
         }
       }),
   )
@@ -250,7 +280,7 @@ export async function createProfile(
   await mkdir(path.join(home, name), { recursive: true })
 
   return writeIdentity(
-    { name, path: profileFile(home, name), github: null, ...identity },
+    { name, path: profileFile(home, name), github: null, lair: null, ...identity },
     identity,
   )
 }

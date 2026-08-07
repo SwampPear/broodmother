@@ -35,6 +35,7 @@ export type IconName =
   | 'user'
   | 'key'
   | 'alert'
+  | 'antenna'
   | 'x'
 
 /** Lucide, the set Obsidian ships: 24×24, stroke 2, round caps and joins. */
@@ -236,6 +237,16 @@ const GLYPHS: Record<IconName, ReactNode> = {
     <>
       <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
       <circle cx="12" cy="7" r="4" />
+    </>
+  ),
+  antenna: (
+    <>
+      <path d="M2 12 7 2" />
+      <path d="M7 12 12 2" />
+      <path d="M12 12 17 2" />
+      <path d="M17 12 22 2" />
+      <path d="M4.5 7h15" />
+      <path d="M12 16v6" />
     </>
   ),
   key: (

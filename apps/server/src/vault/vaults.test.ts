@@ -17,6 +17,7 @@ const profile: Profile = {
   claudeCfgDir: null,
   soul: null,
   github: null,
+  lair: null,
 }
 
 /** The profile the vaults are made as, standing in the home the test just made. */

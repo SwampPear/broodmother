@@ -30,6 +30,7 @@
     "localhost": "concurrently -k -n server,web -c magenta,cyan \"npm run dev -w @broodmother/server\" \"npm run dev -w @broodmother/web\"",
     "start": "concurrently -k -n server,web -c magenta,cyan \"npm run start -w @broodmother/server\" \"npm run start -w @broodmother/web\"",
     "app": "npm run start -w @broodmother/desktop",
+    "lair": "npm run start -w @broodmother/lair",
     "build": "npm run typecheck && npm run build -w @broodmother/web",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
@@ -86,6 +87,7 @@
     "react-dom": "^19.2.8",
     "shiki": "^4.3.1",
     "ws": "^8.21.1",
+    "y-monaco": "^0.1.6",
     "zod": "^4.4.3"
   },
   "bin": {

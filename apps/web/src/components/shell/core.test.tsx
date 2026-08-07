@@ -52,6 +52,7 @@ const profile = (name: string): Profile => ({
   claudeCfgDir: null,
   soul: null,
   github: null,
+  lair: null,
 })
 
 it('opens on an empty home with the setup over it, not on a screen of its own', async () => {

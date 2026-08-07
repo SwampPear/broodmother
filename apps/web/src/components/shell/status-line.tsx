@@ -1,6 +1,7 @@
 'use client'
 
-import type { SyncStatus } from '@broodmother/shared'
+import type { Peer, SyncStatus } from '@broodmother/shared'
+import type { SessionMode } from '@broodmother/collab'
 import { Button } from '../ui'
 
 function syncLabel(sync: SyncStatus): string {
@@ -27,16 +28,30 @@ function syncLabel(sync: SyncStatus): string {
   }
 }
 
+/** The session's state as one short word, shown only while there is a session. */
+function liveLabel(mode: SessionMode, peers: number): string {
+  if (mode === 'solo') return 'live · relay lost, editing alone'
+  if (mode === 'divergent') return 'live · versions differ'
+  if (mode === 'joining') return 'live · joining…'
+  return peers === 0 ? 'live · nobody else yet' : `live · ${peers + 1} editing`
+}
+
 export function StatusLine({
   sync,
   notice,
+  live = null,
+  peers = [],
   onClearConflict,
   onDismissNotice,
+  onLeaveLive,
 }: {
   sync: SyncStatus
   notice: string | null
+  live?: SessionMode | null
+  peers?: Peer[]
   onClearConflict: () => void
   onDismissNotice: () => void
+  onLeaveLive?: () => void
 }) {
   return (
     <footer className="status">
@@ -55,6 +70,30 @@ export function StatusLine({
         <span className="sync" data-state={sync.state}>
           {syncLabel(sync)}
         </span>
+        {live && (
+          <span className="session" data-state={live}>
+            {peers.map((peer) => (
+              <span
+                key={peer.id}
+                className="peer-dot"
+                style={{ background: peer.color }}
+                title={peer.name}
+                aria-label={peer.name}
+              />
+            ))}
+            <span>{liveLabel(live, peers.length)}</span>
+            {onLeaveLive && (
+              <button
+                type="button"
+                className="notice"
+                onClick={onLeaveLive}
+                aria-label="leave the live session"
+              >
+                leave
+              </button>
+            )}
+          </span>
+        )}
         {notice && (
           <button type="button" className="notice" onClick={onDismissNotice}>
             {notice} ✕

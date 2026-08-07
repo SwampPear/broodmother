@@ -10,6 +10,7 @@ import {
 } from 'react'
 import {
   defaultGitSettings,
+  parseInvite,
   projectOf,
   projectRoot,
   type Branch,
@@ -22,8 +23,14 @@ import {
   type GithubDevice,
   type GithubRepo,
   type GitState,
+  type HostedDream,
   type Identity,
+  type LairCheck,
+  type LairDreamTarget,
+  type LairSite,
+  type LairState,
   type NewProject,
+  type Peer,
   type Profile,
   type ProjectSummary,
   type SyncStatus,
@@ -32,6 +39,13 @@ import {
   type TreeEvent,
   type VaultSummary,
 } from '@broodmother/shared'
+import {
+  createSession,
+  encipheredTransport,
+  relayTransport,
+  type CollabSession,
+  type SessionMode,
+} from '@broodmother/collab'
 import { api, type ApiClient, type Connection } from './api'
 
 /** Why an action failed, or null when it did not. */
@@ -143,6 +157,24 @@ export interface App {
     name: string
     private: boolean
   }): Promise<GithubRepo | string>
+  /** The lair this profile points at: URL and whether a key is held, never the key. */
+  lair: LairState
+  setLair(url: string, key: string): Promise<Failure>
+  clearLair(): Promise<Failure>
+  /** Handed back rather than toasted: the panel is where the sentence belongs. */
+  checkLair(): Promise<LairCheck | string>
+  lairDreams(): Promise<{ sites: LairSite[]; dreams: HostedDream[] } | string>
+  pushDream(target: LairDreamTarget): Promise<Failure>
+  /** The one live session, if any: the document it is about and the invite to hand on. */
+  live: { ref: DocRef; invite: string; session: CollabSession } | null
+  livePeers: Peer[]
+  liveMode: SessionMode | null
+  /** Mints a room, opens the session, and answers the invite to send. */
+  shareLive(ref: DocRef): Promise<{ invite: string } | string>
+  /** A pasted invite, and where the joiner files the document. */
+  joinLive(text: string, ref: DocRef): Promise<Failure>
+  leaveLive(): void
+  resolveLive(choice: 'room' | 'leave'): Promise<void>
 }
 
 /** Long enough to collect a burst of writes, short enough to feel like no wait at all. */
@@ -230,6 +262,12 @@ export function AppProvider({
   const [home, setHome] = useState('')
   const [treeEvent, setTreeEvent] = useState<RootEvent | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [lair, setLairState] = useState<LairState>({ url: null, keyed: false })
+  const [live, setLive] = useState<App['live']>(null)
+  const [livePeers, setLivePeers] = useState<Peer[]>([])
+  const [liveMode, setLiveMode] = useState<SessionMode | null>(null)
+  const liveRef = useRef<App['live']>(null)
+  liveRef.current = live
   const connection = useRef<Connection | null>(null)
   const treeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -326,6 +364,55 @@ export function AppProvider({
       return result.config
     })
 
+  const loadLair = () =>
+    client
+      .request('GET /api/lair', null)
+      .then(setLairState)
+      .catch(() => setLairState({ url: null, keyed: false }))
+
+  /** Opens the one live session. The room's traffic is sealed under the invite's key
+   *  before it leaves, and the flush writes through the same doc route a save does. */
+  const startLive = async (ref: DocRef, invite: string): Promise<void> => {
+    const parsed = parseInvite(invite)
+    if (!parsed) throw new Error('that is not an invite')
+    liveRef.current?.session.close().catch(() => null)
+    const transport = await encipheredTransport(
+      relayTransport({ invite: parsed }),
+      parsed.key,
+    )
+    const session = createSession({
+      transport,
+      io: {
+        read: () =>
+          client
+            .request('GET /api/doc', ref)
+            .then((result) => result.markdown)
+            .catch(() => ''),
+        write: async (text) => {
+          await client.request('PUT /api/doc', { ...ref, markdown: text })
+        },
+      },
+      identity: {
+        name: profile?.name ?? 'someone',
+        color: profile?.color ?? '#8fb8d8',
+      },
+    })
+    session.onState((state) => {
+      setLivePeers(state.peers)
+      setLiveMode(state.mode)
+    })
+    setLive({ ref, invite, session })
+    setLiveMode(session.state().mode)
+    setLivePeers([])
+  }
+
+  const endLive = () => {
+    liveRef.current?.session.close().catch(() => null)
+    setLive(null)
+    setLiveMode(null)
+    setLivePeers([])
+  }
+
   const loadGit = () =>
     client
       .request('GET /api/git', null)
@@ -361,9 +448,11 @@ export function AppProvider({
   useEffect(() => {
     // The config first, and everything about where you are standing from it: which vault is
     // open is what the rest of the place is an answer about.
-    void Promise.allSettled([loadProfiles(), loadConfig().then(loadPlace)]).then(() =>
-      setReady(true),
-    )
+    void Promise.allSettled([
+      loadProfiles(),
+      loadLair(),
+      loadConfig().then(loadPlace),
+    ]).then(() => setReady(true))
     void client.request('GET /api/sync', null).then(setSync)
 
     let dropped = false
@@ -393,12 +482,14 @@ export function AppProvider({
         if (!dropped) return
         dropped = false
         void loadConfig().then((config) => loadPlace(config))
+        void loadLair()
         void client.request('GET /api/sync', null).then(setSync)
       },
     )
     return () => {
       if (treeTimer.current) clearTimeout(treeTimer.current)
       connection.current?.close()
+      liveRef.current?.session.close().catch(() => null)
     }
   }, [client])
 
@@ -644,14 +735,14 @@ export function AppProvider({
     addProfile: (input) =>
       run(async () => {
         const result = await client.request('POST /api/profiles', input)
-        await Promise.all([loadProfiles(), loadConfig().then(loadPlace)])
+        await Promise.all([loadProfiles(), loadLair(), loadConfig().then(loadPlace)])
         return `created ${result.profile.name}`
       }),
 
     selectProfile: (name) =>
       run(async () => {
         await client.request('PUT /api/vaults', { profile: name })
-        await Promise.all([loadProfiles(), loadConfig().then(loadPlace)])
+        await Promise.all([loadProfiles(), loadLair(), loadConfig().then(loadPlace)])
         return `working as ${name}`
       }),
 
@@ -699,6 +790,70 @@ export function AppProvider({
         .request('POST /api/github/repos', input)
         .then((result) => result.repo)
         .catch((error: unknown) => reasonOf(error)),
+
+    lair,
+
+    setLair: (url, key) =>
+      run(async () => {
+        setLairState(await client.request('PUT /api/lair', { url, key }))
+        await loadProfiles()
+        return `pointed at ${url}`
+      }),
+
+    clearLair: () =>
+      run(async () => {
+        setLairState(await client.request('DELETE /api/lair', null))
+        await loadProfiles()
+        return 'the lair is forgotten'
+      }),
+
+    /* Handed back rather than toasted, like the GitHub flow above: the panel asking is
+       where the answer belongs. */
+    checkLair: () =>
+      client
+        .request('POST /api/lair/check', null)
+        .catch((error: unknown) => reasonOf(error)),
+
+    lairDreams: () =>
+      client
+        .request('GET /api/lair/dreams', null)
+        .catch((error: unknown) => reasonOf(error)),
+
+    pushDream: (target) =>
+      run(async () => {
+        const result = await client.request('PUT /api/lair/dream', target)
+        return `${result.dream.name} now runs on the lair, under ${result.dream.site}`
+      }),
+
+    live,
+    livePeers,
+    liveMode,
+
+    shareLive: async (ref) => {
+      try {
+        const { invite } = await client.request('POST /api/lair/share', ref)
+        await startLive(ref, invite)
+        setNotice('sharing live — send whoever is joining the invite on your clipboard')
+        return { invite }
+      } catch (error) {
+        const reason = reasonOf(error)
+        setNotice(reason)
+        return reason
+      }
+    },
+
+    joinLive: (text, ref) =>
+      run(async () => {
+        await startLive(ref, text)
+        return `joined a live session on ${ref.path}`
+      }),
+
+    leaveLive: endLive,
+
+    resolveLive: async (choice) => {
+      await liveRef.current?.session.resolve(choice)
+      if (choice === 'leave') endLive()
+    },
   }
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>

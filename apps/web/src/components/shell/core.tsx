@@ -13,6 +13,8 @@ import {
   DREAM_EXTENSION,
   emptyDream,
   isDreamPath,
+  isImage,
+  isNotebookPath,
   projectOf,
   projectRoot,
   serializeDream,
@@ -315,6 +317,29 @@ export function Shell({ children }: { children: ReactNode }) {
     projects: () => setWhereMenu(true),
     createProject: () => setCreating(true),
     toggleTerminal,
+    // Only text can be shared live: a session is a Y.Text of markdown source, and the
+    // canvas and picture viewers keep the editors they have.
+    liveDoc:
+      doc && !isDreamPath(doc.path) && !isImage(doc.path) && !isNotebookPath(doc.path)
+        ? doc
+        : null,
+    shareLive: () => {
+      const target =
+        doc && !isDreamPath(doc.path) && !isImage(doc.path) && !isNotebookPath(doc.path)
+          ? doc
+          : null
+      if (!target) return
+      void app.shareLive(target).then((answer) => {
+        if (typeof answer === 'string') return
+        void navigator.clipboard.writeText(answer.invite).catch(() => null)
+      })
+    },
+    joinLive: (invite, path) => {
+      const ref: DocRef = { root: 'vault', path }
+      void app.joinLive(invite, ref).then((failed) => {
+        if (!failed) show(docRoute(ref))
+      })
+    },
   }
 
   const newTab = (what: NewTab) =>
@@ -510,8 +535,11 @@ export function Shell({ children }: { children: ReactNode }) {
       <StatusLine
         sync={app.sync}
         notice={app.notice}
+        live={app.liveMode}
+        peers={app.livePeers}
         onClearConflict={() => void app.clearConflict()}
         onDismissNotice={app.dismissNotice}
+        onLeaveLive={app.leaveLive}
       />
       {(profiling || needsProfile) && (
         <ProfilePicker

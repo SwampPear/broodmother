@@ -24,6 +24,7 @@ const PROFILE: Profile = {
   claudeCfgDir: null,
   soul: null,
   github: null,
+  lair: null,
 }
 
 /** A repository to clone from, standing in for a remote. */

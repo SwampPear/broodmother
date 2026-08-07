@@ -240,6 +240,7 @@ it('opens the palette on the colour the profile already is', async () => {
           claudeCfgDir: null,
           soul: null,
           github: null,
+          lair: null,
         },
       ],
     }),

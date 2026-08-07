@@ -1,6 +1,6 @@
 import { basename, projectOf, type DocRef } from '@broodmother/shared'
 import { displayName, fileTag, type IconName } from '../ui'
-import { deleteFlow, type Flow, type FlowCtx, moveFlow } from './flows'
+import { deleteFlow, joinFlow, type Flow, type FlowCtx, moveFlow } from './flows'
 
 export interface Choice {
   key: string
@@ -35,6 +35,10 @@ function commands(ctx: FlowCtx): Choice[] {
       pick('Move', (ref) => moveFlow(ctx, ref)),
     ),
     command('Delete document', 'x', () => pick('Delete', (ref) => deleteFlow(ctx, ref))),
+    ...(ctx.liveDoc
+      ? [command('Share live', 'antenna', () => done(() => ctx.shareLive()))]
+      : []),
+    command('Join a live session', 'antenna', () => joinFlow(ctx)),
     command('Toggle terminal', 'terminal', () => done(() => ctx.toggleTerminal())),
     command('Sync now', 'chevrons-up-down', () => done(() => ctx.syncNow())),
     command('Switch project', 'folder', () => done(() => ctx.projects())),

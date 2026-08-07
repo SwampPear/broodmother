@@ -1,6 +1,7 @@
 'use client'
 
 import { Editor as MarkdownEditor, type EditMode } from '@broodmother/editor'
+import type { CollabSession } from '@broodmother/collab'
 import { render } from '@broodmother/markdown'
 import { useEffect, useMemo, useState } from 'react'
 
@@ -13,11 +14,14 @@ export function Editor({
   markdown,
   onChange,
   path,
+  session,
 }: {
   markdown: string
   onChange: (markdown: string) => void
   /** The project path, which is what decides the language and whether preview applies. */
   path: string
+  /** A live session for the buffer to bind to, passed straight through. */
+  session?: CollabSession
 }) {
   const [mode, setMode] = useState<Mode>('live')
 
@@ -49,7 +53,13 @@ export function Editor({
 
   return (
     <div className="broodmother-editor">
-      <MarkdownEditor markdown={markdown} onChange={onChange} mode={mode} path={path} />
+      <MarkdownEditor
+        markdown={markdown}
+        onChange={onChange}
+        mode={mode}
+        path={path}
+        session={session}
+      />
     </div>
   )
 }

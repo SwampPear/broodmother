@@ -2,6 +2,7 @@ import { mkdir, readdir, rm, stat } from 'node:fs/promises'
 import path from 'node:path'
 import {
   defaultGitSettings,
+  parseDream,
   projectOf,
   projectRoot,
   type AccessCheck,
@@ -10,12 +11,18 @@ import {
   type DiffBasis,
   type DiffFile,
   type DocPath,
+  type DocRef,
   type DocRoot,
   type GitSettings,
   type GithubDevice,
   type GithubRepo,
   type GitState,
+  type HostedDream,
   type Identity,
+  type LairCheck,
+  type LairDreamTarget,
+  type LairSite,
+  type LairState,
   type NewProject,
   type Persona,
   type Profile,
@@ -43,6 +50,7 @@ import {
   Dreams,
   RunStore,
   TriggerStore,
+  crontabScheduler,
   systemCrontab,
   type CrontabIO,
   type DreamSite,
@@ -56,6 +64,7 @@ import {
   startDevice,
 } from './github'
 import { Git, GitWatcher, SyncLoop } from './git'
+import { LairError, askLair, checkLair, mintInvite } from './lair'
 import { migrate } from './migrate'
 import {
   ProjectError,
@@ -75,9 +84,12 @@ import {
   listProfiles,
   profileDir,
   readAccount,
+  readLairAccount,
   readPublicKey,
   writeAccount,
   writeIdentity,
+  writeLairAccount,
+  type LairAccount,
 } from './profiles'
 import { Relay, Terminals, type TerminalSession } from './sockets'
 import { Tree, TreeWatcher } from './tree'
@@ -194,8 +206,7 @@ export class AppContext {
         return sites
       },
       vault: () => this.vaultOpen?.tree ?? null,
-      url: () => this.url,
-      cron: new Crontab(cron),
+      scheduler: crontabScheduler(new Crontab(cron), () => this.url),
       store: new TriggerStore(path.join(home, 'triggers.json')),
       runs: this.runStore,
       scratch: () => path.join(home, 'dreams', 'runs'),
@@ -527,6 +538,62 @@ export class AppContext {
 
   async startGithub(): Promise<GithubDevice> {
     return startDevice()
+  }
+
+  /** The URL and whether a key is held — the key itself stays in the profile file. */
+  async lairState(): Promise<LairState> {
+    const profile = this.activeProfile
+    if (!profile) return { url: null, keyed: false }
+    const account = await readLairAccount(profile)
+    return { url: account?.url ?? null, keyed: account !== null }
+  }
+
+  async setLair(url: string, key: string): Promise<LairState> {
+    this.activeProfile = await writeLairAccount(this.requireProfile, { url, key })
+    return this.lairState()
+  }
+
+  async clearLair(): Promise<LairState> {
+    this.activeProfile = await writeLairAccount(this.requireProfile, null)
+    return { url: null, keyed: false }
+  }
+
+  private async requireLair(): Promise<LairAccount> {
+    const account = await readLairAccount(this.requireProfile)
+    if (!account)
+      throw new LairError('no lair yet — point Settings at one and paste its key')
+    return account
+  }
+
+  async lairCheck(): Promise<LairCheck> {
+    return checkLair(await this.requireLair())
+  }
+
+  /** The document is read only to prove it is there: a room is a random id, and what is
+   *  being shared is the sharer's business, not the invite's. */
+  async lairShare(ref: DocRef): Promise<string> {
+    await this.rootOf(ref.root).tree.read(ref.path)
+    return mintInvite(await this.requireLair())
+  }
+
+  async lairPushDream(target: LairDreamTarget): Promise<HostedDream> {
+    const account = await this.requireLair()
+    const dream = parseDream(await this.rootOf(target.root).tree.read(target.path))
+    const answer = await askLair(account, 'PUT /dreams', {
+      site: target.site,
+      path: target.path,
+      dream,
+    })
+    return answer.dream
+  }
+
+  async lairDreams(): Promise<{ sites: LairSite[]; dreams: HostedDream[] }> {
+    const account = await this.requireLair()
+    const [sites, dreams] = await Promise.all([
+      askLair(account, 'GET /sites', null),
+      askLair(account, 'GET /dreams', null),
+    ])
+    return { sites: sites.sites, dreams: dreams.dreams }
   }
 
   async githubRepos(): Promise<GithubRepo[]> {

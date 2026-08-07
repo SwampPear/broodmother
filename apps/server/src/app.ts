@@ -14,6 +14,7 @@ import { BranchError } from './branches'
 import { configSchema, gitSettingsSchema, remoteUrlSchema } from './config'
 import { NoProfileError, NoProjectError, NoVaultError, type AppContext } from './context'
 import { GithubError, configured as githubConfigured } from './github'
+import { LairError } from './lair'
 import { ProfileError, identitySchema, machineAuthor } from './profiles'
 import { PathError, normalize } from './fs'
 import { ProjectError } from './project'
@@ -74,6 +75,17 @@ const newRepoBody = z.object({ name: z.string().min(1), private: z.boolean() })
 const newProfileBody = identitySchema.extend({ name: z.string().min(1) })
 const pickProfileBody = z.object({ profile: z.string().min(1) })
 const branchBody = z.object({ root: rootSchema, name: z.string().min(1) })
+/** The URL is checked here because it is about to be stored; the key is only non-empty,
+ *  because its shape is the lair's business. */
+const lairBody = z.object({
+  url: z.string().url().max(2000),
+  key: z.string().min(1),
+})
+const lairDreamBody = z.object({
+  root: rootSchema,
+  path: z.string().min(1),
+  site: z.string().min(1),
+})
 
 class BadRequest extends Error {}
 
@@ -331,6 +343,28 @@ export function createApp(ctx: AppContext): Hono {
 
   app.get('/api/dream/log', (c) => c.json({ runs: ctx.dreams.log() }))
 
+  app.get('/api/lair', async (c) => c.json(await ctx.lairState()))
+
+  app.put('/api/lair', async (c) => {
+    const { url, key } = await parse(c, lairBody)
+    return c.json(await ctx.setLair(url, key))
+  })
+
+  app.delete('/api/lair', async (c) => c.json(await ctx.clearLair()))
+
+  app.post('/api/lair/check', async (c) => c.json(await ctx.lairCheck()))
+
+  app.post('/api/lair/share', async (c) => {
+    const { root: of, path } = await parse(c, folderBody)
+    return c.json({ invite: await ctx.lairShare({ root: of, path }) })
+  })
+
+  app.put('/api/lair/dream', async (c) =>
+    c.json({ dream: await ctx.lairPushDream(await parse(c, lairDreamBody)) }),
+  )
+
+  app.get('/api/lair/dreams', async (c) => c.json(await ctx.lairDreams()))
+
   app.get('/api/personas', (c) => c.json({ personas: ctx.opened?.personas ?? [] }))
 
   app.get('/api/links', async (c) => {
@@ -389,7 +423,8 @@ export function createApp(ctx: AppContext): Hono {
       error instanceof VaultError ||
       error instanceof ProjectError ||
       error instanceof BranchError ||
-      error instanceof GithubError
+      error instanceof GithubError ||
+      error instanceof LairError
     )
       return c.json({ error: error.message }, 400)
     return c.json({ error: error.message }, 500)

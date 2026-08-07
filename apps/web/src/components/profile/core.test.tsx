@@ -14,6 +14,7 @@ const existing: Profile[] = [
     claudeCfgDir: null,
     soul: null,
     github: null,
+    lair: null,
   },
 ]
 

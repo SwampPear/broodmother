@@ -21,6 +21,9 @@ import {
   type Identity,
   type GitAuthor,
   type GithubRepo,
+  type HostedDream,
+  type LairCheck,
+  type LairSite,
   type Persona,
   type Profile,
   type ProjectSummary,
@@ -83,6 +86,7 @@ const seedProfile: Profile = {
   claudeCfgDir: null,
   soul: null,
   github: null,
+  lair: null,
 }
 
 /** `folders` are the ones holding nothing yet: every other folder is implied by a path
@@ -139,6 +143,13 @@ export function createMockClient(
 
     /** What the vault's `.personas/` folder carries, for a dream's picker to offer. */
     personas?: Persona[]
+
+    /** The lair this machine already points at, when a test starts with one connected. */
+    lair?: string | null
+    /** What the check answers, for asking how the panel wears each of the three states. */
+    lairCheck?: LairCheck
+    lairSites?: LairSite[]
+    lairDreams?: HostedDream[]
 
     /** Routes that never answer, for asking what the app does while it is waiting. */
     stall?: ApiRoute[]
@@ -229,6 +240,10 @@ export function createMockClient(
   /** The shells something has said it is finished with, which is what ends one. */
   const finished: string[] = []
   const dreamRuns: DreamRun[] = []
+  let lairUrl: string | null = seed.lair ?? null
+  let lairKeyed = lairUrl !== null
+  const lairSites: LairSite[] = seed.lairSites ?? []
+  const lairDreams: HostedDream[] = seed.lairDreams ?? []
   const emit = (message: ServerMessage) => listener?.(message)
   const emitTerminal = (message: TerminalServerMessage) => shell?.(message)
 
@@ -341,6 +356,7 @@ export function createMockClient(
           name,
           path: `${home}/${name}/profile.json`,
           github: null,
+          lair: null,
           ...identity,
         }
         profiles.push(profile)
@@ -561,6 +577,60 @@ export function createMockClient(
       },
       'GET /api/dream/log': async () => ({ runs: [...dreamRuns].reverse() }),
       'GET /api/personas': async () => ({ personas: [...(seed.personas ?? [])] }),
+      'GET /api/lair': async () => ({ url: lairUrl, keyed: lairKeyed }),
+      'PUT /api/lair': async ({ url, key }) => {
+        if (!url || !key) throw new Error('a lair needs both a URL and a key')
+        lairUrl = url
+        lairKeyed = true
+        const current = profileOf()
+        if (current)
+          profiles.splice(profiles.indexOf(current), 1, { ...current, lair: url })
+        return { url: lairUrl, keyed: lairKeyed }
+      },
+      'DELETE /api/lair': async () => {
+        lairUrl = null
+        lairKeyed = false
+        const current = profileOf()
+        if (current)
+          profiles.splice(profiles.indexOf(current), 1, { ...current, lair: null })
+        return { url: null, keyed: false }
+      },
+      'POST /api/lair/check': async () => {
+        if (!lairUrl) throw new Error('no lair to check — set one first')
+        return (
+          seed.lairCheck ?? { state: 'connected', message: `connected to ${lairUrl}` }
+        )
+      },
+      'POST /api/lair/share': async () => {
+        if (!lairKeyed) throw new Error('no lair to share through — set one first')
+        return { invite: `${lairUrl}#mock-room.mock-token.mock-key` }
+      },
+      'PUT /api/lair/dream': async ({ root, path, site }) => {
+        const text = filesIn(root)[path]
+        if (text === undefined) throw new Error(`no such dream: ${path}`)
+        const dream = parseDream(text)
+        const wired = new Set(dream.edges.map((edge) => edge.from))
+        const hosted: HostedDream = {
+          site,
+          path,
+          name: basename(path).replace(/\.dream$/, ''),
+          triggers: dream.nodes.flatMap((node) => {
+            const label = triggerLabel(node)
+            return label && wired.has(node.id) ? [{ kind: node.kind, label }] : []
+          }),
+          lastRun: null,
+        }
+        const existing = lairDreams.findIndex(
+          (one) => one.site === site && one.path === path,
+        )
+        if (existing >= 0) lairDreams.splice(existing, 1, hosted)
+        else lairDreams.push(hosted)
+        return { dream: hosted }
+      },
+      'GET /api/lair/dreams': async () => ({
+        sites: [...lairSites],
+        dreams: [...lairDreams],
+      }),
       'PUT /api/doc': async ({ root, path, markdown }) => {
         const files = filesIn(root)
         const created = !(path in files)

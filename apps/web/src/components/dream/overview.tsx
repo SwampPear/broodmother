@@ -10,6 +10,7 @@ import {
   type DocRoot,
   type DreamRun,
   type DreamSummary,
+  type HostedDream,
   type StarterDream,
 } from '@broodmother/shared'
 import { useApp } from '../../state'
@@ -48,7 +49,9 @@ export function DreamsView() {
   const router = useRouter()
   const [dreams, setDreams] = useState<DreamSummary[] | null>(null)
   const [runs, setRuns] = useState<DreamRun[] | null>(null)
+  const [hosted, setHosted] = useState<HostedDream[] | null>(null)
   const [opened, setOpened] = useState<string | null>(null)
+  const keyed = app.lair.keyed
 
   useEffect(() => {
     let alive = true
@@ -61,6 +64,13 @@ export function DreamsView() {
         .request('GET /api/dream/log', null)
         .then((result) => alive && setRuns(result.runs))
         .catch(() => null)
+      // The lair's, through the proxy, the same way local runs poll — but only when a
+      // lair is connected, so a laptop without one asks nothing on every beat.
+      if (keyed)
+        void app.client
+          .request('GET /api/lair/dreams', null)
+          .then((result) => alive && setHosted(result.dreams))
+          .catch(() => null)
     }
     ask()
     const timer = setInterval(ask, POLL_MS)
@@ -68,7 +78,7 @@ export function DreamsView() {
       alive = false
       clearInterval(timer)
     }
-  }, [app.client])
+  }, [app.client, keyed])
 
   const now = Date.now()
 
@@ -154,6 +164,58 @@ export function DreamsView() {
           </table>
         )}
       </section>
+
+      {keyed && hosted !== null && (
+        <section aria-label="dreams on the lair">
+          <h2>On the lair</h2>
+          {hosted.length === 0 && (
+            <p className="dreams-empty">
+              Nothing hosted yet — open a dream and send it with the antenna button.
+            </p>
+          )}
+          {hosted.length > 0 && (
+            <table className="dreams-table">
+              <thead>
+                <tr>
+                  <th>Dream</th>
+                  <th>Site</th>
+                  <th>Fires</th>
+                  <th>Last run</th>
+                </tr>
+              </thead>
+              <tbody>
+                {hosted.map((dream) => (
+                  <tr key={`${dream.site}:${dream.path}`}>
+                    <td>
+                      <Icon name="antenna" /> {dream.name}
+                    </td>
+                    <td className="dreams-dim">{dream.site}</td>
+                    <td>
+                      {dream.triggers.length > 0
+                        ? dream.triggers.map((trigger) => trigger.label).join(', ')
+                        : 'nothing wired'}
+                    </td>
+                    <td>
+                      {dream.lastRun ? (
+                        <>
+                          <span className="dream-state" data-state={dream.lastRun.state}>
+                            {dream.lastRun.state}
+                          </span>
+                          <span className="dreams-dim">
+                            {ago(dream.lastRun.startedAt, now)}
+                          </span>
+                        </>
+                      ) : (
+                        <span className="dreams-dim">never</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </section>
+      )}
 
       <section aria-label="starter dreams">
         <h2>Starters</h2>
