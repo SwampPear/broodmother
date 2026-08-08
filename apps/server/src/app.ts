@@ -363,7 +363,20 @@ export function createApp(ctx: AppContext): Hono {
     c.json({ dream: await ctx.lairPushDream(await parse(c, lairDreamBody)) }),
   )
 
+  app.delete('/api/lair/dream', async (c) =>
+    c.json({
+      dreams: await ctx.lairRemoveDream({
+        site: query(c, 'site'),
+        path: query(c, 'path'),
+      }),
+    }),
+  )
+
   app.get('/api/lair/dreams', async (c) => c.json(await ctx.lairDreams()))
+
+  app.get('/api/lair/sites', async (c) => c.json(await ctx.lairSites()))
+
+  app.put('/api/lair/site', async (c) => c.json({ site: await ctx.lairRegister() }))
 
   app.get('/api/personas', (c) => c.json({ personas: ctx.opened?.personas ?? [] }))
 

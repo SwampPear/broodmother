@@ -41,9 +41,12 @@ export type {
 export type { KernelClientMessage, KernelServerMessage, KernelState } from './kernel'
 export {
   LAIR_ROOM_ROUTE,
+  siteNameOk,
   type DeleteLair,
+  type DeleteLairDream,
   type GetLair,
   type GetLairDreams,
+  type GetLairSites,
   type HostedDream,
   type LairCheck,
   type LairCheckState,
@@ -54,12 +57,14 @@ export {
   type LairResponse,
   type LairRoute,
   type LairSite,
+  type LairSitesView,
   type LairState,
   type LairStatus,
   type PostLairCheck,
   type PostLairShare,
   type PutLair,
   type PutLairDream,
+  type PutLairSite,
 } from './lair'
 export type {
   DeleteGithub,

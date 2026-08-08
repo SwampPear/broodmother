@@ -150,6 +150,11 @@ export function createMockClient(
     lairCheck?: LairCheck
     lairSites?: LairSite[]
     lairDreams?: HostedDream[]
+    /** The lair's deploy key, as the Repositories panel shows it. */
+    lairPublicKey?: string
+    /** The open vault's remote — what registering would clone. Null seeds a vault with
+     *  no remote at all. */
+    vaultRemote?: string | null
 
     /** Routes that never answer, for asking what the app does while it is waiting. */
     stall?: ApiRoute[]
@@ -244,6 +249,11 @@ export function createMockClient(
   let lairKeyed = lairUrl !== null
   const lairSites: LairSite[] = seed.lairSites ?? []
   const lairDreams: HostedDream[] = seed.lairDreams ?? []
+  const lairPublicKey = seed.lairPublicKey ?? 'ssh-ed25519 AAAAmocklair lair@mock'
+  const vaultRemote =
+    seed.vaultRemote === undefined
+      ? 'git@forge.example:you/handbook.git'
+      : seed.vaultRemote
   const emit = (message: ServerMessage) => listener?.(message)
   const emitTerminal = (message: TerminalServerMessage) => shell?.(message)
 
@@ -627,10 +637,36 @@ export function createMockClient(
         else lairDreams.push(hosted)
         return { dream: hosted }
       },
+      'DELETE /api/lair/dream': async ({ site, path }) => {
+        const held = lairDreams.findIndex((one) => one.site === site && one.path === path)
+        if (held >= 0) lairDreams.splice(held, 1)
+        return { dreams: [...lairDreams] }
+      },
       'GET /api/lair/dreams': async () => ({
         sites: [...lairSites],
         dreams: [...lairDreams],
       }),
+      'GET /api/lair/sites': async () => {
+        if (!lairKeyed) throw new Error('no lair yet — point Settings at one first')
+        return {
+          sites: [...lairSites],
+          publicKey: lairPublicKey,
+          vault: active ? { name: active.name, remote: vaultRemote } : null,
+        }
+      },
+      'PUT /api/lair/site': async () => {
+        if (!lairKeyed) throw new Error('no lair yet — point Settings at one first')
+        if (!active) throw new Error('no vault is open — create or choose one first')
+        if (!vaultRemote)
+          throw new Error(
+            'this vault has no remote — the lair clones over git, and there is nothing here to clone from',
+          )
+        const site: LairSite = { name: active.name, remote: vaultRemote, pull: 'ok' }
+        const existing = lairSites.findIndex((held) => held.name === site.name)
+        if (existing >= 0) lairSites.splice(existing, 1, site)
+        else lairSites.push(site)
+        return { site }
+      },
       'PUT /api/doc': async ({ root, path, markdown }) => {
         const files = filesIn(root)
         const created = !(path in files)

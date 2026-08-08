@@ -22,4 +22,3 @@ export {
   type ShellNode,
   type TimeTrigger,
 } from './core'
-export { starterDreams, type StarterDream } from './starters'

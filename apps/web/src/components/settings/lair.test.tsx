@@ -69,3 +69,41 @@ it('forgets the lair on request', async () => {
   await userEvent.click(screen.getByRole('button', { name: 'forget this lair' }))
   expect(await screen.findByRole('button', { name: 'check connection' })).toBeDisabled()
 })
+
+it('shows the sites, their pull state, and the deploy key', async () => {
+  await show(
+    createMockClient({
+      lair: 'https://lair.example.com',
+      lairSites: [
+        { name: 'docs', remote: 'git@forge:docs.git', pull: 'failed', message: 'gone' },
+      ],
+    }),
+  )
+  expect(await screen.findByText('docs')).toBeInTheDocument()
+  expect(screen.getByText(/pull failed — gone/)).toBeInTheDocument()
+  expect(screen.getByText(/ssh-ed25519/)).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'copy deploy key' })).toBeInTheDocument()
+})
+
+it('registers the open vault and then shows it as registered', async () => {
+  await show(createMockClient({ lair: 'https://lair.example.com' }))
+  await userEvent.click(
+    await screen.findByRole('button', { name: 'register this vault' }),
+  )
+  expect(await screen.findByText(/registered as/)).toBeInTheDocument()
+  // The refetched list carries the new site's row, pull state and all.
+  expect(screen.getByText(/pull ok/)).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'register this vault' })).toBeNull()
+})
+
+it('has nothing to press when the vault has no remote', async () => {
+  await show(createMockClient({ lair: 'https://lair.example.com', vaultRemote: null }))
+  expect(await screen.findByText(/this vault has no remote/i)).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'register this vault' })).toBeNull()
+})
+
+it('keeps the Repositories section quiet until a lair is connected', async () => {
+  await show()
+  expect(screen.getByText(/connect a lair above/i)).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'copy deploy key' })).toBeNull()
+})

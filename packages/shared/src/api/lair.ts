@@ -36,6 +36,14 @@ export interface LairSite {
   message?: string
 }
 
+// A site is a folder in the lair's home, so its name is what a folder can be called
+// without quoting anywhere: letter or digit first, then letters, digits, . _ -
+const SITE_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
+
+export function siteNameOk(name: string): boolean {
+  return SITE_NAME.test(name)
+}
+
 /** A dream the lair holds: filed under a site, run by the same orchestrator laptops run. */
 export interface HostedDream {
   site: string
@@ -134,8 +142,34 @@ export interface PutLairDream {
   response: { dream: HostedDream }
 }
 
+/** Takes a hosted dream off the lair; the answer is what remains hosted. */
+export interface DeleteLairDream {
+  request: { site: string; path: string }
+  response: { dreams: HostedDream[] }
+}
+
 /** The hosted view in one answer: every site, every dream, each with its last run. */
 export interface GetLairDreams {
   request: null
   response: { sites: LairSite[]; dreams: HostedDream[] }
+}
+
+/** The Repositories view in one answer: the lair's sites, its deploy key, and what the
+ *  open vault would register as — `remote` null when its git has none. */
+export interface LairSitesView {
+  sites: LairSite[]
+  publicKey: string
+  vault: { name: string; remote: string | null } | null
+}
+
+export interface GetLairSites {
+  request: null
+  response: LairSitesView
+}
+
+/** Registers the open vault as a site. Name and remote are derived on the server at
+ *  press time, which is why the request carries nothing. */
+export interface PutLairSite {
+  request: null
+  response: { site: LairSite }
 }

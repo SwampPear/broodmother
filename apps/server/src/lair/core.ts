@@ -22,6 +22,7 @@ export async function askLair<R extends LairRoute>(
   route: R,
   body: LairRequest<R>,
   ask: typeof fetch = fetch,
+  timeoutMs = ASK_TIMEOUT_MS,
 ): Promise<LairResponse<R>> {
   const [method, path] = route.split(' ') as [string, string]
   const url = new URL(path, account.url)
@@ -36,7 +37,7 @@ export async function askLair<R extends LairRoute>(
       ...(query ? {} : { 'content-type': 'application/json' }),
     },
     body: query ? undefined : JSON.stringify(body),
-    signal: AbortSignal.timeout(ASK_TIMEOUT_MS),
+    signal: AbortSignal.timeout(timeoutMs),
   }).catch((error: unknown) => {
     throw new LairError(error instanceof Error ? error.message : String(error))
   })

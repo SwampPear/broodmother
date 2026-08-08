@@ -5,6 +5,7 @@ import {
   parseDream,
   projectOf,
   projectRoot,
+  siteNameOk,
   type AccessCheck,
   type Branch,
   type BroodmotherConfig,
@@ -22,6 +23,7 @@ import {
   type LairCheck,
   type LairDreamTarget,
   type LairSite,
+  type LairSitesView,
   type LairState,
   type NewProject,
   type Persona,
@@ -120,6 +122,10 @@ export interface ContextOptions {
 export class NoVaultError extends Error {}
 export class NoProjectError extends Error {}
 export class NoProfileError extends Error {}
+
+/** The lair gives a first clone ten minutes; the proxy hanging up sooner would report a
+ *  failure the lair never had. */
+const REGISTER_TIMEOUT_MS = 615_000
 
 /** The disk-touching half of a vault, valid only while one is open. */
 export interface OpenVault {
@@ -587,6 +593,11 @@ export class AppContext {
     return answer.dream
   }
 
+  async lairRemoveDream(target: { site: string; path: string }): Promise<HostedDream[]> {
+    const account = await this.requireLair()
+    return (await askLair(account, 'DELETE /dreams', target)).dreams
+  }
+
   async lairDreams(): Promise<{ sites: LairSite[]; dreams: HostedDream[] }> {
     const account = await this.requireLair()
     const [sites, dreams] = await Promise.all([
@@ -594,6 +605,52 @@ export class AppContext {
       askLair(account, 'GET /dreams', null),
     ])
     return { sites: sites.sites, dreams: dreams.dreams }
+  }
+
+  /** What the open vault would register as: its folder's name, its checkout's remote. */
+  private async siteCandidate(): Promise<LairSitesView['vault']> {
+    const vaultPath = this.config.vaultPath
+    if (!vaultPath || !this.vaultOpen) return null
+    return {
+      name: path.basename(vaultPath),
+      remote: await this.vaultOpen.git.remoteUrl(),
+    }
+  }
+
+  async lairSites(): Promise<LairSitesView> {
+    const account = await this.requireLair()
+    const [sites, key] = await Promise.all([
+      askLair(account, 'GET /sites', null),
+      askLair(account, 'GET /key', null),
+    ])
+    return {
+      sites: sites.sites,
+      publicKey: key.publicKey,
+      vault: await this.siteCandidate(),
+    }
+  }
+
+  /** Files the open vault as a site, name and remote derived here at press time — the
+   *  browser names nothing. */
+  async lairRegister(): Promise<LairSite> {
+    const account = await this.requireLair()
+    const candidate = await this.siteCandidate()
+    if (!candidate)
+      throw new NoVaultError('no vault is open — create or choose one first')
+    if (!siteNameOk(candidate.name))
+      throw new LairError(`"${candidate.name}" is not a name a site can have`)
+    if (!candidate.remote)
+      throw new LairError(
+        'this vault has no remote — the lair clones over git, and there is nothing here to clone from',
+      )
+    const { site } = await askLair(
+      account,
+      'PUT /sites',
+      { name: candidate.name, remote: candidate.remote },
+      fetch,
+      REGISTER_TIMEOUT_MS,
+    )
+    return site
   }
 
   async githubRepos(): Promise<GithubRepo[]> {

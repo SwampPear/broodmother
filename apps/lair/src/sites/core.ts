@@ -1,14 +1,12 @@
 import { readdir, rm } from 'node:fs/promises'
 import path from 'node:path'
 import { Git } from '@broodmother/server'
-import type { GitAuthor, LairSite } from '@broodmother/shared'
+import { siteNameOk, type GitAuthor, type LairSite } from '@broodmother/shared'
 
 export class SiteError extends Error {}
 
 /** Commits a dream's output wears: the lair is the author, the dream is the message. */
 const LAIR_AUTHOR: GitAuthor = { name: 'broodmother lair', email: 'lair@broodmother' }
-
-const NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
 
 interface PullState {
   pull: LairSite['pull']
@@ -38,13 +36,13 @@ export class Sites {
   }
 
   private assertName(name: string): void {
-    if (!NAME.test(name)) throw new SiteError(`"${name}" is not a name a site can have`)
+    if (!siteNameOk(name)) throw new SiteError(`"${name}" is not a name a site can have`)
   }
 
   async names(): Promise<string[]> {
     const entries = await readdir(this.root, { withFileTypes: true }).catch(() => [])
     return entries
-      .filter((entry) => entry.isDirectory() && NAME.test(entry.name))
+      .filter((entry) => entry.isDirectory() && siteNameOk(entry.name))
       .map((entry) => entry.name)
       .sort()
   }

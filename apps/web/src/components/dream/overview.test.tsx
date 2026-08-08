@@ -52,22 +52,26 @@ it('opens the dream itself from its row', async () => {
   expect(push).toHaveBeenCalledWith('/doc/vault/Nightly.dream')
 })
 
-it('installs a starter into the vault and opens it, never over an existing one', async () => {
-  const client = seeded()
-  await show(client)
-  const starters = screen.getByRole('region', { name: 'starter dreams' })
-  expect(starters).toHaveTextContent('Repo watchdog')
-  await userEvent.click(within(starters).getAllByRole('button', { name: 'Add' })[1])
-  const { markdown } = await client.request('GET /api/doc', {
-    root: 'vault',
-    path: 'Repo watchdog.dream',
+it('removes a hosted dream from the lair', async () => {
+  const client = createMockClient({
+    docs: { 'Nightly.dream': serializeDream(nightly) },
+    lair: 'https://lair.example.com',
+    lairDreams: [
+      {
+        site: 'docs',
+        path: 'Nightly.dream',
+        name: 'Nightly',
+        triggers: [],
+        lastRun: null,
+      },
+    ],
   })
-  expect(markdown).toContain('agent.gate')
-  expect(push).toHaveBeenCalledWith('/doc/vault/Repo watchdog.dream')
-
-  // The name is taken now, so adding it again lands beside it.
-  await userEvent.click(within(starters).getAllByRole('button', { name: 'Add' })[1])
-  expect(push).toHaveBeenCalledWith('/doc/vault/Repo watchdog 2.dream')
+  await show(client)
+  const onLair = await screen.findByRole('region', { name: 'dreams on the lair' })
+  await userEvent.click(
+    within(onLair).getByRole('button', { name: 'remove Nightly from the lair' }),
+  )
+  expect(await within(onLair).findByText(/Nothing hosted yet/)).toBeInTheDocument()
 })
 
 it('logs the runs, and a run opens into its steps', async () => {

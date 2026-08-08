@@ -3751,25 +3751,3 @@ p.palette-label {
   font-family: var(--mono);
   font-size: 0.72rem;
 }
-
-.dreams-starters {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.dreams-starters li {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 0.45rem 0.55rem;
-  border-bottom: 1px solid var(--line);
-}
-
-.dreams-starters p {
-  margin: 0.15rem 0 0;
-}

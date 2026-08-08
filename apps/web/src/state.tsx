@@ -28,6 +28,7 @@ import {
   type LairCheck,
   type LairDreamTarget,
   type LairSite,
+  type LairSitesView,
   type LairState,
   type NewProject,
   type Peer,
@@ -164,6 +165,9 @@ export interface App {
   /** Handed back rather than toasted: the panel is where the sentence belongs. */
   checkLair(): Promise<LairCheck | string>
   lairDreams(): Promise<{ sites: LairSite[]; dreams: HostedDream[] } | string>
+  /** The Repositories view: sites, deploy key, and what the open vault would register as. */
+  lairSites(): Promise<LairSitesView | string>
+  registerSite(): Promise<Failure>
   pushDream(target: LairDreamTarget): Promise<Failure>
   /** The one live session, if any: the document it is about and the invite to hand on. */
   live: { ref: DocRef; invite: string; session: CollabSession } | null
@@ -818,6 +822,17 @@ export function AppProvider({
       client
         .request('GET /api/lair/dreams', null)
         .catch((error: unknown) => reasonOf(error)),
+
+    lairSites: () =>
+      client
+        .request('GET /api/lair/sites', null)
+        .catch((error: unknown) => reasonOf(error)),
+
+    registerSite: () =>
+      run(async () => {
+        const { site } = await client.request('PUT /api/lair/site', null)
+        return `${site.name} registered — the lair cloned ${site.remote}`
+      }),
 
     pushDream: (target) =>
       run(async () => {

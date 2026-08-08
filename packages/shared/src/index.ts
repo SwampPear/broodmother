@@ -1,5 +1,6 @@
 export {
   LAIR_ROOM_ROUTE,
+  siteNameOk,
   type ApiError,
   type ApiRequest,
   type ApiResponse,
@@ -23,6 +24,7 @@ export {
   type LairResponse,
   type LairRoute,
   type LairSite,
+  type LairSitesView,
   type LairState,
   type LairStatus,
   type Persona,
@@ -76,7 +78,6 @@ export {
   parseDream,
   runOrder,
   serializeDream,
-  starterDreams,
   triggerLabel,
   type ClaudeNode,
   type Dream,
@@ -90,7 +91,6 @@ export {
   type ManualTrigger,
   type NoteNode,
   type ShellNode,
-  type StarterDream,
   type TimeTrigger,
 } from './dream'
 export type { GithubDevice, GithubRepo } from './github'

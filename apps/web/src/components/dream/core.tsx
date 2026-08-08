@@ -450,7 +450,7 @@ export function DreamView({
           : [
               {
                 id: 'no-sites',
-                label: 'no sites yet — lair sites add <name> <remote>',
+                label: 'no sites yet — register one in Settings → Server',
                 disabled: true,
                 onSelect: () => {},
               },

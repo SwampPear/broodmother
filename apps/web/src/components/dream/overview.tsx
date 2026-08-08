@@ -5,13 +5,10 @@ import { useEffect, useState } from 'react'
 import {
   basename,
   projectOf,
-  serializeDream,
-  starterDreams,
   type DocRoot,
   type DreamRun,
   type DreamSummary,
   type HostedDream,
-  type StarterDream,
 } from '@broodmother/shared'
 import { useApp } from '../../state'
 import { docRoute } from '../shell'
@@ -82,26 +79,13 @@ export function DreamsView() {
 
   const now = Date.now()
 
-  /** A starter lands in the vault under its own name — beside it, not over it, when one
-   *  of that name is already there — and opens in the editor to be made your own. */
-  async function install(starter: StarterDream) {
-    let path = `${starter.name}.dream`
-    for (let n = 2; n < 20; n++) {
-      const taken = await app.client
-        .request('GET /api/doc', { root: 'vault', path })
-        .then(
-          () => true,
-          () => false,
-        )
-      if (!taken) break
-      path = `${starter.name} ${n}.dream`
-    }
-    await app.client.request('PUT /api/doc', {
-      root: 'vault',
-      path,
-      markdown: serializeDream(starter.dream),
-    })
-    router.push(docRoute({ root: 'vault', path }))
+  /** The lair answers with what remains hosted, so the table wears the removal at once
+   *  rather than on the next poll. */
+  async function removeHosted(dream: HostedDream) {
+    const result = await app.client
+      .request('DELETE /api/lair/dream', { site: dream.site, path: dream.path })
+      .catch(() => null)
+    if (result) setHosted(result.dreams)
   }
 
   return (
@@ -181,6 +165,7 @@ export function DreamsView() {
                   <th>Site</th>
                   <th>Fires</th>
                   <th>Last run</th>
+                  <th />
                 </tr>
               </thead>
               <tbody>
@@ -209,6 +194,15 @@ export function DreamsView() {
                         <span className="dreams-dim">never</span>
                       )}
                     </td>
+                    <td>
+                      <button
+                        type="button"
+                        aria-label={`remove ${dream.name} from the lair`}
+                        onClick={() => void removeHosted(dream)}
+                      >
+                        Remove
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -216,23 +210,6 @@ export function DreamsView() {
           )}
         </section>
       )}
-
-      <section aria-label="starter dreams">
-        <h2>Starters</h2>
-        <ul className="dreams-starters">
-          {starterDreams().map((starter) => (
-            <li key={starter.name}>
-              <div>
-                <span className="dreams-run-name">{starter.name}</span>
-                <p className="dreams-empty">{starter.description}</p>
-              </div>
-              <button type="button" onClick={() => void install(starter)}>
-                Add
-              </button>
-            </li>
-          ))}
-        </ul>
-      </section>
 
       <section aria-label="dream runs">
         <h2>Runs</h2>

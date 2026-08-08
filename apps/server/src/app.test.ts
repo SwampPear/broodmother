@@ -1,13 +1,15 @@
 import { mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
+import http from 'node:http'
+import type { AddressInfo } from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
 import { execa } from 'execa'
 import { afterAll, describe, expect, it } from 'vitest'
-import { defaultGitSettings, type ApiResponse } from '@broodmother/shared'
+import { defaultGitSettings, type ApiResponse, type LairSite } from '@broodmother/shared'
 import { WEB_ORIGINS } from './app'
 import { defaultConfig } from './config'
 import { createProfile } from './profiles'
-import { bareRemote, cleanup, cloneOf, fakeCrontab, git, tempDir } from './test'
+import { bareRemote, cleanup, cloneOf, fakeCrontab, git, initRepo, tempDir } from './test'
 import { HOST, type ServerHandle, startServer } from './index'
 
 const IDENTITY = {
@@ -24,12 +26,15 @@ afterAll(async () => {
   await cleanup()
 })
 
-async function server({ profile = 'tester' }: { profile?: string } = {}) {
+async function server({
+  profile = 'tester',
+  vault: vaultName = 'handbook',
+}: { profile?: string; vault?: string } = {}) {
   const home = await tempDir()
   await createProfile({ name: profile, ...IDENTITY }, home)
   // A vault is a folder in the profile it commits as, and a folder of checkouts —
   // `local` is the one every vault has.
-  const vault = path.join(home, profile, 'handbook')
+  const vault = path.join(home, profile, vaultName)
   const root = path.join(vault, 'local')
   await mkdir(root, { recursive: true })
   await writeFile(path.join(root, 'index.md'), '# index\n\nsee [[Risks]]\n')
@@ -1179,5 +1184,151 @@ describe('diff routes', () => {
 
     const { body } = await call('GET', '/api/diff?root=vault&against=feat')
     expect((body as ApiResponse<'GET /api/diff'>).files).toEqual([])
+  })
+})
+
+describe('lair sites', () => {
+  const lairs: { close: () => Promise<unknown> }[] = []
+  afterAll(async () => {
+    await Promise.all(lairs.splice(0).map((lair) => lair.close()))
+  })
+
+  /** The lair's site and dream routes, small enough for one handler — every PUT and
+   *  DELETE it was asked is kept for the assertions. */
+  async function fakeLair({
+    sites = [] as LairSite[],
+    refuse = false,
+  }: { sites?: LairSite[]; refuse?: boolean } = {}) {
+    const puts: unknown[] = []
+    const deletes: unknown[] = []
+    const lair = http.createServer((request, response) => {
+      const chunks: Buffer[] = []
+      request.on('data', (chunk: Buffer) => chunks.push(chunk))
+      request.on('end', () => {
+        const answer = (status: number, body: unknown) => {
+          response.statusCode = status
+          response.setHeader('content-type', 'application/json')
+          response.end(JSON.stringify(body))
+        }
+        if (request.method === 'GET' && request.url === '/sites')
+          return answer(200, { sites })
+        if (request.method === 'GET' && request.url === '/key')
+          return answer(200, { publicKey: 'ssh-ed25519 AAAAfake lair@test' })
+        if (request.method === 'PUT' && request.url === '/sites') {
+          if (refuse) return answer(401, { error: 'the admin token is required here' })
+          const body = JSON.parse(Buffer.concat(chunks).toString()) as Record<
+            string,
+            string
+          >
+          puts.push(body)
+          return answer(200, { site: { ...body, pull: 'ok' } })
+        }
+        if (request.method === 'DELETE' && request.url?.startsWith('/dreams')) {
+          const asked = new URL(request.url, 'http://lair')
+          deletes.push({
+            site: asked.searchParams.get('site'),
+            path: asked.searchParams.get('path'),
+          })
+          return answer(200, { dreams: [] })
+        }
+        answer(404, { error: 'lost' })
+      })
+    })
+    await new Promise<void>((resolve) => lair.listen(0, '127.0.0.1', () => resolve()))
+    const port = (lair.address() as AddressInfo).port
+    const handle = {
+      url: `http://127.0.0.1:${port}`,
+      puts,
+      deletes,
+      close: () => new Promise((resolve) => lair.close(resolve)),
+    }
+    lairs.push(handle)
+    return handle
+  }
+
+  /** A vault whose checkout has a remote, which is what registering derives from. */
+  async function withRemote(root: string): Promise<string> {
+    const remote = await bareRemote()
+    await initRepo(root)
+    await git(root, 'remote', 'add', 'origin', remote)
+    return remote
+  }
+
+  it('registers the open vault under its own name and remote', async () => {
+    const { root, call } = await server()
+    const remote = await withRemote(root)
+    const lair = await fakeLair()
+    await call('PUT', '/api/lair', { url: lair.url, key: 'k-1' })
+
+    const { status, body } = await call('PUT', '/api/lair/site')
+    expect(status).toBe(200)
+    expect(lair.puts).toEqual([{ name: 'handbook', remote }])
+    expect((body as ApiResponse<'PUT /api/lair/site'>).site).toMatchObject({
+      name: 'handbook',
+      remote,
+      pull: 'ok',
+    })
+  })
+
+  it('refuses a vault with no remote, and never asks the lair', async () => {
+    const { call } = await server()
+    const lair = await fakeLair()
+    await call('PUT', '/api/lair', { url: lair.url, key: 'k-1' })
+
+    const { status, body } = await call('PUT', '/api/lair/site')
+    expect(status).toBe(400)
+    expect((body as { error: string }).error).toMatch(/no remote/)
+    expect(lair.puts).toEqual([])
+  })
+
+  it('refuses a vault whose name no site can wear', async () => {
+    const { root, call } = await server({ vault: 'field notes' })
+    await withRemote(root)
+    const lair = await fakeLair()
+    await call('PUT', '/api/lair', { url: lair.url, key: 'k-1' })
+
+    const { status, body } = await call('PUT', '/api/lair/site')
+    expect(status).toBe(400)
+    expect((body as { error: string }).error).toMatch(/not a name a site can have/)
+    expect(lair.puts).toEqual([])
+  })
+
+  it('answers the sites view with what the vault would register as', async () => {
+    const { root, call } = await server()
+    const remote = await withRemote(root)
+    const held: LairSite = { name: 'docs', remote: 'git@forge:docs.git', pull: 'ok' }
+    const lair = await fakeLair({ sites: [held] })
+    await call('PUT', '/api/lair', { url: lair.url, key: 'k-1' })
+
+    const { body } = await call('GET', '/api/lair/sites')
+    const view = body as ApiResponse<'GET /api/lair/sites'>
+    expect(view.sites).toEqual([held])
+    expect(view.publicKey).toContain('ssh-ed25519')
+    expect(view.vault).toEqual({ name: 'handbook', remote })
+  })
+
+  it('takes a hosted dream off the lair through the proxy', async () => {
+    const { call } = await server()
+    const lair = await fakeLair()
+    await call('PUT', '/api/lair', { url: lair.url, key: 'k-1' })
+
+    const { status, body } = await call(
+      'DELETE',
+      '/api/lair/dream?site=docs&path=Nightly.dream',
+    )
+    expect(status).toBe(200)
+    expect(lair.deletes).toEqual([{ site: 'docs', path: 'Nightly.dream' }])
+    expect((body as ApiResponse<'DELETE /api/lair/dream'>).dreams).toEqual([])
+  })
+
+  it("passes the lair's refusal through, word for word", async () => {
+    const { root, call } = await server()
+    await withRemote(root)
+    const lair = await fakeLair({ refuse: true })
+    await call('PUT', '/api/lair', { url: lair.url, key: 'not-the-admin' })
+
+    const { status, body } = await call('PUT', '/api/lair/site')
+    expect(status).toBe(400)
+    expect((body as { error: string }).error).toBe('the admin token is required here')
   })
 })
