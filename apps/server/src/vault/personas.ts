@@ -9,20 +9,26 @@ const NO_DESCRIPTION = 'no description — read its PERSONA.md'
 const FENCE = /^---\n([\s\S]*?)\n---/
 
 export async function scanPersonas(checkout: string): Promise<Persona[]> {
-  const dir = path.join(checkout, '.personas')
-  const dirents = await readdir(dir, { withFileTypes: true }).catch(() => [])
+  const base = path.join(checkout, '.personas')
   const personas: Persona[] = []
-  for (const dirent of dirents) {
-    if (!dirent.isDirectory()) continue
-    const persona = await readFile(
-      path.join(dir, dirent.name, 'PERSONA.md'),
-      'utf8',
-    ).catch(() => null)
-    if (persona === null) continue
-    // The folder is the name, the same rule vaults and branches follow — the frontmatter
-    // may carry one, but the folder is the authority `mv` updates.
-    personas.push({ name: dirent.name, description: descriptionOf(persona) })
+  async function walk(dir: string, prefix: string) {
+    const dirents = await readdir(dir, { withFileTypes: true }).catch(() => [] as any[])
+    for (const dirent of dirents) {
+      if (dirent.name.startsWith('.')) continue
+      const full = path.join(dir, dirent.name)
+      if (dirent.isDirectory()) {
+        const personaPath = path.join(full, 'PERSONA.md')
+        const persona = await readFile(personaPath, 'utf8').catch(() => null)
+        if (persona !== null) {
+          const name = prefix ? `${prefix}/${dirent.name}` : dirent.name
+          personas.push({ name, description: descriptionOf(persona) })
+        }
+        const nextPrefix = prefix ? `${prefix}/${dirent.name}` : dirent.name
+        await walk(full, nextPrefix)
+      }
+    }
   }
+  await walk(base, '')
   return personas.sort((a, b) => a.name.localeCompare(b.name))
 }
 
@@ -34,9 +40,16 @@ export async function readPersona(
   checkout: string,
   name: string,
 ): Promise<string | null> {
-  if (!name || name.startsWith('.') || name.includes('/') || name.includes('\\'))
-    return null
-  const file = path.join(checkout, '.personas', name, 'PERSONA.md')
+  if (!name || name.startsWith('.') || name.includes('\\')) return null
+  if (name.includes('..')) return null
+  const normalized = path.posix.normalize(name)
+  if (normalized !== name || normalized.startsWith('/') || normalized.includes('..')) return null
+  const parts = name.split('/')
+  if (parts.some((part) => !part || part.startsWith('.'))) return null
+  const file = path.join(checkout, '.personas', ...parts, 'PERSONA.md')
+  const resolved = path.resolve(file)
+  const base = path.resolve(path.join(checkout, '.personas'))
+  if (!resolved.startsWith(base + path.sep) && resolved !== base) return null
   const persona = await readFile(file, 'utf8').catch(() => null)
   if (persona === null) return null
   const fence = persona.match(FENCE)

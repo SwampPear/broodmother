@@ -48,25 +48,25 @@ interface KindSpec {
 
 /** Every kind of node a dream can hold, in the order the add menu offers them. */
 const KINDS: Record<DreamKind, KindSpec> = {
-  'trigger.manual': { label: 'When run', icon: 'moon-star', seed: () => ({}) },
+  'trigger.manual': { label: 'When run', icon: 'play', seed: () => ({}) },
   'trigger.interval': {
     label: 'Every N minutes',
-    icon: 'moon-star',
+    icon: 'timer',
     seed: () => ({ minutes: 30 }),
   },
   'trigger.time': {
     label: 'At a time',
-    icon: 'moon-star',
+    icon: 'alarm-clock',
     seed: () => ({ at: '09:00' }),
   },
   'trigger.file': {
     label: 'When a file changes',
-    icon: 'moon-star',
+    icon: 'file',
     seed: () => ({ path: '' }),
   },
   'trigger.http': {
     label: 'When a URL changes',
-    icon: 'moon-star',
+    icon: 'globe',
     seed: () => ({ url: '' }),
   },
   'agent.claude': {
@@ -608,17 +608,21 @@ export function DreamView({
   )
 }
 
-/** The add menu, in the same surface every other menu in the app opens. */
+/** The add menu, in the same surface every other menu in the app opens: what starts a
+ *  dream under one heading, what it does under the other. */
 function addSections(add: (kind: DreamKind) => void): MenuSection[] {
-  return [
-    {
-      actions: (Object.keys(KINDS) as DreamKind[]).map((kind) => ({
+  const offer = (family: string) =>
+    (Object.keys(KINDS) as DreamKind[])
+      .filter((kind) => kind.startsWith(family))
+      .map((kind) => ({
         id: kind,
         label: KINDS[kind].label,
         icon: KINDS[kind].icon,
         onSelect: () => add(kind),
-      })),
-    },
+      }))
+  return [
+    { heading: 'triggers', actions: offer('trigger.') },
+    { heading: 'steps', actions: offer('agent.') },
   ]
 }
 

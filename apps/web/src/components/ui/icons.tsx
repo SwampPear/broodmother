@@ -14,6 +14,10 @@ export type IconName =
   | 'image'
   | 'layout-dashboard'
   | 'moon-star'
+  | 'play'
+  | 'timer'
+  | 'alarm-clock'
+  | 'globe'
   | 'vault'
   | 'package'
   | 'chevron-right'
@@ -86,6 +90,31 @@ const GLYPHS: Record<IconName, ReactNode> = {
       <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
       <path d="M20 3v4" />
       <path d="M22 5h-4" />
+    </>
+  ),
+  play: <polygon points="6 3 20 12 6 21 6 3" />,
+  timer: (
+    <>
+      <path d="M10 2h4" />
+      <path d="M12 14v-4" />
+      <circle cx="12" cy="14" r="8" />
+    </>
+  ),
+  'alarm-clock': (
+    <>
+      <circle cx="12" cy="13" r="8" />
+      <path d="M12 9v4l2 2" />
+      <path d="M5 3 2 6" />
+      <path d="m22 6-3-3" />
+      <path d="M6.38 18.7 4 21" />
+      <path d="M17.64 18.67 20 21" />
+    </>
+  ),
+  globe: (
+    <>
+      <circle cx="12" cy="12" r="10" />
+      <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" />
+      <path d="M2 12h20" />
     </>
   ),
   vault: (
