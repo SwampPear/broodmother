@@ -56,6 +56,8 @@ export interface DreamsDeps {
   /** The system-prompt body a persona name resolves to — a vault idea, like notes, so a
    *  host that has no vault resolves it against the dream's own site. */
   persona?(name: string, site: DreamSite): Promise<string | null>
+  /** The standing brief an agent step opens with, the one the terminals get. */
+  brief?(site: DreamSite): string
   agent?(node: ClaudeNode, ctx: StepCtx): Promise<StepResult | string>
   /** Wraps each walk, for a host that must pull before it and push after it. */
   around?(ref: DocRef, site: DreamSite, walk: () => Promise<void>): Promise<void>
@@ -202,6 +204,18 @@ export class Dreams {
     return this.start_(site, ref, await this.read(site, ref.path))
   }
 
+  async stopRun(ref: DocRef): Promise<DreamRun> {
+    const running = this.live(ref)
+    if (!running) throw new DreamError('nothing running to stop')
+    running.state = 'error'
+    running.error = 'stopped'
+    running.finishedAt = this.now()
+    for (const step of running.steps)
+      if (step.state === 'waiting' || step.state === 'running') step.state = 'skipped'
+    this.deps.runs.save(running)
+    return this.placed(running)
+  }
+
   private async start_(
     site: DreamSite,
     ref: DocRef,
@@ -229,9 +243,20 @@ export class Dreams {
     this.walking.set(refKey(ref), run)
     const walking = () => this.walk(site, dream, run, seed)
     void (this.deps.around ? this.deps.around(ref, site, walking) : walking())
-      .catch(() => null)
+      .catch((cause: unknown) => this.wreck(run, cause))
       .finally(() => this.walking.delete(refKey(ref)))
     return run
+  }
+
+  /** The walk never throws — what lands here is the wrap around it failing, a host's
+   *  pull or push. Left alone the run would say 'running' forever; instead it errors with
+   *  the wrap's reason, and whatever never got to run is skipped. */
+  private wreck(run: DreamRun, cause: unknown): void {
+    run.state = 'error'
+    run.error ??= cause instanceof Error ? cause.message : String(cause)
+    run.finishedAt ??= this.now()
+    for (const step of run.steps) if (step.state === 'waiting') step.state = 'skipped'
+    this.deps.runs.save(run)
   }
 
   private async walk(
@@ -350,15 +375,20 @@ export class Dreams {
       routes,
       env: this.deps.env?.() ?? {},
       persona: null,
+      brief: this.deps.brief?.(site) ?? null,
     }
-    if (node.kind === 'agent.claude') {
-      ctx.persona = node.persona
-        ? ((await this.deps.persona?.(node.persona, site)) ?? null)
+    if (node.kind === 'agent.claude' || node.kind === 'agent.muse') {
+      const personaName = (node as { persona?: string }).persona
+      ctx.persona = personaName
+        ? ((await this.deps.persona?.(personaName, site)) ?? null)
         : null
-      if (node.persona && ctx.persona === null)
-        throw new DreamError(`no persona named "${node.persona}"`)
-      if (this.deps.agent) {
-        const said = await this.deps.agent(node, ctx)
+      if (personaName && ctx.persona === null)
+        throw new DreamError(`no persona named "${personaName}"`)
+      if (node.kind === 'agent.claude' && this.deps.agent) {
+        const said = await this.deps.agent(
+          node as import('@broodmother/shared').ClaudeNode,
+          ctx,
+        )
         return typeof said === 'string' ? { output: said } : said
       }
     }

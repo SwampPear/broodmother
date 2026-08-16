@@ -51,6 +51,15 @@ export interface ClaudeNode extends NodeBase {
   minutes?: number
 }
 
+export interface MuseNode extends NodeBase {
+  kind: 'agent.muse'
+  prompt: string
+  /** Name of a vault persona whose PERSONA.md joins the agent's system prompt. */
+  persona?: string
+  /** How long the errand may take, in minutes. Unset is 5 — a step, not a day. */
+  minutes?: number
+}
+
 export interface ShellNode extends NodeBase {
   kind: 'agent.shell'
   /** Run by `sh -c` in the checkout, upstream output on stdin, stdout onward. */
@@ -81,6 +90,7 @@ export type DreamNode =
   | FileTrigger
   | HttpTrigger
   | ClaudeNode
+  | MuseNode
   | ShellNode
   | GateNode
   | NoteNode
@@ -182,6 +192,16 @@ function node(value: unknown, index: number): DreamNode {
       if (raw.minutes !== undefined) claude.minutes = span(raw.minutes, id)
       return claude
     }
+    case 'agent.muse': {
+      const muse: MuseNode = {
+        kind: raw.kind,
+        ...base,
+        prompt: text(raw.prompt, `${id} prompt`),
+      }
+      if (raw.persona !== undefined) muse.persona = text(raw.persona, `${id} persona`)
+      if (raw.minutes !== undefined) muse.minutes = span(raw.minutes, id)
+      return muse
+    }
     case 'agent.shell': {
       const shell: ShellNode = {
         kind: raw.kind,
@@ -264,6 +284,13 @@ export function serializeDream(dream: Dream): string {
         case 'trigger.http':
           return { ...head, url: one.url }
         case 'agent.claude':
+          return {
+            ...head,
+            prompt: one.prompt,
+            ...(one.persona === undefined ? {} : { persona: one.persona }),
+            ...(one.minutes === undefined ? {} : { minutes: one.minutes }),
+          }
+        case 'agent.muse':
           return {
             ...head,
             prompt: one.prompt,

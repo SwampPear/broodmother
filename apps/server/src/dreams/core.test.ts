@@ -5,7 +5,7 @@ import { serializeDream, type Dream, type DreamNode } from '@broodmother/shared'
 import { cleanup, tempDir, until } from '../test'
 import { Tree } from '../tree'
 import type { StepCtx, StepResult } from './blocks'
-import { Dreams } from './core'
+import { Dreams, type DreamsDeps } from './core'
 import { Crontab, type CrontabIO } from './crontab'
 import { crontabScheduler } from './scheduler'
 import { RunStore } from './db'
@@ -25,6 +25,7 @@ async function harness(
   dream: Dream,
   path_ = 'Nightly.dream',
   personas: Record<string, string> = {},
+  around?: DreamsDeps['around'],
 ) {
   const dir = await tempDir()
   const tree = new Tree(dir)
@@ -39,8 +40,13 @@ async function harness(
   const keep = await tempDir()
   const stateFile = path.join(keep, 'triggers.json')
   const dbFile = path.join(keep, 'dreams.db')
-  const asked: { prompt: string; input: string; cwd: string; persona: string | null }[] =
-    []
+  const asked: {
+    prompt: string
+    input: string
+    cwd: string
+    persona: string | null
+    brief: string | null
+  }[] = []
   let answer: (prompt: string) => Promise<string | StepResult> = async (prompt) =>
     `answered ${prompt}`
   const deps = {
@@ -51,15 +57,18 @@ async function harness(
     runs: new RunStore(dbFile),
     scratch: () => path.join(keep, 'runs'),
     persona: async (name: string) => personas[name] ?? null,
+    brief: () => 'the standing brief',
     agent: async (node: { prompt: string }, ctx: StepCtx) => {
       asked.push({
         prompt: node.prompt,
         input: ctx.input,
         cwd: ctx.cwd,
         persona: ctx.persona,
+        brief: ctx.brief,
       })
       return answer(node.prompt)
     },
+    around,
   }
   const dreams = new Dreams(deps)
   return {
@@ -126,8 +135,20 @@ it('walks a run in order, feeding each step what fed it', async () => {
   expect(run.state).toBe('done')
   expect(run.steps.map((step) => step.state)).toEqual(['done', 'done', 'done', 'done'])
   expect(h.asked).toEqual([
-    { prompt: 'sum up', input: '', cwd: h.dir, persona: null },
-    { prompt: 'check it', input: 'answered sum up', cwd: h.dir, persona: null },
+    {
+      prompt: 'sum up',
+      input: '',
+      cwd: h.dir,
+      persona: null,
+      brief: 'the standing brief',
+    },
+    {
+      prompt: 'check it',
+      input: 'answered sum up',
+      cwd: h.dir,
+      persona: null,
+      brief: 'the standing brief',
+    },
   ])
   expect(await h.tree.read('Log.md')).toBe('answered check it\n')
 })
@@ -161,7 +182,13 @@ it('hands the agent the body of the persona the node wears', async () => {
   const run = await h.settled()
   expect(run.state).toBe('done')
   expect(h.asked).toEqual([
-    { prompt: 'sum up', input: '', cwd: h.dir, persona: 'You are Lens.' },
+    {
+      prompt: 'sum up',
+      input: '',
+      cwd: h.dir,
+      persona: 'You are Lens.',
+      brief: 'the standing brief',
+    },
   ])
 })
 
@@ -560,4 +587,146 @@ it('fails the step whose verdict is not JSON', async () => {
   const run = await h.settled()
   expect(run.state).toBe('error')
   expect(run.error).toContain('not JSON')
+})
+
+/* The editor seeds a note with no path; running it half-made should say what is missing
+   rather than surface the path layer's "empty path". */
+it('tells a pathless note what it needs instead of a path error', async () => {
+  const bare = graph(
+    [at('trigger.manual', 'go'), at('agent.note', 'log', { path: '' })],
+    [['go', 'log']],
+  )
+  const h = await harness(bare)
+  await h.dreams.run(h.ref)
+  const run = await h.settled()
+  expect(run.state).toBe('error')
+  expect(run.error).toContain('the note has no path yet')
+})
+
+/* A note names a folder that does not exist yet, the way the digest logs to Dreams/. */
+it('writes a note into a folder nobody has made', async () => {
+  const filed = graph(
+    [
+      at('trigger.manual', 'go'),
+      at('agent.shell', 'say', { command: 'printf news' }),
+      at('agent.note', 'log', { path: 'Dreams/Digest.md' }),
+    ],
+    [
+      ['go', 'say'],
+      ['say', 'log'],
+    ],
+  )
+  const h = await harness(filed)
+  await h.dreams.run(h.ref)
+  const run = await h.settled()
+  expect(run.state).toBe('done')
+  expect(await h.tree.read('Dreams/Digest.md')).toBe('news\n')
+})
+
+/* The protocol offers paths by node name, so a verdict speaks names — ids are the
+   file's business. */
+it('follows a verdict that picks paths by node name rather than id', async () => {
+  const forked = graph(
+    [
+      at('trigger.manual', 'go'),
+      at('agent.claude', 'decide', { prompt: 'which way' }),
+      { ...at('agent.note', 'note-1', { path: 'Ship.md' }), name: 'Ship it' },
+      { ...at('agent.note', 'note-2', { path: 'Fix.md' }), name: 'Fix it' },
+    ],
+    [
+      ['go', 'decide'],
+      ['decide', 'note-1'],
+      ['decide', 'note-2'],
+    ],
+  )
+  const h = await harness(forked)
+  h.decide({ output: 'green build', next: ['Ship it'] })
+  await h.dreams.run(h.ref)
+  const run = await h.settled()
+  expect(run.state).toBe('done')
+  expect(run.steps.map((step) => [step.node, step.state])).toEqual([
+    ['go', 'done'],
+    ['decide', 'done'],
+    ['note-1', 'done'],
+    ['note-2', 'skipped'],
+  ])
+  expect(await h.tree.read('Ship.md')).toBe('green build\n')
+})
+
+/* A held gate quiets everything beyond it, however deep the branch runs. */
+it('skips the whole chain beyond a held gate, not just its neighbour', async () => {
+  const deep = graph(
+    [
+      at('trigger.manual', 'go'),
+      at('agent.shell', 'say', { command: 'printf calm' }),
+      at('agent.gate', 'alerts', { pattern: 'ALERT' }),
+      at('agent.shell', 'triage', { command: 'printf triaged' }),
+      at('agent.note', 'alarm', { path: 'Alarm.md' }),
+    ],
+    [
+      ['go', 'say'],
+      ['say', 'alerts'],
+      ['alerts', 'triage'],
+      ['triage', 'alarm'],
+    ],
+  )
+  const h = await harness(deep)
+  await h.dreams.run(h.ref)
+  const run = await h.settled()
+  expect(run.state).toBe('done')
+  expect(run.steps.map((step) => step.state)).toEqual([
+    'done',
+    'done',
+    'done',
+    'skipped',
+    'skipped',
+  ])
+  expect(await h.tree.exists('Alarm.md')).toBe(false)
+})
+
+/* The lair pulls before a walk; a pull that fails must fail the run, not strand it
+   saying 'running' with the walk never coming. */
+it('errors the run when the wrap around the walk fails before it', async () => {
+  const h = await harness(chain, 'Nightly.dream', {}, async () => {
+    throw new Error('pull failed: remote hung up')
+  })
+  await h.dreams.run(h.ref)
+  const run = await h.settled()
+  expect(run.state).toBe('error')
+  expect(run.error).toContain('pull failed')
+  expect(run.steps.map((step) => step.state)).toEqual([
+    'skipped',
+    'skipped',
+    'skipped',
+    'skipped',
+  ])
+  expect(run.finishedAt).toBeDefined()
+})
+
+/* And a push that fails after the walk is the run failing to deliver: the steps keep
+   what they did, the run says why nothing arrived. */
+it('errors the run when the push after the walk fails, keeping the steps', async () => {
+  const h = await harness(chain, 'Nightly.dream', {}, async (_ref, _site, walk) => {
+    await walk()
+    throw new Error('push failed: rejected')
+  })
+  await h.dreams.run(h.ref)
+  const run = await h.settled()
+  expect(run.state).toBe('error')
+  expect(run.error).toContain('push failed')
+  expect(run.steps.map((step) => step.state)).toEqual(['done', 'done', 'done', 'done'])
+})
+
+/* When a step already errored and the push then failed too, the step's reason is the
+   one worth keeping. */
+it('keeps the step error over the push error when both fail', async () => {
+  const h = await harness(chain, 'Nightly.dream', {}, async (_ref, _site, walk) => {
+    await walk()
+    throw new Error('push failed: rejected')
+  })
+  h.fail('no thoughts')
+  await h.dreams.run(h.ref)
+  const run = await h.settled()
+  expect(run.state).toBe('error')
+  expect(run.error).toContain('no thoughts')
 })

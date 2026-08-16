@@ -217,11 +217,16 @@ export class AppContext {
       runs: this.runStore,
       scratch: () => path.join(home, 'dreams', 'runs'),
       env: (): Record<string, string> => {
+        const env: Record<string, string> = {}
         const claudeCfgDir = this.activeProfile?.claudeCfgDir
-        return claudeCfgDir ? { CLAUDE_CONFIG_DIR: expandHome(claudeCfgDir) } : {}
+        if (claudeCfgDir) env.CLAUDE_CONFIG_DIR = expandHome(claudeCfgDir)
+        if (process.env.ANTHROPIC_API_KEY)
+          env.ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY
+        return env
       },
       persona: (name) =>
         this.vaultOpen ? readPersona(this.vaultOpen.path, name) : Promise.resolve(null),
+      brief: (site) => brief(this.briefState(site.path, site.root)),
     })
   }
 
@@ -651,6 +656,22 @@ export class AppContext {
       REGISTER_TIMEOUT_MS,
     )
     return site
+  }
+
+  async lairRunDream(target: {
+    site: string
+    path: string
+  }): Promise<{ run: import('@broodmother/shared').DreamRun }> {
+    const answer = await askLair(await this.requireLair(), 'POST /dream/run', target)
+    return answer as { run: import('@broodmother/shared').DreamRun }
+  }
+
+  async lairStopDream(target: {
+    site: string
+    path: string
+  }): Promise<{ run: import('@broodmother/shared').DreamRun }> {
+    const answer = await askLair(await this.requireLair(), 'POST /dream/stop', target)
+    return answer as { run: import('@broodmother/shared').DreamRun }
   }
 
   async githubRepos(): Promise<GithubRepo[]> {

@@ -195,18 +195,16 @@ it('opens a second shell on the claude tab and runs claude in it', async () => {
   expect(onExit).not.toHaveBeenCalled()
 })
 
-/* Both ride opencode; which model is the whole difference, and it has to survive intact. */
-it.each([
-  [/^opencode/, 'opencode --auto\r'],
-  [/^muse spark/, 'opencode --auto --model meta/muse-spark-1.1\r'],
-])('opens a second shell on the %s tab and runs opencode in it', async (label, run) => {
+it('opens a second shell on the muse tab and runs muse in it', async () => {
   const { client } = await show()
-  await userEvent.click(screen.getByRole('button', { name: label }))
+  await userEvent.click(screen.getByRole('button', { name: /^muse code/ }))
   await waitFor(() => expect(bodies()).toHaveLength(2))
 
   act(() => client.emitTerminal({ type: 'output', data: '$ ' }))
 
-  expect(written.filter((data) => data.startsWith('opencode'))).toEqual([run])
+  expect(written.filter((data) => data.startsWith('muse'))).toEqual([
+    'muse --yolo "$BROODMOTHER_BRIEF"\r',
+  ])
 })
 
 /* Typed before the shell has printed its prompt, the command lands in a tty still echoing

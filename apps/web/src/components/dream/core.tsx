@@ -14,31 +14,33 @@ import {
   parseDream,
   runOrder,
   serializeDream,
+  type ClaudeNode,
   type DocRef,
   type Dream,
   type DreamKind,
   type DreamNode,
   type DreamRun,
   type LairSite,
+  type MuseNode,
   type Persona,
 } from '@broodmother/shared'
 import {
+  ContextMenu,
   Icon,
   Menu,
-  Resizer,
-  useStoredSize,
+  TimeField,
   type IconName,
   type MenuSection,
 } from '../ui'
 import { InlineEditor } from '../../editor'
 import { useApp } from '../../state'
 import { loadKernel, type Kernel } from './kernel'
+import { PersonaPicker } from './persona'
 
 const NODE_W = 200
 const NODE_H = 64
 const GRID = 16
 const POLL_MS = 1000
-const OPTIONS_KEY = 'broodmother.dream-options'
 
 interface KindSpec {
   label: string
@@ -74,6 +76,11 @@ const KINDS: Record<DreamKind, KindSpec> = {
     icon: 'claude',
     seed: () => ({ prompt: '' }),
   },
+  'agent.muse': {
+    label: 'Muse prompt',
+    icon: 'muse',
+    seed: () => ({ prompt: '' }),
+  },
   'agent.shell': {
     label: 'Run a command',
     icon: 'terminal',
@@ -88,6 +95,12 @@ const KINDS: Record<DreamKind, KindSpec> = {
 }
 
 const snap = (value: number) => Math.round(value / GRID) * GRID
+
+/** The prompt nodes: the ones whose work is words, and whose home is a dialog of their
+ *  own rather than a row in the corner card. */
+function isAgent(node: DreamNode): node is ClaudeNode | MuseNode {
+  return node.kind === 'agent.claude' || node.kind === 'agent.muse'
+}
 
 function freshId(dream: Dream, kind: DreamKind): string {
   const stem = kind.split('.')[1]
@@ -174,13 +187,19 @@ export function DreamView({
   const [run, setRun] = useState<DreamRun | null>(null)
   const [placing, setPlacing] = useState(false)
   const [lairSites, setLairSites] = useState<LairSite[]>([])
+  const [hostedAt, setHostedAt] = useState<string[]>([])
   const [personas, setPersonas] = useState<Persona[]>([])
   const [view, setView] = useState<View>({ x: 40, y: 40, zoom: 1 })
   const [options, setOptions] = useState(false)
-  const [optionsHeight, resizeOptions] = useStoredSize('options', OPTIONS_KEY)
+  /** The agent node whose dialog is up, by id — a click opens it, a drag never does. */
+  const [agentOpen, setAgentOpen] = useState<string | null>(null)
+  const [liveId, setLiveId] = useState<string | null>(null)
 
   const written = useRef<string | null>(null)
   const canvas = useRef<HTMLDivElement>(null)
+  // Where the right button last landed, in world coordinates: the context menu's add
+  // puts the node there rather than at the centre the toolbar's uses.
+  const spot = useRef<{ x: number; y: number } | null>(null)
 
   useEffect(() => {
     if (given) return
@@ -228,6 +247,97 @@ export function DreamView({
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [])
+
+  const clipboard = useRef<DreamNode[] | null>(null)
+
+  useEffect(() => {
+    const isTypingTarget = (el: Element | null) =>
+      el instanceof HTMLElement &&
+      (el.tagName === 'INPUT' ||
+        el.tagName === 'TEXTAREA' ||
+        el.isContentEditable ||
+        el.closest('[contenteditable="true"]') !== null)
+
+    const onKeyDown = async (event: KeyboardEvent) => {
+      if (isTypingTarget(document.activeElement)) return
+      const mod = event.metaKey || event.ctrlKey
+      if (!mod || !dream) return
+      const key = event.key.toLowerCase()
+
+      if (key === 'c' && picked?.kind === 'node') {
+        const node = dream.nodes.find((n) => n.id === picked.id)
+        if (!node) return
+        event.preventDefault()
+        clipboard.current = [structuredClone(node)]
+        try {
+          await navigator.clipboard?.writeText(JSON.stringify([node]))
+        } catch {}
+      }
+
+      if (key === 'v') {
+        let toPaste: DreamNode[] | null = clipboard.current
+        if (!toPaste) {
+          try {
+            const text = await navigator.clipboard?.readText()
+            if (text) {
+              const parsed = JSON.parse(text) as unknown
+              if (
+                Array.isArray(parsed) &&
+                parsed.every(
+                  (x) =>
+                    typeof x === 'object' &&
+                    x !== null &&
+                    'kind' in x &&
+                    'x' in x &&
+                    'y' in x,
+                )
+              ) {
+                toPaste = parsed as DreamNode[]
+              }
+            }
+          } catch {}
+        }
+        if (!toPaste || toPaste.length === 0) return
+        event.preventDefault()
+        const taken = new Set(dream.nodes.map((n) => n.id))
+        const fresh = (kind: DreamKind): string => {
+          const stem = kind.split('.')[1]
+          for (let n = 1; ; n++)
+            if (!taken.has(`${stem}-${n}`)) {
+              taken.add(`${stem}-${n}`)
+              return `${stem}-${n}`
+            }
+        }
+        const idMap = new Map<string, string>()
+        const clones: DreamNode[] = toPaste.map((n) => {
+          const nid = fresh(n.kind)
+          idMap.set(n.id, nid)
+          return {
+            ...structuredClone(n),
+            id: nid,
+            x: snap(n.x + 40),
+            y: snap(n.y + 40),
+          } as DreamNode
+        })
+        const clonedEdges = dream.edges
+          .filter((e) => idMap.has(e.from) && idMap.has(e.to))
+          .map((e) => ({ from: idMap.get(e.from)!, to: idMap.get(e.to)! }))
+        // also copy single-node edges are none, but keep for multi-copy
+        const next: Dream = {
+          ...dream,
+          nodes: [...dream.nodes, ...clones],
+          edges: [...dream.edges, ...clonedEdges],
+        }
+        if (runOrder(next)) {
+          commit(next)
+          if (clones[0]) setPicked({ kind: 'node', id: clones[0].id })
+          clipboard.current = clones.map((c) => structuredClone(c))
+        }
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [dream, picked, commit])
 
   // The voices the vault carries, for the inspector's picker to offer.
   useEffect(() => {
@@ -282,6 +392,7 @@ export function DreamView({
   function pan(event: ReactPointerEvent) {
     if (event.button !== 0 || event.target !== canvas.current) return
     setPicked(null)
+    setAgentOpen(null)
     const at = { x: event.clientX, y: event.clientY, viewX: view.x, viewY: view.y }
     track(event, (going) =>
       setView({
@@ -313,7 +424,11 @@ export function DreamView({
     if (event.button !== 0 || !dream) return
     event.stopPropagation()
     setPicked({ kind: 'node', id: node.id })
-    setOptions(true)
+    if (run?.state === 'running') setLiveId(node.id)
+    if (!isAgent(node)) {
+      setOptions(true)
+      setAgentOpen(null)
+    }
     const from = { x: event.clientX, y: event.clientY }
     let last = { x: node.x, y: node.y }
     track(
@@ -336,6 +451,13 @@ export function DreamView({
       },
       () => {
         if (!dream) return
+        // The pointer never moved: a click, not a drag — compared unsnapped, because
+        // snapping an off-grid node would read its click as a move.
+        if (last.x === node.x && last.y === node.y) {
+          if (run?.state === 'running') setLiveId(node.id)
+          else if (isAgent(node)) setAgentOpen(node.id)
+          return
+        }
         const settled = { x: snap(last.x), y: snap(last.y) }
         if (settled.x === node.x && settled.y === node.y) return
         commit({
@@ -395,17 +517,20 @@ export function DreamView({
     })
   }
 
-  function add(kind: DreamKind) {
+  function add(kind: DreamKind, at?: { x: number; y: number }) {
     if (!dream) return
     const box = canvas.current?.getBoundingClientRect()
-    const centre = toWorld(
-      (box?.left ?? 0) + (box?.width ?? 600) / 2,
-      (box?.top ?? 0) + (box?.height ?? 400) / 2,
-    )
+    const centre =
+      at ??
+      toWorld(
+        (box?.left ?? 0) + (box?.width ?? 600) / 2,
+        (box?.top ?? 0) + (box?.height ?? 400) / 2,
+      )
     const node = makeNode(dream, kind, centre.x - NODE_W / 2, centre.y - NODE_H / 2)
     commit({ ...dream, nodes: [...dream.nodes, node] })
     setPicked({ kind: 'node', id: node.id })
-    setOptions(true)
+    if (isAgent(node)) setAgentOpen(node.id)
+    else setOptions(true)
   }
 
   function rework(id: string, change: Partial<DreamNode>) {
@@ -433,28 +558,43 @@ export function DreamView({
     setPlacing(open)
     if (!open) return
     void app.lairDreams().then((answer) => {
-      if (typeof answer !== 'string') setLairSites(answer.sites)
+      if (typeof answer === 'string') return
+      setLairSites(answer.sites)
+      setHostedAt(answer.dreams.filter((one) => one.path === path).map((one) => one.site))
     })
   }
 
   function placements(): MenuSection[] {
+    const push: MenuSection = {
+      heading: 'run on the lair, under…',
+      actions: lairSites.length
+        ? lairSites.map((site) => ({
+            id: site.name,
+            label: site.name,
+            onSelect: () => void app.pushDream({ root, path, site: site.name }),
+          }))
+        : [
+            {
+              id: 'no-sites',
+              label: 'no sites yet — register one in Settings → Server',
+              disabled: true,
+              onSelect: () => {},
+            },
+          ],
+    }
+    if (!hostedAt.length) return [push]
     return [
+      push,
       {
-        heading: 'run on the lair, under…',
-        actions: lairSites.length
-          ? lairSites.map((site) => ({
-              id: site.name,
-              label: site.name,
-              onSelect: () => void app.pushDream({ root, path, site: site.name }),
-            }))
-          : [
-              {
-                id: 'no-sites',
-                label: 'no sites yet — register one in Settings → Server',
-                disabled: true,
-                onSelect: () => {},
-              },
-            ],
+        actions: hostedAt.map((site) => ({
+          id: `off-${site}`,
+          label: `remove from ${site}`,
+          danger: true,
+          onSelect: () => {
+            setHostedAt((held) => held.filter((one) => one !== site))
+            void app.dropDream({ site, path })
+          },
+        })),
       },
     ]
   }
@@ -470,114 +610,113 @@ export function DreamView({
     picked?.kind === 'node'
       ? (dream.nodes.find((one) => one.id === picked.id) ?? null)
       : null
+  const agentNode = dream.nodes.filter(isAgent).find((one) => one.id === agentOpen)
 
   return (
     <div className="dream-page">
-      <div
-        className="dream"
-        ref={canvas}
-        role="application"
-        aria-label={`dream ${path}`}
-        tabIndex={0}
-        onPointerDown={pan}
-        onWheel={wheel}
-        onKeyDown={(event) => {
-          if (event.key !== 'Backspace' && event.key !== 'Delete') return
-          if (event.target !== event.currentTarget) return
-          event.preventDefault()
-          erase()
-        }}
-        style={{ backgroundPosition: `${view.x}px ${view.y}px` }}
+      <ContextMenu
+        label="add node"
+        sections={addSections((kind) => add(kind, spot.current ?? undefined))}
       >
         <div
-          className="dream-world"
-          style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.zoom})` }}
+          className="dream"
+          ref={canvas}
+          role="application"
+          aria-label={`dream ${path}`}
+          tabIndex={0}
+          onPointerDown={pan}
+          onWheel={wheel}
+          onContextMenu={(event) => {
+            spot.current = toWorld(event.clientX, event.clientY)
+          }}
+          onKeyDown={(event) => {
+            if (event.key !== 'Backspace' && event.key !== 'Delete') return
+            if (event.target !== event.currentTarget) return
+            event.preventDefault()
+            erase()
+          }}
+          style={{ backgroundPosition: `${view.x}px ${view.y}px` }}
         >
-          <svg className="dream-edges" aria-hidden>
-            {controls &&
-              dream.edges.map((edge, i) => (
-                <g key={`${edge.from}>${edge.to}`}>
-                  <path
-                    className="dream-edge-hit"
-                    d={pathOf(controls, i, ends)}
-                    onPointerDown={(event) => {
-                      event.stopPropagation()
-                      setPicked({ kind: 'edge', index: i })
-                      canvas.current?.focus()
-                    }}
-                  />
-                  <path
-                    className="dream-edge"
-                    data-picked={
-                      (picked?.kind === 'edge' && picked.index === i) || undefined
-                    }
-                    d={pathOf(controls, i, ends)}
-                  />
-                </g>
-              ))}
-            {ghost && <path className="dream-edge dream-ghost" d={ghost} />}
-          </svg>
-          {dream.nodes.map((node) => (
-            <NodeCard
-              key={node.id}
-              node={node}
-              picked={picked?.kind === 'node' && picked.id === node.id}
-              state={steps.get(node.id)?.state ?? null}
-              onGrab={(event) => {
-                drag(event, node)
-                canvas.current?.focus()
-              }}
-              onConnect={(event) => connect(event, node)}
-            />
-          ))}
-        </div>
-        <div className="dream-bar">
-          <Menu
-            label="Add node"
-            sections={addSections(add)}
-            anchorClass="dream-button"
-            anchorLabel="add node"
+          <div
+            className="dream-world"
+            style={{
+              transform: `translate(${view.x}px, ${view.y}px) scale(${view.zoom})`,
+            }}
           >
-            <Icon name="plus" />
-          </Menu>
-          <button
-            type="button"
-            className="dream-button"
-            data-tip="run dream"
-            aria-label="run dream"
-            onClick={() => void runNow()}
-          >
-            <Icon name="chevron-right" />
-          </button>
-          {app.lair.keyed && (
+            <svg className="dream-edges" aria-hidden>
+              {controls &&
+                dream.edges.map((edge, i) => (
+                  <g key={`${edge.from}>${edge.to}`}>
+                    <path
+                      className="dream-edge-hit"
+                      d={pathOf(controls, i, ends)}
+                      onPointerDown={(event) => {
+                        event.stopPropagation()
+                        setPicked({ kind: 'edge', index: i })
+                        canvas.current?.focus()
+                      }}
+                    />
+                    <path
+                      className="dream-edge"
+                      data-picked={
+                        (picked?.kind === 'edge' && picked.index === i) || undefined
+                      }
+                      d={pathOf(controls, i, ends)}
+                    />
+                  </g>
+                ))}
+              {ghost && <path className="dream-edge dream-ghost" d={ghost} />}
+            </svg>
+            {dream.nodes.map((node) => (
+              <NodeCard
+                key={node.id}
+                node={node}
+                picked={picked?.kind === 'node' && picked.id === node.id}
+                state={steps.get(node.id)?.state ?? null}
+                onGrab={(event) => {
+                  drag(event, node)
+                  canvas.current?.focus()
+                }}
+                onConnect={(event) => connect(event, node)}
+              />
+            ))}
+          </div>
+          <div className="dream-bar">
             <Menu
-              label="Run on the lair"
-              sections={placements()}
+              label="Add node"
+              sections={addSections(add)}
               anchorClass="dream-button"
-              anchorLabel="run on the lair"
-              open={placing}
-              onOpenChange={openPlacing}
+              anchorLabel="add node"
             >
-              <Icon name="antenna" />
+              <Icon name="plus" />
             </Menu>
-          )}
-          {run && (
-            <span className="dream-state" data-state={run.state}>
-              {run.state}
-              {run.state === 'error' && run.error ? ` · ${run.error}` : ''}
-            </span>
-          )}
+            <button
+              type="button"
+              className="dream-button dream-run"
+              data-tip="run dream"
+              aria-label="run dream"
+              onClick={() => void runNow()}
+            >
+              <Icon name="play" />
+            </button>
+            {app.lair.keyed && (
+              <Menu
+                label="Run on the lair"
+                sections={placements()}
+                anchorClass="dream-button"
+                anchorLabel="run on the lair"
+                open={placing}
+                onOpenChange={openPlacing}
+              >
+                <Icon name="antenna" />
+              </Menu>
+            )}
+          </div>
         </div>
-      </div>
-      {/* The terminal's slot, taken over: same chrome, same seam, same key — the options
-          for whatever the canvas has picked, set the way the settings pages set theirs. */}
-      <section
-        className="dream-options"
-        aria-label="dream options"
-        hidden={!options}
-        style={{ height: optionsHeight }}
-      >
-        <Resizer axis="options" size={optionsHeight} onSize={resizeOptions} />
+      </ContextMenu>
+      {/* Figma's inspector rather than the terminal's slot: a compact card floating over
+          the canvas's right edge, holding the picked node's options — same key, ⌘J. */}
+      <section className="dream-options" aria-label="dream options" hidden={!options}>
         <header className="dream-options-head">
           {pickedNode ? pickedNode.name : 'options'}
           <span className="spacer" />
@@ -596,7 +735,6 @@ export function DreamView({
             <Inspector
               node={pickedNode}
               step={steps.get(pickedNode.id) ?? null}
-              personas={personas}
               onChange={(change) => rework(pickedNode.id, change)}
             />
           ) : (
@@ -604,25 +742,171 @@ export function DreamView({
           )}
         </div>
       </section>
+      {agentNode && (
+        <AgentPopup
+          node={agentNode}
+          step={steps.get(agentNode.id) ?? null}
+          personas={personas}
+          onChange={(change) => rework(agentNode.id, change)}
+          onClose={() => setAgentOpen(null)}
+        />
+      )}
+      {liveId && (
+        <section className="dream-live" aria-label="live logs">
+          <header className="terminal-head">
+            <span>{dream.nodes.find((n) => n.id === liveId)?.name ?? liveId}</span>
+            <span className="dreams-dim"> — live</span>
+            <span className="spacer" />
+            <button
+              type="button"
+              className="terminal-hide"
+              aria-label="close live logs"
+              onClick={() => setLiveId(null)}
+            >
+              ✕
+            </button>
+          </header>
+          <div className="dream-live-body">
+            {(() => {
+              const s = steps.get(liveId)
+              if (!s) return <span className="dreams-dim">waiting…</span>
+              return (
+                <div className="dream-step" data-state={s.state}>
+                  <span>
+                    {s.name} — {s.state}
+                  </span>
+                  {(s.error ?? s.output ?? s.halted) && (
+                    <pre>{s.error ?? s.halted ?? s.output}</pre>
+                  )}
+                </div>
+              )
+            })()}
+          </div>
+        </section>
+      )}
     </div>
   )
 }
 
-/** The add menu, in the same surface every other menu in the app opens: what starts a
- *  dream under one heading, what it does under the other. */
+/** An agent node's own surface: the prompt is the work, so a click on the node opens a
+ *  dialog of its own over the canvas rather than a row in the corner card. */
+function AgentPopup({
+  node,
+  step,
+  personas,
+  onChange,
+  onClose,
+}: {
+  node: ClaudeNode | MuseNode
+  step: { state: string; output?: string; error?: string; halted?: string } | null
+  personas: Persona[]
+  onChange: (change: Partial<DreamNode>) => void
+  onClose: () => void
+}) {
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      onClose()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [onClose])
+
+  return (
+    <section className="dream-agent" role="dialog" aria-label={`${node.name} agent`}>
+      <header className="dream-options-head">
+        <Icon name={KINDS[node.kind].icon} />
+        {node.name}
+        <span className="spacer" />
+        <button
+          type="button"
+          className="terminal-hide"
+          aria-label="close agent"
+          data-tip="close (esc)"
+          onClick={onClose}
+        >
+          ✕
+        </button>
+      </header>
+      <div className="dream-agent-body">
+        <Field label="name">
+          <input
+            value={node.name}
+            onChange={(event) => onChange({ name: event.target.value })}
+          />
+        </Field>
+        {/* A div where every other field is a label: an editor is not a control a label
+            can point at, the same reason settings write their Soul field this way. */}
+        <div className="dream-field">
+          <span>prompt</span>
+          <InlineEditor
+            label="prompt"
+            markdown={node.prompt}
+            onChange={(prompt) => onChange({ prompt })}
+          />
+        </div>
+        {/* A div rather than a Field: a label wrapping the picker would send every click
+            inside the dropdown back to its button. */}
+        {/* Muse has no personas — that field is Claude's alone. */}
+        {node.kind === 'agent.claude' && (
+          <div className="dream-field">
+            <span>persona</span>
+            <PersonaPicker
+              value={node.persona}
+              personas={personas}
+              onChange={(persona) => onChange({ persona })}
+            />
+          </div>
+        )}
+        <Field label="time limit (minutes)">
+          <input
+            type="number"
+            min={1}
+            placeholder="5"
+            value={node.minutes ?? ''}
+            onChange={(event) => {
+              const minutes = Number(event.target.value)
+              onChange({ minutes: minutes >= 1 ? minutes : undefined })
+            }}
+          />
+        </Field>
+        {step && (step.output || step.error || step.halted) && (
+          <div className="dream-step" data-state={step.state}>
+            <span>{step.state}</span>
+            <pre>{step.error ?? step.halted ?? step.output}</pre>
+          </div>
+        )}
+      </div>
+    </section>
+  )
+}
+
+/** The add menu, in the same surface every other menu in the app opens: one popout per
+ *  family, the kinds partitioned by their namespace so a new one files itself. */
 function addSections(add: (kind: DreamKind) => void): MenuSection[] {
-  const offer = (family: string) =>
-    (Object.keys(KINDS) as DreamKind[])
-      .filter((kind) => kind.startsWith(family))
+  const family = (stem: string) => ({
+    actions: (Object.keys(KINDS) as DreamKind[])
+      .filter((kind) => kind.startsWith(`${stem}.`))
       .map((kind) => ({
         id: kind,
         label: KINDS[kind].label,
         icon: KINDS[kind].icon,
         onSelect: () => add(kind),
-      }))
+      })),
+  })
   return [
-    { heading: 'triggers', actions: offer('trigger.') },
-    { heading: 'steps', actions: offer('agent.') },
+    {
+      actions: [
+        {
+          id: 'triggers',
+          label: 'Triggers',
+          icon: 'zap',
+          sub: [family('trigger')],
+        },
+        { id: 'steps', label: 'Steps', icon: 'terminal', sub: [family('agent')] },
+      ],
+    },
   ]
 }
 
@@ -696,12 +980,10 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 function Inspector({
   node,
   step,
-  personas,
   onChange,
 }: {
   node: DreamNode
   step: { state: string; output?: string; error?: string; halted?: string } | null
-  personas: Persona[]
   onChange: (change: Partial<DreamNode>) => void
 }) {
   return (
@@ -726,11 +1008,7 @@ function Inspector({
       )}
       {node.kind === 'trigger.time' && (
         <Field label="at">
-          <input
-            type="time"
-            value={node.at}
-            onChange={(event) => onChange({ at: event.target.value })}
-          />
+          <TimeField value={node.at} label="at" onChange={(at) => onChange({ at })} />
         </Field>
       )}
       {node.kind === 'trigger.file' && (
@@ -751,36 +1029,8 @@ function Inspector({
           />
         </Field>
       )}
-      {node.kind === 'agent.claude' && (
-        <>
-          {/* A div where every other field is a label: an editor is not a control a label
-              can point at, the same reason settings write their Soul field this way. */}
-          <div className="dream-field">
-            <span>prompt</span>
-            <InlineEditor
-              label="prompt"
-              markdown={node.prompt}
-              onChange={(prompt) => onChange({ prompt })}
-            />
-          </div>
-          <Field label="persona">
-            <select
-              value={node.persona ?? ''}
-              onChange={(event) => onChange({ persona: event.target.value || undefined })}
-            >
-              <option value="">none</option>
-              {node.persona && !personas.some((one) => one.name === node.persona) && (
-                <option value={node.persona}>{node.persona} (missing)</option>
-              )}
-              {personas.map((one) => (
-                <option key={one.name} value={one.name} title={one.description}>
-                  {one.name}
-                </option>
-              ))}
-            </select>
-          </Field>
-        </>
-      )}
+      {/* The prompt nodes live in their own dialog — a click on the node opens it — so
+          the card holds only the name and, below, what the last run said. */}
       {node.kind === 'agent.shell' && (
         <Field label="command">
           <textarea
@@ -800,7 +1050,7 @@ function Inspector({
           />
         </Field>
       )}
-      {(node.kind === 'agent.claude' || node.kind === 'agent.shell') && (
+      {node.kind === 'agent.shell' && (
         <Field label="time limit (minutes)">
           <input
             type="number"

@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises'
 import { DreamError, type DreamNode } from '@broodmother/shared'
 import type { Tree } from '../../tree'
 import { claudeBlock } from './claude'
+import { museBlock } from './muse'
 import { shellBlock } from './shell'
 import { gateBlock } from './gate'
 import { noteBlock } from './note'
@@ -32,6 +33,9 @@ export interface StepCtx {
   routes: string[]
   env: Record<string, string>
   persona: string | null
+  /** The standing brief every agent here gets — the vault, the projects, their paths —
+   *  the same one the terminals hand theirs. */
+  brief: string | null
 }
 
 export interface StepResult {
@@ -46,6 +50,8 @@ export function performStep(node: DreamNode, ctx: StepCtx): Promise<StepResult> 
   switch (node.kind) {
     case 'agent.claude':
       return claudeBlock(node, ctx)
+    case 'agent.muse':
+      return museBlock(node, ctx)
     case 'agent.shell':
       return shellBlock(node, ctx)
     case 'agent.gate':

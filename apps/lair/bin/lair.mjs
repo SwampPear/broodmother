@@ -14,6 +14,7 @@ usage
   lair sites add <name> <remote>  register a repository and clone it
   lair sites ls                   each site and how its last pull went
   lair key                        the lair's public deploy key, for your forge
+  lair localhost [vault]          run the local app — server and web on 127.0.0.1:6767
 
 environment
   LAIR_URL          where the lair listens, e.g. https://lair.example.com
@@ -90,6 +91,13 @@ if (command === 'status') {
   const { publicKey } = await ask('GET', '/key')
   if (!publicKey) fail('the lair has no key — ssh-keygen failed at its first boot')
   console.log(publicKey)
+} else if (command === 'localhost') {
+  // The one errand that is not a fetch: the app itself, started the way the
+  // `broodmother` launcher starts it. Needs no LAIR_URL — the lair to point it at, if
+  // any, is the profile's business, set in the app's Server panel.
+  const { resolve } = await import('node:path')
+  const { runLocalhost } = await import('../../../scripts/localhost.mjs')
+  await runLocalhost(rest[0] ? resolve(rest[0]) : null)
 } else {
   console.log(usage)
   process.exit(command ? 1 : 0)

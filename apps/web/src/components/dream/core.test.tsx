@@ -67,12 +67,84 @@ it('shows a broken dream its parse error', async () => {
 it('adds a node from the toolbar and saves it back as canonical JSON', async () => {
   const client = await show()
   await userEvent.click(screen.getByRole('button', { name: /node/ }))
-  await userEvent.click(screen.getByRole('menuitem', { name: /Claude prompt/ }))
+  await userEvent.click(screen.getByRole('menuitem', { name: /Steps/ }))
+  await userEvent.click(await screen.findByRole('menuitem', { name: /Claude prompt/ }))
   await waitFor(async () => expect(await saved(client)).toContain('agent.claude'), {
     timeout: 2000,
   })
   const dream = parseDream(await saved(client))
   expect(dream.nodes.map((node) => node.kind)).toEqual(['trigger.manual', 'agent.claude'])
+})
+
+/* The canvas has the same menu under the right button, and the node lands where the
+   button asked rather than at the centre the toolbar's add uses. */
+it('adds a node where the canvas was right-clicked', async () => {
+  const client = await show()
+  fireEvent.contextMenu(screen.getByRole('application', { name: `dream ${PATH}` }), {
+    clientX: 300,
+    clientY: 200,
+  })
+  await userEvent.click(await screen.findByRole('menuitem', { name: /Steps/ }))
+  await userEvent.click(await screen.findByRole('menuitem', { name: /Run a command/ }))
+  await waitFor(async () => expect(await saved(client)).toContain('agent.shell'), {
+    timeout: 2000,
+  })
+  const dream = parseDream(await saved(client))
+  // The pointer stood at world (260, 160) through the 40px pan; the node centres on it.
+  expect(dream.nodes.find((node) => node.kind === 'agent.shell')).toMatchObject({
+    x: 160,
+    y: 128,
+  })
+})
+
+/* The antenna menu is also the way back off: a dream the lair already holds offers its
+   removal beside the sites a push could land on. */
+it('removes the dream from the lair through the antenna menu', async () => {
+  const client = createMockClient({
+    docs: { [PATH]: serializeDream(emptyDream()) },
+    lair: 'https://lair.example',
+    lairSites: [{ name: 'den', remote: 'git@github.com:you/den.git', pull: 'ok' }],
+    lairDreams: [
+      { site: 'den', path: PATH, name: 'Nightly', triggers: [], lastRun: null },
+    ],
+  })
+  await show(client)
+  await userEvent.click(await screen.findByRole('button', { name: 'run on the lair' }))
+  await userEvent.click(await screen.findByRole('menuitem', { name: 'remove from den' }))
+  await waitFor(async () => {
+    const answer = await client.request('GET /api/lair/dreams', null)
+    expect(answer.dreams).toEqual([])
+  })
+})
+
+/* An agent's work is its prompt, so the node answers a click with a dialog of its own —
+   and a drag only ever moves it. */
+it('opens an agent in its own dialog on a click, and Escape puts it away', async () => {
+  const dream: Dream = {
+    version: 1,
+    nodes: [
+      {
+        id: 'muse-1',
+        kind: 'agent.muse',
+        name: 'Second opinion',
+        x: 320,
+        y: 120,
+        prompt: 'judge it',
+      },
+    ],
+    edges: [],
+  }
+  await show(createMockClient({ docs: { [PATH]: serializeDream(dream) } }))
+  await userEvent.click(screen.getByRole('group', { name: 'Second opinion' }))
+  const dialog = await screen.findByRole('dialog', { name: 'Second opinion agent' })
+  expect(dialog).toHaveTextContent('Second opinion')
+  // Muse has no personas — that field is Claude's alone.
+  expect(screen.queryByLabelText('persona')).not.toBeInTheDocument()
+
+  await userEvent.keyboard('{Escape}')
+  expect(
+    screen.queryByRole('dialog', { name: 'Second opinion agent' }),
+  ).not.toBeInTheDocument()
 })
 
 it('opens the picked node in the inspector and renames it into the file', async () => {
@@ -116,8 +188,10 @@ it('edits the prompt in the markdown editor and saves it into the file', async (
     edges: [],
   }
   const client = await show(createMockClient({ docs: { [PATH]: serializeDream(dream) } }))
-  fireEvent.pointerDown(screen.getByRole('group', { name: 'Summarize' }), { button: 0 })
+  await userEvent.click(screen.getByRole('group', { name: 'Summarize' }))
 
+  // A click, not a drag, so the agent's own dialog is up with the prompt in it.
+  await screen.findByRole('dialog', { name: 'Summarize agent' })
   const prompt = await screen.findByLabelText('prompt')
   expect(prompt).toHaveValue('sum up')
   await userEvent.clear(prompt)
@@ -149,14 +223,23 @@ it('offers the vault personas on a Claude node and wears the pick into the file'
       personas: [{ name: 'lens', description: 'the code reviewer' }],
     }),
   )
-  fireEvent.pointerDown(screen.getByRole('group', { name: 'Summarize' }), { button: 0 })
-  const field = await screen.findByLabelText('persona')
-  await waitFor(() => expect(screen.getByRole('option', { name: 'lens' })).toBeTruthy())
-  await userEvent.selectOptions(field, 'lens')
+  await userEvent.click(screen.getByRole('group', { name: 'Summarize' }))
+  await userEvent.click(await screen.findByRole('button', { name: 'persona' }))
+
+  // The search narrows the floating list; what does not match is not offered.
+  const search = await screen.findByPlaceholderText('search personas…')
+  await userEvent.type(search, 'nothing like this')
+  expect(screen.queryByRole('menuitemradio', { name: 'lens' })).not.toBeInTheDocument()
+  await userEvent.clear(search)
+  await userEvent.type(search, 'len')
+
+  await userEvent.click(await screen.findByRole('menuitemradio', { name: 'lens' }))
   await waitFor(async () => expect(await saved(client)).toContain('"persona": "lens"'), {
     timeout: 2000,
   })
-  await userEvent.selectOptions(field, 'none')
+
+  await userEvent.click(screen.getByRole('button', { name: 'persona' }))
+  await userEvent.click(await screen.findByRole('menuitemradio', { name: 'none' }))
   await waitFor(async () => expect(await saved(client)).not.toContain('persona'), {
     timeout: 2000,
   })

@@ -254,6 +254,7 @@ export function createMockClient(
     seed.vaultRemote === undefined
       ? 'git@forge.example:you/handbook.git'
       : seed.vaultRemote
+  const lairRuns: DreamRun[] = []
   const emit = (message: ServerMessage) => listener?.(message)
   const emitTerminal = (message: TerminalServerMessage) => shell?.(message)
 
@@ -546,6 +547,36 @@ export function createMockClient(
         dreamRuns.push(run)
         return { run }
       },
+      'POST /api/dream/stop': async ({ root, path }) => {
+        const idx = dreamRuns.findLastIndex(
+          (r) => r.ref.root === root && r.ref.path === path && r.state === 'running',
+        )
+        if (idx >= 0) {
+          dreamRuns[idx] = {
+            ...dreamRuns[idx],
+            state: 'error',
+            error: 'stopped',
+            finishedAt: 0,
+            steps: dreamRuns[idx].steps.map((s) =>
+              s.state === 'running' || s.state === 'waiting'
+                ? { ...s, state: 'skipped' as const }
+                : s,
+            ),
+          }
+          return { run: dreamRuns[idx] }
+        }
+        const run: DreamRun = {
+          id: `run-${dreamRuns.length + 1}`,
+          ref: { root, path },
+          startedAt: 0,
+          finishedAt: 0,
+          state: 'error',
+          error: 'stopped',
+          steps: [],
+        }
+        dreamRuns.push(run)
+        return { run }
+      },
       'GET /api/dream/runs': async ({ root, path }) => ({
         runs: dreamRuns
           .filter((run) => run.ref.root === root && run.ref.path === path)
@@ -639,8 +670,44 @@ export function createMockClient(
       },
       'DELETE /api/lair/dream': async ({ site, path }) => {
         const held = lairDreams.findIndex((one) => one.site === site && one.path === path)
-        if (held >= 0) lairDreams.splice(held, 1)
+        if (held < 0) throw new Error(`nothing hosted at ${path} under ${site}`)
+        lairDreams.splice(held, 1)
         return { dreams: [...lairDreams] }
+      },
+      'POST /api/lair/dream/run': async ({ site, path }) => {
+        const d = lairDreams.find((one) => one.site === site && one.path === path)
+        if (!d) throw new Error(`nothing hosted at ${path} under ${site}`)
+        const run: DreamRun = {
+          id: `lair-run-${Date.now()}`,
+          ref: { root: `project:${site}` as DocRoot, path },
+          startedAt: Date.now(),
+          state: 'running',
+          steps: [{ node: 'n1', name: d.name, kind: 'agent.claude', state: 'running' }],
+        }
+        const hostedIdx = lairDreams.findIndex(
+          (one) => one.site === site && one.path === path,
+        )
+        lairDreams[hostedIdx] = { ...d, lastRun: run }
+        lairRuns.push(run)
+        return { run }
+      },
+      'POST /api/lair/dream/stop': async ({ site, path }) => {
+        const d = lairDreams.find((one) => one.site === site && one.path === path)
+        if (!d) throw new Error(`nothing hosted at ${path} under ${site}`)
+        const run: DreamRun = {
+          id: `lair-run-${Date.now()}`,
+          ref: { root: `project:${site}` as DocRoot, path },
+          startedAt: Date.now(),
+          finishedAt: Date.now(),
+          state: 'error',
+          error: 'stopped',
+          steps: [],
+        }
+        const hostedIdx = lairDreams.findIndex(
+          (one) => one.site === site && one.path === path,
+        )
+        lairDreams[hostedIdx] = { ...d, lastRun: run }
+        return { run }
       },
       'GET /api/lair/dreams': async () => ({
         sites: [...lairSites],

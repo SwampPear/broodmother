@@ -29,7 +29,6 @@ export function VaultMenu({
   onDelete,
   onCreateProject,
   onSettings,
-  onDreams,
 }: {
   vaults: VaultSummary[]
   activePath: string
@@ -45,7 +44,6 @@ export function VaultMenu({
   onDelete: (name: string) => void
   onCreateProject: () => void
   onSettings: () => void
-  onDreams: () => void
 }) {
   // Double-clicking a row drills into what can be done to that one, in the same surface:
   // a menu that changed under you reads better than a second menu on top.
@@ -108,7 +106,6 @@ export function VaultMenu({
               icon: 'plus',
               onSelect: onCreateProject,
             },
-            { id: 'dreams', label: 'Dreams', icon: 'moon-star', onSelect: onDreams },
             { id: 'settings', label: 'Settings', icon: 'settings', onSelect: onSettings },
           ],
         },

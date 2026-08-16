@@ -5,7 +5,7 @@ import { type IconName } from '../ui'
  * here rather than beside the terminal itself because the tab strip offers them too, and a
  * strip that had to import the terminal would drag xterm in with it.
  */
-export type TerminalKind = 'shell' | 'claude' | 'opencode' | 'muse'
+export type TerminalKind = 'shell' | 'claude' | 'muse'
 
 /**
  * What a tab types into its shell once the shell has spoken, or null where it types
@@ -18,12 +18,13 @@ export function command(kind: TerminalKind): string | null {
   switch (kind) {
     case 'claude':
       return 'claude --dangerously-skip-permissions --append-system-prompt "$BROODMOTHER_BRIEF"\r'
-    case 'opencode':
-      return 'opencode --auto\r'
-    // Muse Spark has no CLI of its own: it rides opencode, through the meta provider the
-    // user has configured in opencode.json.
+    // Muse Code, Meta's own CLI for Muse — --yolo skips approval/sandbox and
+    // trusts the workspace so the session can edit without asking, same as
+    // claude's --dangerously-skip-permissions. The brief is the same
+    // "$BROODMOTHER_BRIEF" env the server sets for every shell; muse has no
+    // --append-system-prompt flag so it rides as the initial prompt.
     case 'muse':
-      return 'opencode --auto --model meta/muse-spark-1.1\r'
+      return 'muse --yolo "$BROODMOTHER_BRIEF"\r'
     default:
       return null
   }
@@ -39,12 +40,11 @@ export const TERMINALS: Record<
     name: 'claude',
     label: 'claude code (--dangerously-skip-permissions)',
   },
-  opencode: { icon: 'opencode', name: 'opencode', label: 'opencode (--auto)' },
   muse: {
     icon: 'muse',
-    name: 'muse spark',
-    label: 'muse spark 1.1 via opencode (--auto)',
+    name: 'muse',
+    label: 'muse code (--yolo)',
   },
 }
 
-export const KINDS: TerminalKind[] = ['shell', 'claude', 'opencode', 'muse']
+export const KINDS: TerminalKind[] = ['shell', 'claude', 'muse']

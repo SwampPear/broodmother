@@ -1,6 +1,9 @@
 export { FileTree, type TreeCommand } from './core'
+export { RenameRow } from './rename'
 export {
+  entriesOf,
   fileRefs,
+  flatten,
   folderOf,
   isFolder,
   parentOf,

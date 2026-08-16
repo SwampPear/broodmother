@@ -13,6 +13,7 @@ import {
 import { useApp } from '../../state'
 import { docRoute } from '../shell'
 import { Icon } from '../ui'
+import { ago, DreamTree } from './tree'
 
 const POLL_MS = 2000
 
@@ -22,15 +23,6 @@ function whereOf(root: DocRoot): string {
 
 function nameOf(run: DreamRun): string {
   return basename(run.ref.path).replace(/\.dream$/, '')
-}
-
-function ago(at: number, now: number): string {
-  const minutes = Math.floor(Math.max(0, now - at) / 60_000)
-  if (minutes < 1) return 'just now'
-  if (minutes < 60) return `${minutes}m ago`
-  const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours}h ago`
-  return `${Math.floor(hours / 24)}d ago`
 }
 
 function tookOf(run: DreamRun): string | null {
@@ -90,68 +82,26 @@ export function DreamsView() {
 
   return (
     <div className="dreams-page">
-      <h1>Dreams</h1>
-
-      <section aria-label="scheduled dreams">
-        <h2>Scheduled</h2>
+      <section aria-label="dreams">
+        <h2>Dreams</h2>
         {dreams?.length === 0 && (
           <p className="dreams-empty">
             No dreams yet — make one with “New dream” in the sidebar.
           </p>
         )}
         {dreams !== null && dreams.length > 0 && (
-          <table className="dreams-table">
-            <thead>
-              <tr>
-                <th>Dream</th>
-                <th>Where</th>
-                <th>Fires</th>
-                <th>Last run</th>
-              </tr>
-            </thead>
-            <tbody>
-              {dreams.map((dream) => (
-                <tr key={`${dream.ref.root}:${dream.ref.path}`}>
-                  <td>
-                    <button
-                      type="button"
-                      className="dreams-open"
-                      onClick={() => router.push(docRoute(dream.ref))}
-                    >
-                      <Icon name="moon-star" />
-                      {dream.name}
-                    </button>
-                  </td>
-                  <td className="dreams-dim">{whereOf(dream.ref.root)}</td>
-                  <td>
-                    {dream.triggers.length > 0
-                      ? dream.triggers.map((trigger) => trigger.label).join(', ')
-                      : 'nothing wired'}
-                  </td>
-                  <td>
-                    {dream.lastRun ? (
-                      <>
-                        <span className="dream-state" data-state={dream.lastRun.state}>
-                          {dream.lastRun.state}
-                        </span>
-                        <span className="dreams-dim">
-                          {ago(dream.lastRun.startedAt, now)}
-                        </span>
-                      </>
-                    ) : (
-                      <span className="dreams-dim">never</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <DreamTree
+            dreams={dreams}
+            now={now}
+            vault={app.vault?.name ?? 'vault'}
+            onOpen={(ref) => router.push(docRoute(ref))}
+          />
         )}
       </section>
 
       {keyed && hosted !== null && (
         <section aria-label="dreams on the lair">
-          <h2>On the lair</h2>
+          <h2>Lair</h2>
           {hosted.length === 0 && (
             <p className="dreams-empty">
               Nothing hosted yet — open a dream and send it with the antenna button.
@@ -161,50 +111,95 @@ export function DreamsView() {
             <table className="dreams-table">
               <thead>
                 <tr>
+                  <th></th>
                   <th>Dream</th>
                   <th>Site</th>
                   <th>Fires</th>
                   <th>Last run</th>
-                  <th />
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
-                {hosted.map((dream) => (
-                  <tr key={`${dream.site}:${dream.path}`}>
-                    <td>
-                      <Icon name="antenna" /> {dream.name}
-                    </td>
-                    <td className="dreams-dim">{dream.site}</td>
-                    <td>
-                      {dream.triggers.length > 0
-                        ? dream.triggers.map((trigger) => trigger.label).join(', ')
-                        : 'nothing wired'}
-                    </td>
-                    <td>
-                      {dream.lastRun ? (
-                        <>
-                          <span className="dream-state" data-state={dream.lastRun.state}>
-                            {dream.lastRun.state}
-                          </span>
-                          <span className="dreams-dim">
-                            {ago(dream.lastRun.startedAt, now)}
-                          </span>
-                        </>
-                      ) : (
-                        <span className="dreams-dim">never</span>
-                      )}
-                    </td>
-                    <td>
-                      <button
-                        type="button"
-                        aria-label={`remove ${dream.name} from the lair`}
-                        onClick={() => void removeHosted(dream)}
-                      >
-                        Remove
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {hosted.map((dream) => {
+                  const running = dream.lastRun?.state === 'running'
+                  return (
+                    <tr key={`${dream.site}:${dream.path}`}>
+                      <td className="lair-run-cell">
+                        <button
+                          type="button"
+                          className="lair-run"
+                          data-running={running || undefined}
+                          aria-label={`${running ? 'stop' : 'run'} ${dream.name} on ${dream.site}`}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            const route = running
+                              ? 'POST /api/lair/dream/stop'
+                              : 'POST /api/lair/dream/run'
+                            void app.client
+                              .request(
+                                route as never,
+                                { site: dream.site, path: dream.path } as never,
+                              )
+                              .catch(() => null)
+                          }}
+                        >
+                          <Icon name={running ? 'square' : 'play'} />
+                        </button>
+                      </td>
+                      <td>{dream.name}</td>
+                      <td className="dreams-dim">{dream.site}</td>
+                      <td>
+                        {dream.triggers.length > 0
+                          ? dream.triggers.map((trigger) => trigger.label).join(', ')
+                          : 'nothing wired'}
+                      </td>
+                      <td>
+                        {dream.lastRun ? (
+                          <>
+                            <span
+                              className="dream-state"
+                              data-state={dream.lastRun.state}
+                            >
+                              {dream.lastRun.state}
+                            </span>
+                            <span className="dreams-dim">
+                              {ago(dream.lastRun.startedAt, now)}
+                            </span>
+                          </>
+                        ) : (
+                          <span className="dreams-dim">never</span>
+                        )}
+                      </td>
+                      <td className="lair-stop-cell">
+                        {running && (
+                          <button
+                            type="button"
+                            className="lair-stop"
+                            aria-label={`stop ${dream.name}`}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              void app.client
+                                .request('POST /api/lair/dream/stop', {
+                                  site: dream.site,
+                                  path: dream.path,
+                                })
+                                .catch(() => null)
+                            }}
+                          >
+                            Stop
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          aria-label={`remove ${dream.name} from the lair`}
+                          onClick={() => void removeHosted(dream)}
+                        >
+                          Remove
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           )}

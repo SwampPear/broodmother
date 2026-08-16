@@ -126,6 +126,12 @@ export function createLairApp(ctx: LairContext): Hono {
     return c.json({ run: await ctx.runDream(site, path) })
   })
 
+  app.post('/dream/stop', async (c) => {
+    await keyed(c)
+    const { site, path } = await parse(c, runBody)
+    return c.json({ run: await ctx.stopDream(site, path) })
+  })
+
   app.get('/dream/runs', async (c) => {
     await keyed(c)
     return c.json({ runs: ctx.runsFor(query(c, 'site'), query(c, 'path')) })

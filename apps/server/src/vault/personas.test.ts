@@ -56,6 +56,20 @@ describe('scanPersonas', () => {
     expect(await scanPersonas(await tempDir())).toEqual([])
   })
 
+  /* A persona can file under folders the way a note does: the path is the name. */
+  it('finds personas however deep they file, path as name', async () => {
+    const checkout = await tempDir()
+    await seed(checkout, 'lens', persona('description: the flat one'))
+    await seed(checkout, 'team/reviewer', persona('description: reads every diff'))
+    await seed(checkout, 'team/deep/archivist', persona('description: files it all'))
+
+    expect(await scanPersonas(checkout)).toEqual([
+      { name: 'lens', description: 'the flat one' },
+      { name: 'team/deep/archivist', description: 'files it all' },
+      { name: 'team/reviewer', description: 'reads every diff' },
+    ])
+  })
+
   it('round-trips its own seed', async () => {
     const checkout = await tempDir()
     await seedPersonas(checkout)
@@ -90,13 +104,22 @@ describe('readPersona', () => {
     expect(await readPersona(await tempDir(), 'ghost')).toBeNull()
   })
 
+  it('answers a nested persona by its path', async () => {
+    const checkout = await tempDir()
+    await seed(checkout, 'team/reviewer', persona('description: reads every diff'))
+
+    expect(await readPersona(checkout, 'team/reviewer')).toBe('You are the body.\n')
+  })
+
   it('never follows a name outside the personas folder', async () => {
     const checkout = await tempDir()
     await writeFile(path.join(checkout, 'PERSONA.md'), 'not a persona')
 
     expect(await readPersona(checkout, '..')).toBeNull()
     expect(await readPersona(checkout, '../..')).toBeNull()
+    expect(await readPersona(checkout, 'team/../..')).toBeNull()
     expect(await readPersona(checkout, '.hidden')).toBeNull()
+    expect(await readPersona(checkout, 'team//reviewer')).toBeNull()
     expect(await readPersona(checkout, '')).toBeNull()
   })
 })

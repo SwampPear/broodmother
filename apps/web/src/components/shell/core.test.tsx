@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, it, vi } from 'vitest'
 import type { Profile } from '@broodmother/shared'
@@ -188,6 +188,17 @@ it('offers no new tab while the settings are up', async () => {
   await screen.findByText('the vault')
 
   expect(screen.queryByRole('button', { name: 'New tab' })).not.toBeInTheDocument()
+})
+
+/* Dreams is a place to go, not a property of the vault, so it is a button in the open at
+   the foot of the sidebar rather than a row behind the switcher at its head. */
+it('reaches dreams from the foot of the sidebar', async () => {
+  show(createMockClient())
+  await screen.findByText('the vault')
+
+  await userEvent.click(screen.getByRole('button', { name: 'Dreams' }))
+
+  expect(push).toHaveBeenCalledWith('/dreams')
 })
 
 it('gives a terminal tab the whole pane, and hands it back on the way out', async () => {
@@ -666,6 +677,39 @@ it('renames from the row itself rather than a dialog', async () => {
   // The extension is the tag beside the name, not something to type around.
   expect(field).toHaveValue('README')
   expect(field).toHaveFocus()
+})
+
+/* A rename asked of a tab opens on the tab, not away in the tree: the name is typed where
+   the gesture was made. */
+it('renames from the tab itself when asked there', async () => {
+  const client = createMockClient()
+  const request = vi.spyOn(client, 'request')
+  const { rerender } = show(client)
+  pathname = '/doc/vault/README.md'
+  rerender(tree(client))
+  await screen.findByRole('tab', { name: /README/ })
+  await waitFor(() => expect(screen.getByRole('treeitem', { name: 'README.md' })))
+
+  await userEvent.pointer({
+    keys: '[MouseRight]',
+    target: screen.getByRole('tab', { name: /README/ }),
+  })
+  await userEvent.click(await screen.findByRole('menuitem', { name: 'Rename' }))
+
+  const strip = screen.getByRole('tablist')
+  const field = await within(strip).findByRole('textbox', { name: 'Rename README.md' })
+  expect(field).toHaveValue('README')
+  expect(field).toHaveFocus()
+
+  await userEvent.keyboard('Intro{Enter}')
+
+  await waitFor(() =>
+    expect(request).toHaveBeenCalledWith('POST /api/doc/move', {
+      root: 'vault',
+      from: 'README.md',
+      to: 'Intro.md',
+    }),
+  )
 })
 
 /* A folder answers `folderOf` with itself, so building the new path that way renamed

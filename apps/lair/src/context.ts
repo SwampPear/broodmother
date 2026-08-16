@@ -130,6 +130,10 @@ export class LairContext {
     return this.dreams.run(hostedRef(site, docPath))
   }
 
+  async stopDream(site: string, docPath: string): Promise<DreamRun> {
+    return this.dreams.stopRun(hostedRef(site, docPath))
+  }
+
   runsFor(site: string, docPath: string): DreamRun[] {
     return this.dreams.runsFor(hostedRef(site, docPath))
   }

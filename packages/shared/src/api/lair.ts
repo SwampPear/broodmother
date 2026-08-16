@@ -78,6 +78,10 @@ interface LairRoutes {
     request: { site: string; path: string }
     response: { run: DreamRun }
   }
+  'POST /dream/stop': {
+    request: { site: string; path: string }
+    response: { run: DreamRun }
+  }
   'GET /dream/runs': {
     request: { site: string; path: string }
     response: { runs: DreamRun[] }
@@ -172,4 +176,14 @@ export interface GetLairSites {
 export interface PutLairSite {
   request: null
   response: { site: LairSite }
+}
+
+export interface PostLairDreamRun {
+  request: { site: string; path: string }
+  response: { run: DreamRun }
+}
+
+export interface PostLairDreamStop {
+  request: { site: string; path: string }
+  response: { run: DreamRun }
 }

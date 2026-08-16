@@ -240,6 +240,81 @@ it(
   },
 )
 
+/* Routing holds hosted too: a gate that stays quiet skips its branch, the run still
+   finishes, and a walk that wrote nothing pushes nothing home. */
+it(
+  'routes a hosted dream through its gate, and a quiet run commits nothing',
+  { timeout: 30_000 },
+  async () => {
+    const handle = await lair()
+    const admin = handle.context.home.adminToken
+    const remote = await bareRemote()
+    await ask(handle, admin, 'PUT', '/sites', { name: 'docs', remote })
+
+    const gated: Dream = {
+      version: 1,
+      nodes: [
+        { id: 'go', kind: 'trigger.manual', name: 'Run', x: 0, y: 0 },
+        {
+          id: 'say',
+          kind: 'agent.shell',
+          name: 'Say',
+          x: 200,
+          y: 0,
+          command: 'printf calm',
+        },
+        {
+          id: 'alerts',
+          kind: 'agent.gate',
+          name: 'Only alerts',
+          x: 400,
+          y: 0,
+          pattern: 'ALERT',
+        },
+        {
+          id: 'alarm',
+          kind: 'agent.note',
+          name: 'Alarm',
+          x: 600,
+          y: 0,
+          path: 'Alarm.md',
+        },
+      ],
+      edges: [
+        { from: 'go', to: 'say' },
+        { from: 'say', to: 'alerts' },
+        { from: 'alerts', to: 'alarm' },
+      ],
+    }
+    await ask(handle, admin, 'PUT', '/dreams', {
+      site: 'docs',
+      path: 'Watch.dream',
+      dream: gated,
+    })
+    await ask(handle, admin, 'POST', '/dream/run', { site: 'docs', path: 'Watch.dream' })
+
+    let runs: DreamRun[] = []
+    await until(async () => {
+      const { payload } = await ask(handle, admin, 'GET', '/dream/runs', {
+        site: 'docs',
+        path: 'Watch.dream',
+      })
+      runs = payload.runs as DreamRun[]
+      return runs[0]?.state === 'done'
+    })
+    expect(runs[0].steps.map((step) => [step.node, step.state])).toEqual([
+      ['go', 'done'],
+      ['say', 'done'],
+      ['alerts', 'done'],
+      ['alarm', 'skipped'],
+    ])
+
+    // Nothing was written, so nothing came home: the remote still ends at the seed.
+    const subject = await execa('git', ['--git-dir', remote, 'log', '-1', '--format=%s'])
+    expect(subject.stdout.trim()).toBe('seed')
+  },
+)
+
 it('refuses a dream for a site it does not have, and a cycle outright', async () => {
   const handle = await lair()
   const admin = handle.context.home.adminToken

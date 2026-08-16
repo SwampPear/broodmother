@@ -63,6 +63,29 @@ it('marks a section that expresses a choice as radios', async () => {
   expect(rows[1]).toHaveAttribute('aria-checked', 'false')
 })
 
+/* A branch is a category, not a choice: its row opens a popout of the same surface, and
+   picking inside the popout still runs and closes the whole menu. */
+it('opens a popout for a branch and picks from inside it', async () => {
+  const pick = vi.fn()
+  await show([
+    {
+      actions: [
+        {
+          id: 'people',
+          label: 'People',
+          sub: [{ actions: [{ id: 'a', label: 'Ada', onSelect: pick }] }],
+        },
+      ],
+    },
+  ])
+
+  await userEvent.click(screen.getByRole('menuitem', { name: 'People' }))
+  await userEvent.click(await screen.findByRole('menuitem', { name: 'Ada' }))
+
+  expect(pick).toHaveBeenCalled()
+  expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+})
+
 it('runs the row you pick and closes behind it', async () => {
   const pick = vi.fn()
   await show([{ actions: [{ id: 'a', label: 'Ada', onSelect: pick }] }])

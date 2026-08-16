@@ -33,9 +33,13 @@ export function findMath(text: string, offset = 0): MathSpan[] {
   while (index < text.length) {
     const dollar = text.indexOf('$', index)
     if (dollar < 0) break
+    if (escaped(text, dollar)) {
+      index = dollar + 1
+      continue
+    }
 
     if (text.startsWith('$$', dollar)) {
-      const close = text.indexOf('$$', dollar + 2)
+      const close = closer(text, '$$', dollar + 2)
       if (close < 0) break
       const latex = text.slice(dollar + 2, close)
       if (latex.trim()) {
@@ -50,7 +54,7 @@ export function findMath(text: string, offset = 0): MathSpan[] {
       continue
     }
 
-    const close = text.indexOf('$', dollar + 1)
+    const close = closer(text, '$', dollar + 1)
     const body = close < 0 ? '' : text.slice(dollar + 1, close)
     if (close > 0 && !body.includes('\n') && isInlineMath(body, text[close + 1] ?? '')) {
       spans.push({
@@ -66,4 +70,15 @@ export function findMath(text: string, offset = 0): MathSpan[] {
   }
 
   return spans
+}
+
+function escaped(text: string, at: number): boolean {
+  return text[at - 1] === '\\'
+}
+
+/** The next unescaped delimiter, or -1. */
+function closer(text: string, delimiter: string, from: number): number {
+  let at = text.indexOf(delimiter, from)
+  while (at >= 0 && escaped(text, at)) at = text.indexOf(delimiter, at + 1)
+  return at
 }

@@ -41,12 +41,36 @@ export interface MenuAction {
   onSecondClick?: () => void
 }
 
+/** A row that opens a popout of its own instead of acting: a category, not a choice. */
+export interface MenuBranch {
+  id: string
+  label: string
+  icon?: IconName
+  sub: MenuSection[]
+}
+
+export type MenuEntry = MenuAction | MenuBranch
+
 export interface MenuSection {
   heading?: string
   /** Placeholder for a field over these rows, where there are more of them than anyone
    *  reads. The rows scroll under it and narrow to what you type. */
   search?: string
-  actions: MenuAction[]
+  actions: MenuEntry[]
+}
+
+/** The inside of a branch row, shared the same way: the popout's name, and the chevron
+ *  pointing at where it opens. */
+export function BranchRow({ branch }: { branch: MenuBranch }) {
+  return (
+    <>
+      {branch.icon && <Icon name={branch.icon} />}
+      <span className="menu-label">{branch.label}</span>
+      <span className="menu-sub" aria-hidden>
+        <Icon name="chevron-right" />
+      </span>
+    </>
+  )
 }
 
 /** The inside of a row, shared with the context menu so the two cannot drift apart. */
@@ -127,7 +151,7 @@ function Item({ action, radio }: { action: MenuAction; radio: boolean }) {
 
 /** What a query leaves, best match first — the palette's matcher, so a list narrows the
  *  same way wherever you type at one. */
-function matching(actions: MenuAction[], query: string) {
+function matching(actions: MenuEntry[], query: string) {
   return fuzzysort
     .go(query, actions, { key: 'label', all: true })
     .map((found) => found.obj)
@@ -147,11 +171,17 @@ function Section({
 
   const searching = section.search !== undefined
   const actions = searching ? matching(section.actions, query) : section.actions
-  const single = section.actions.some((action) => action.selected !== undefined)
-  const chosen = section.actions.find((action) => action.selected)?.id
-  const rows = actions.map((action) => (
-    <Item key={action.id} action={action} radio={single} />
-  ))
+  const single = section.actions.some(
+    (entry) => !('sub' in entry) && entry.selected !== undefined,
+  )
+  const chosen = section.actions.find((entry) => !('sub' in entry) && entry.selected)?.id
+  const rows = actions.map((entry) =>
+    'sub' in entry ? (
+      <Branch key={entry.id} branch={entry} field={field} />
+    ) : (
+      <Item key={entry.id} action={entry} radio={single} />
+    ),
+  )
   const body = single ? (
     <Dropdown.RadioGroup value={chosen}>{rows}</Dropdown.RadioGroup>
   ) : (
@@ -194,6 +224,36 @@ function Section({
         body
       )}
     </div>
+  )
+}
+
+/** A branch's popout: the same surface again, beside the row that names it. The
+ *  primitive opens it on hover, click and arrow keys, and flips it clear of the edge. */
+function Branch({
+  branch,
+  field,
+}: {
+  branch: MenuBranch
+  field: RefObject<HTMLInputElement | null>
+}) {
+  return (
+    <Dropdown.Sub>
+      <Dropdown.SubTrigger className="menu-item">
+        <BranchRow branch={branch} />
+      </Dropdown.SubTrigger>
+      <Dropdown.Portal>
+        <Dropdown.SubContent
+          className="menu-surface"
+          sideOffset={4}
+          collisionPadding={8}
+          loop
+        >
+          {branch.sub.map((section, index) => (
+            <Section key={section.heading ?? index} section={section} field={field} />
+          ))}
+        </Dropdown.SubContent>
+      </Dropdown.Portal>
+    </Dropdown.Sub>
   )
 }
 

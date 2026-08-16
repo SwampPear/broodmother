@@ -19,7 +19,6 @@ function show(
   const onDelete = vi.fn()
   const onCreateProject = vi.fn()
   const onSettings = vi.fn()
-  const onDreams = vi.fn()
   // Open is the shell's to hold, because ⌘K opens this menu too.
   function Harness() {
     const [open, setOpen] = useState(false)
@@ -35,7 +34,6 @@ function show(
         onDelete={onDelete}
         onCreateProject={onCreateProject}
         onSettings={onSettings}
-        onDreams={onDreams}
       />
     )
   }

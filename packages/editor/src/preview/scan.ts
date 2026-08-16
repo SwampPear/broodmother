@@ -123,6 +123,9 @@ function tables(text: string, blocked: (at: number) => boolean): Table[] {
     const head = lines[index]!
     const rule = lines[index + 1]!
     if (blocked(head.from) || !head.text.includes('|')) continue
+    // A quoted line is a quote whatever it holds, and a delimiter row without a pipe is a
+    // setext underline or a rule — markdown-it reads neither as a table, so neither is one.
+    if (/^\s*>/.test(head.text) || !rule.text.includes('|')) continue
 
     const align = alignments(rule.text)
     if (!align) continue
@@ -186,6 +189,17 @@ function fences(text: string): Fence[] {
   return found
 }
 
+/** A backslash before punctuation is syntax and the character after it is content: `\$`
+ *  is a dollar sign, not the start of an equation, and `\*` is an asterisk. */
+function escapes(text: string, skip: Span[]): Span[] {
+  const spans: Span[] = []
+  for (const match of text.matchAll(/\\[!-/:-@[-`{-~]/g)) {
+    if (inside(skip, match.index)) continue
+    spans.push({ from: match.index, to: match.index + 2 })
+  }
+  return spans
+}
+
 /** Inline code spans, for the same reason as fences. */
 function codeSpans(text: string, skip: Span[]): Span[] {
   const spans: Span[] = []
@@ -209,9 +223,14 @@ export function scan(text: string): Scan {
   const styled: Styled[] = []
   const code = fences(text)
   const codeSkip = code.map((fence) => fence.owner)
-  const inlineCode = codeSpans(text, codeSkip)
-  const skip = [...codeSkip, ...inlineCode]
+  const escaped = escapes(text, codeSkip)
+  const inlineCode = codeSpans(text, [...codeSkip, ...escaped])
+  const literal = escaped.filter((span) => !inside(inlineCode, span.from))
+  const skip = [...codeSkip, ...inlineCode, ...literal]
   const blocked = (at: number) => inside(skip, at)
+
+  for (const span of literal)
+    markers.push({ from: span.from, to: span.from + 1, owner: span, inline: true })
 
   // Headings: the hash run and the space after it are the marker, the line is the owner.
   for (const match of text.matchAll(/^(#{1,6})[ \t]+/gm)) {

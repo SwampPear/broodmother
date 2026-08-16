@@ -11,6 +11,7 @@ import {
   type MenuSection,
 } from '../ui'
 import { type TerminalKind, TERMINALS } from '../terminal'
+import { RenameRow, sameRef } from '../tree'
 
 export type Tab =
   | { id: string; kind: 'doc'; ref: DocRef }
@@ -43,8 +44,7 @@ const NEW: (Omit<MenuAction, 'onSelect' | 'id'> & { id: NewTab })[] = [
   { id: 'note', label: 'New note', icon: 'plus' },
   { id: 'shell', label: 'Terminal', icon: 'terminal' },
   { id: 'claude', label: 'Claude Code', icon: 'claude' },
-  { id: 'opencode', label: 'OpenCode', icon: 'opencode' },
-  { id: 'muse', label: 'Muse Spark', icon: 'muse' },
+  { id: 'muse', label: 'Muse', icon: 'muse' },
 ]
 
 /**
@@ -60,6 +60,8 @@ export function TabStrip({
   onClose,
   onNew,
   onRename,
+  renaming,
+  onRenamed,
   onCloseMany,
 }: {
   tabs: Tab[]
@@ -71,6 +73,10 @@ export function TabStrip({
   onNew?: (what: NewTab) => void
   /** A tab is a document, so renaming one renames the file it stands for. */
   onRename: (tab: Tab) => void
+  /** The document whose tab is holding its name open to be typed, if the rename was
+   *  asked for here — asked from the tree, the field opens on the row instead. */
+  renaming: DocRef | null
+  onRenamed: (from: DocRef, name: string | null) => void
   onCloseMany: (tabs: Tab[]) => void
 }) {
   /**
@@ -144,11 +150,22 @@ export function TabStrip({
             data-shell={tab.kind === 'terminal' ? tab.shell : undefined}
             onClick={() => onPick(tab)}
             onKeyDown={(event) => event.key === 'Enter' && onPick(tab)}
+            // The second click asks for the name, the same gesture the tree answers.
+            onDoubleClick={() =>
+              tab.kind === 'doc' && !sameRef(renaming, tab.ref) && onRename(tab)
+            }
             // Middle click closes, the way every other tab strip does.
             onAuxClick={(event) => event.button === 1 && onClose(tab)}
           >
             {icon(tab)}
-            <span className="tab-name">{name(tab)}</span>
+            {tab.kind === 'doc' && sameRef(renaming, tab.ref) ? (
+              <RenameRow
+                entry={{ kind: 'file', name: basename(tab.ref.path) }}
+                onDone={(typed) => onRenamed(tab.ref, typed)}
+              />
+            ) : (
+              <span className="tab-name">{name(tab)}</span>
+            )}
             <button
               type="button"
               className="tab-close"

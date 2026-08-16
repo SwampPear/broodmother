@@ -28,4 +28,8 @@ export const CODE: Monaco.editor.IStandaloneEditorConstructionOptions = {
   bracketPairColorization: { enabled: true },
   fontLigatures: true,
   padding: { top: 12, bottom: 12 },
+  rulers: [
+    { column: 80, color: '#ffc1cc' },
+    { column: 100, color: '#ffc1cc' },
+  ],
 }

@@ -32,6 +32,11 @@ describe('findMath', () => {
     expect(latex('$$a$$ and $b$')).toEqual(['a', 'b'])
   })
 
+  it('reads an escaped dollar as a dollar', () => {
+    expect(findMath('\\$5–10 and \\$2,500')).toEqual([])
+    expect(latex('$a\\$b$ and $$c\\$$d$$')).toEqual(['a\\$b', 'c\\$$d'])
+  })
+
   it('ignores an unclosed delimiter', () => {
     expect(findMath('costs $5 and')).toEqual([])
   })

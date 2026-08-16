@@ -120,6 +120,40 @@ function walk(
   })
 }
 
+/**
+ * A tree built from flat paths and nothing else: the files named, and the folders on the
+ * way to them. For trees that are not the sidebar's — a comparison's differing files, the
+ * dreams a vault has — where the rows come out of an answer rather than off the disk.
+ */
+export function entriesOf(paths: DocPath[]): TreeEntry[] {
+  const roots: TreeEntry[] = []
+
+  for (const path of [...paths].sort((a, b) => a.localeCompare(b))) {
+    const parts = path.split('/').filter(Boolean)
+    let level = roots
+    for (const [depth, name] of parts.entries()) {
+      const upTo = parts.slice(0, depth + 1).join('/')
+      if (depth === parts.length - 1) {
+        level.push({ kind: 'file', path: upTo, name, size: 0, modifiedAt: 0 })
+        break
+      }
+      const found = level.find((entry) => entry.kind === 'dir' && entry.path === upTo)
+      const folder: TreeEntry = found ?? { kind: 'dir', path: upTo, name, children: [] }
+      if (!found) level.push(folder)
+      level = folder.kind === 'dir' ? folder.children : level
+    }
+  }
+  return sorted(roots)
+}
+
+/** Folders first, then by name — the order every other tree in the app is in. */
+function sorted(entries: TreeEntry[]): TreeEntry[] {
+  for (const entry of entries) if (entry.kind === 'dir') sorted(entry.children)
+  return entries.sort((a, b) =>
+    a.kind === b.kind ? a.name.localeCompare(b.name) : a.kind === 'dir' ? -1 : 1,
+  )
+}
+
 /** Every file in every tree, as the addresses that name them. */
 export function fileRefs(roots: TreeRoot[]): DocRef[] {
   const collect = (entries: TreeEntry[], root: DocRoot): DocRef[] =>

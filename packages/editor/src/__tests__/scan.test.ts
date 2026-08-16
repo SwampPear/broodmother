@@ -254,6 +254,28 @@ describe('math', () => {
   })
 })
 
+describe('escapes', () => {
+  it('hides the backslash and keeps the character it protects', () => {
+    expect(hidden('costs \\$5 and \\*not thin\\*')).toBe('costs $5 and *not thin*')
+  })
+
+  it('reveals it when the caret is between the two', () => {
+    expect(hidden('a \\$5', 3)).toBe('a \\$5')
+  })
+
+  it('stops an escaped asterisk from opening emphasis', () => {
+    expect(classes('\\*not thin\\*')).toEqual([])
+  })
+
+  it('stops an escaped dollar from opening or closing math', () => {
+    expect(classes('\\$x\\$ and $x\\$')).toEqual([])
+  })
+
+  it('leaves a backslash inside code alone', () => {
+    expect(hidden('`a\\*b`')).toBe('a\\*b')
+  })
+})
+
 describe('tables', () => {
   const simple = '| a | b |\n| --- | --- |\n| 1 | 2 |'
 
@@ -304,6 +326,19 @@ describe('tables', () => {
 
   it('finds two tables separated by prose', () => {
     expect(scan(`${simple}\n\ntext\n\n${simple}`).tables).toHaveLength(2)
+  })
+
+  it('leaves a quoted line as a quote, pipes and all', () => {
+    expect(scan('> | a |\n| --- |').tables).toEqual([])
+  })
+
+  it('reads dashes without a pipe as an underline, not a delimiter row', () => {
+    expect(scan('text with | pipe\n---').tables).toEqual([])
+  })
+
+  it('spans to the end of a document with no trailing newline', () => {
+    const [table] = scan(simple).tables
+    expect(table!.to).toBe(simple.length)
   })
 })
 

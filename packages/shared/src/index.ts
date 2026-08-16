@@ -89,6 +89,7 @@ export {
   type HttpTrigger,
   type IntervalTrigger,
   type ManualTrigger,
+  type MuseNode,
   type NoteNode,
   type ShellNode,
   type TimeTrigger,

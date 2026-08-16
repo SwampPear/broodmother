@@ -169,6 +169,7 @@ export interface App {
   lairSites(): Promise<LairSitesView | string>
   registerSite(): Promise<Failure>
   pushDream(target: LairDreamTarget): Promise<Failure>
+  dropDream(target: { site: string; path: string }): Promise<Failure>
   /** The one live session, if any: the document it is about and the invite to hand on. */
   live: { ref: DocRef; invite: string; session: CollabSession } | null
   livePeers: Peer[]
@@ -838,6 +839,12 @@ export function AppProvider({
       run(async () => {
         const result = await client.request('PUT /api/lair/dream', target)
         return `${result.dream.name} now runs on the lair, under ${result.dream.site}`
+      }),
+
+    dropDream: (target) =>
+      run(async () => {
+        await client.request('DELETE /api/lair/dream', target)
+        return `off the lair — the dream no longer runs under ${target.site}`
       }),
 
     live,

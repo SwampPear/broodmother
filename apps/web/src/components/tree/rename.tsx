@@ -4,13 +4,14 @@ import { useEffect, useRef, useState } from 'react'
 import type { TreeEntry } from '@broodmother/shared'
 import { displayName } from '../ui'
 
-/** The row typed into where it sits, editable as far as the name shows: a note hands back
- *  the extension its tag was standing in for, a code file already wore its own. */
+/** The name typed into where it shows — a tree row or a tab — editable as far as it is
+ *  shown: a note hands back the extension its tag was standing in for, a code file
+ *  already wore its own. */
 export function RenameRow({
   entry,
   onDone,
 }: {
-  entry: TreeEntry
+  entry: Pick<TreeEntry, 'kind' | 'name'>
   onDone: (name: string | null) => void
 }) {
   const shown = entry.kind === 'file' ? displayName(entry.name) : entry.name

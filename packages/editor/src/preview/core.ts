@@ -1,8 +1,9 @@
 import type * as Monaco from 'monaco-editor'
 import { rangeOf } from '../commands'
+import { serializeTable, TableWidget, type TableData } from '../table'
 import { renderInline } from './inline'
 import { renderMath } from './math'
-import { revealed, scan, type Align, type Span, type Table, type Task } from './scan'
+import { revealed, scan, type Span, type Table, type Task } from './scan'
 
 type Editor = Monaco.editor.IStandaloneCodeEditor
 
@@ -41,12 +42,15 @@ const HIDDEN = {
  * text is hidden, its lines are collapsed to a hairline, and the equation is drawn in a view
  * zone at the same place. Put the cursor in it and all three come off at once, leaving the
  * LaTeX to be edited.
+ *
+ * A table is the one piece that is edited where it is drawn rather than revealed: its zone
+ * holds a TableWidget, and the widget writes the note through `executeEdits` like any other
+ * edit. The zones are diffed rather than rebuilt so a widget survives its own write-back —
+ * and the DOM focus inside it with it.
  */
 export class LivePreview {
   private decorations: Monaco.editor.IEditorDecorationsCollection
-  private zones: string[] = []
-  /** What is currently drawn, so a keystroke elsewhere does not rebuild every equation. */
-  private drawn = new Map<string, Piece>()
+  private zones = new Map<string, Zone>()
   private folded = ''
   /** A block a click is about to open. The caret cannot be moved into a hidden line, so the
    *  lines come back first and this is what tells the next refresh to leave them alone. */
@@ -83,6 +87,7 @@ export class LivePreview {
       // editor's own mouse events are where the click is caught: a decoration is painted
       // text, and painted text has nothing to listen on.
       editor.onMouseDown((event) => this.onMouseDown(event)),
+      editor.onKeyDown((event) => this.onKeyDown(event)),
     )
     this.focused = editor.hasTextFocus()
   }
@@ -145,10 +150,31 @@ export class LivePreview {
     const tables = found.tables.filter((table) => !revealed(table, cursors))
     for (const table of tables) folded.push(rangeOf(model, table.from, table.to))
 
+    // Monaco refuses to hide every line of a model — asked to, it reveals them all
+    // instead. A note that is nothing but drawn blocks keeps its first line as a blank
+    // the caret can hold, its text hidden the way a marker is.
+    if (coversEveryLine(folded, model.getLineCount())) {
+      const index = folded.findIndex((range) => range.startLineNumber === 1)
+      const range = folded[index]
+      if (range) {
+        if (range.endLineNumber === 1) folded.splice(index, 1)
+        else folded[index] = { ...range, startLineNumber: 2, startColumn: 1 }
+        decorations.push({
+          range: {
+            startLineNumber: 1,
+            startColumn: 1,
+            endLineNumber: 1,
+            endColumn: model.getLineMaxColumn(1),
+          },
+          options: HIDDEN,
+        })
+      }
+    }
+
     this.boxes = found.tasks
     this.decorations.set(decorations)
     this.fold(folded)
-    this.draw(model, drawn, tables)
+    this.draw(model, text, drawn, tables)
   }
 
   /** Toggles the box that was clicked, and nothing else — a click anywhere but on one is a
@@ -173,6 +199,30 @@ export class LivePreview {
     ])
   }
 
+  /** A drawn table's lines are hidden, so an arrow key would step straight over it as if
+   *  it were not there. Up and down into one land in the widget instead. */
+  private onKeyDown(event: Monaco.IKeyboardEvent): void {
+    const model = this.editor.getModel()
+    const position = this.editor.getPosition()
+    if (!model || !position || !this.enabled) return
+    if (event.browserEvent.key !== 'ArrowDown' && event.browserEvent.key !== 'ArrowUp')
+      return
+
+    const down = event.browserEvent.key === 'ArrowDown'
+    const line = position.lineNumber + (down ? 1 : -1)
+    if (line < 1 || line > model.getLineCount()) return
+    const at = model.getOffsetAt({ lineNumber: line, column: 1 })
+    for (const zone of this.zones.values()) {
+      if (zone.piece.kind !== 'table' || !zone.widget) continue
+      const { from, to } = zone.piece.table
+      if (at < from || at > to) continue
+      event.preventDefault()
+      event.stopPropagation()
+      zone.widget.focusCell(down ? -1 : zone.piece.table.rows.length - 1, 0)
+      return
+    }
+  }
+
   /** Lines nobody is editing, gone from the view rather than merely invisible. */
   private fold(ranges: Monaco.IRange[]): void {
     const editor = this.editor as Foldable
@@ -186,9 +236,13 @@ export class LivePreview {
     editor.setHiddenAreas(ranges)
   }
 
-  /** Everything drawn in place of its source: equations and tables both. */
+  /** Everything drawn in place of its source: equations and tables both. The zones are
+   *  diffed against what is wanted — removed, updated in place, or added — rather than
+   *  torn down and rebuilt, which would flicker every keystroke and drop a table widget's
+   *  focus on its own write-back. */
   private draw(
     model: Monaco.editor.ITextModel,
+    text: string,
     blocks: { from: number; to: number; latex: string }[],
     tables: Table[],
   ): void {
@@ -205,77 +259,198 @@ export class LivePreview {
         latex: block.latex,
       })
     }
+    // A table is keyed by where it starts, which its own edits never move — so the same
+    // widget carries on across them. The value is the source itself, so an edit arriving
+    // from anywhere — collab, a write on disk — repaints the table it changed.
     for (const table of tables) {
       const line = model.getPositionAt(table.to).lineNumber
-      wanted.set(`table:${line}:${table.from}`, {
+      wanted.set(`table:${table.from}`, {
         kind: 'table',
-        key: `${table.header.join('|')}#${table.rows.length}`,
+        key: text.slice(table.from, table.to),
         line,
         from: table.from,
         table,
       })
     }
 
-    // Nothing moved and nothing changed — redrawing would flicker every equation on every
-    // keystroke, and a view zone is a DOM node, not a decoration.
-    if (same(wanted, this.drawn)) return
-    this.drawn = wanted
+    const stale: string[] = []
+    const moved: string[] = []
+    for (const [identity, zone] of this.zones) {
+      const piece = wanted.get(identity)
+      if (!piece) {
+        stale.push(identity)
+        continue
+      }
+      const changed = piece.key !== zone.piece.key || piece.line !== zone.piece.line
+      zone.piece = piece
+      if (!changed) continue
+      // Only a table can change under the same identity: an equation's identity is its
+      // content and its line, so a changed equation is a removal and an addition instead.
+      if (piece.kind === 'table' && zone.widget) {
+        zone.widget.update(piece.table)
+        zone.descriptor.afterLineNumber = piece.line
+        zone.descriptor.heightInPx = zone.widget.height || zone.descriptor.heightInPx
+        moved.push(identity)
+      }
+    }
+
+    const additions: { identity: string; piece: Piece }[] = []
+    for (const [identity, piece] of wanted)
+      if (!this.zones.has(identity)) additions.push({ identity, piece })
+    if (!stale.length && !moved.length && !additions.length) return
 
     // A view zone is given its height, not asked for it, and KaTeX's height is only known
-    // once it has been laid out — so each equation is rendered offscreen and measured
+    // once it has been laid out — so each new piece is rendered offscreen and measured
     // before it is handed over. A zone is as wide as the text is, and measuring at any
     // other width measures something the reader is never shown.
     const width = this.editor.getLayoutInfo().contentWidth
     const stage = this.editor.getDomNode() ?? document.body
-    const rendered = [...wanted.values()].map((piece) => {
-      const host = document.createElement('div')
-      if (piece.kind === 'math') {
-        host.className = 'md-math-zone'
-        host.appendChild(renderMath(piece.latex, true))
-      } else {
-        host.className = 'md-table-zone'
-        host.appendChild(renderTable(piece.table))
-      }
-      // Clicking what was drawn is how you edit it: the caret goes just inside where the
-      // source starts, which reveals it by the same rule that hid it.
-      const caret = piece.from + (piece.kind === 'math' ? 2 : 0)
-      host.addEventListener('mousedown', (event) => {
-        event.preventDefault()
-        event.stopPropagation()
-        this.focused = true
-        // Order matters: the lines have to be back before the caret can be put in them.
-        this.pending = { from: piece.from, to: caret }
-        this.refresh()
-        this.editor.setPosition(model.getPositionAt(caret))
-        this.editor.focus()
-        this.pending = null
-      })
-      return { host, line: piece.line, height: measure(host, width, stage) }
+    const built = additions.map(({ identity, piece }) => {
+      const made = this.build(identity, piece)
+      return { identity, piece, ...made, height: measure(made.host, width, stage) }
     })
 
     this.editor.changeViewZones((accessor) => {
-      for (const id of this.zones) accessor.removeZone(id)
-      this.zones = rendered.map(({ host, line, height }) =>
-        accessor.addZone({
-          afterLineNumber: line,
-          domNode: host,
-          heightInPx: height,
+      for (const identity of stale) {
+        const zone = this.zones.get(identity)
+        if (!zone) continue
+        zone.widget?.dispose()
+        accessor.removeZone(zone.id)
+        this.zones.delete(identity)
+      }
+      for (const identity of moved) {
+        const zone = this.zones.get(identity)
+        if (zone) accessor.layoutZone(zone.id)
+      }
+      for (const one of built) {
+        const descriptor: Monaco.editor.IViewZone = {
+          afterLineNumber: one.piece.line,
+          domNode: one.host,
+          heightInPx: one.height,
           // Monaco would otherwise take the click and put the caret on a neighbouring line.
           suppressMouseDown: true,
-        }),
-      )
+          // The zone hangs off the block's own last line, which is hidden — and a zone
+          // whose anchor is hidden is dropped unless it says otherwise. At the end of the
+          // document there is no visible line after it to save it.
+          showInHiddenAreas: true,
+        }
+        this.zones.set(one.identity, {
+          id: accessor.addZone(descriptor),
+          piece: one.piece,
+          host: one.host,
+          widget: one.widget,
+          descriptor,
+        })
+      }
     })
+  }
+
+  private build(
+    identity: string,
+    piece: Piece,
+  ): { host: HTMLElement; widget: TableWidget | null } {
+    if (piece.kind === 'math') {
+      const host = document.createElement('div')
+      host.className = 'md-math-zone'
+      host.appendChild(renderMath(piece.latex, true))
+      // Clicking what was drawn is how you edit it: the caret goes just inside where the
+      // source starts, which reveals it by the same rule that hid it.
+      host.addEventListener('mousedown', (event) => {
+        event.preventDefault()
+        event.stopPropagation()
+        this.reveal(identity)
+      })
+      return { host, widget: null }
+    }
+    const widget = new TableWidget({
+      table: piece.table,
+      render: renderInline,
+      apply: (next) => this.applyTable(identity, next),
+      remove: () => this.removeTable(identity),
+      revealSource: () => this.reveal(identity),
+      exit: (edge) => this.exitTable(identity, edge),
+      relayout: () => this.layout(identity),
+    })
+    return { host: widget.host, widget }
+  }
+
+  /** The write-back: the table's span swapped for its serialized self, as one ordinary
+   *  edit — which is what keeps undo and collab both working. */
+  private applyTable(identity: string, next: TableData): void {
+    const model = this.editor.getModel()
+    const zone = this.zones.get(identity)
+    if (!model || !zone || zone.piece.kind !== 'table') return
+    const { from, to } = zone.piece.table
+    this.editor.executeEdits('broodmother', [
+      { range: rangeOf(model, from, to), text: serializeTable(next) },
+    ])
+  }
+
+  private removeTable(identity: string): void {
+    const model = this.editor.getModel()
+    const zone = this.zones.get(identity)
+    if (!model || !zone || zone.piece.kind !== 'table') return
+    const { from, to } = zone.piece.table
+    // The line the table stood on goes with it, or a blank one is left behind.
+    const end = Math.min(model.getValue().length, to + 1)
+    this.editor.executeEdits('broodmother', [
+      { range: rangeOf(model, from, end), text: '' },
+    ])
+  }
+
+  private reveal(identity: string): void {
+    const model = this.editor.getModel()
+    const zone = this.zones.get(identity)
+    if (!model || !zone) return
+    const caret = zone.piece.from + (zone.piece.kind === 'math' ? 2 : 0)
+    this.focused = true
+    // Order matters: the lines have to be back before the caret can be put in them.
+    this.pending = { from: zone.piece.from, to: caret }
+    this.refresh()
+    this.editor.setPosition(model.getPositionAt(caret))
+    this.editor.focus()
+    this.pending = null
+  }
+
+  private exitTable(identity: string, edge: 'above' | 'below'): void {
+    const model = this.editor.getModel()
+    const zone = this.zones.get(identity)
+    if (!model || !zone || zone.piece.kind !== 'table') return
+    const line =
+      edge === 'above'
+        ? model.getPositionAt(zone.piece.table.from).lineNumber - 1
+        : model.getPositionAt(zone.piece.table.to).lineNumber + 1
+    if (line < 1 || line > model.getLineCount()) return
+    const column = edge === 'above' ? model.getLineMaxColumn(line) : 1
+    this.editor.setPosition({ lineNumber: line, column })
+    this.editor.focus()
+  }
+
+  /**
+   * The zone takes the table's drawn height. Monaco owns the zone's box — it sets the
+   * host's height itself and gives it `display: none` while it is scrolled out of view —
+   * so the height is read from the widget's own frame, and a zero is a table not laid out
+   * rather than one with nothing in it: the frame reports again the moment it is shown.
+   */
+  private layout(identity: string): void {
+    const zone = this.zones.get(identity)
+    const height = zone?.widget?.height
+    if (!zone || !height || height === zone.descriptor.heightInPx) return
+    zone.descriptor.heightInPx = height
+    this.editor.changeViewZones((accessor) => accessor.layoutZone(zone.id))
   }
 
   private clear(): void {
     this.decorations.set([])
     this.fold([])
-    if (!this.zones.length) return
+    if (!this.zones.size) return
     this.editor.changeViewZones((accessor) => {
-      for (const id of this.zones) accessor.removeZone(id)
-      this.zones = []
+      for (const zone of this.zones.values()) {
+        zone.widget?.dispose()
+        accessor.removeZone(zone.id)
+      }
     })
-    this.drawn = new Map()
+    this.zones.clear()
   }
 
   dispose(): void {
@@ -290,43 +465,20 @@ type Piece =
   | { kind: 'math'; key: string; line: number; from: number; latex: string }
   | { kind: 'table'; key: string; line: number; from: number; table: Table }
 
-function same(a: Map<string, Piece>, b: Map<string, Piece>): boolean {
-  if (a.size !== b.size) return false
-  for (const [key, value] of a) {
-    const other = b.get(key)
-    if (!other || other.key !== value.key || other.line !== value.line) return false
-  }
-  return true
+interface Zone {
+  id: string
+  piece: Piece
+  host: HTMLElement
+  widget: TableWidget | null
+  descriptor: Monaco.editor.IViewZone
 }
 
-/** A pipe table as a table. A cell holds inline markdown like anywhere else in a note, and
- *  is built out of nodes rather than parsed as markup. */
-export function renderTable(table: Table): HTMLElement {
-  const element = document.createElement('table')
-  element.className = 'md-table'
-
-  const head = element.createTHead().insertRow()
-  table.header.forEach((cell, index) => {
-    const th = document.createElement('th')
-    th.appendChild(renderInline(cell))
-    setAlign(th, table.align[index] ?? null)
-    head.appendChild(th)
-  })
-
-  const body = element.createTBody()
-  for (const row of table.rows) {
-    const tr = body.insertRow()
-    table.header.forEach((_, index) => {
-      const td = tr.insertCell()
-      td.appendChild(renderInline(row[index] ?? ''))
-      setAlign(td, table.align[index] ?? null)
-    })
-  }
-  return element
-}
-
-function setAlign(cell: HTMLTableCellElement, align: Align): void {
-  if (align) cell.style.textAlign = align
+function coversEveryLine(ranges: Monaco.IRange[], lines: number): boolean {
+  const covered = new Set<number>()
+  for (const range of ranges)
+    for (let line = range.startLineNumber; line <= range.endLineNumber; line++)
+      covered.add(line)
+  return covered.size >= lines
 }
 
 /**

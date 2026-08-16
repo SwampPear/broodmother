@@ -43,7 +43,8 @@ export async function readPersona(
   if (!name || name.startsWith('.') || name.includes('\\')) return null
   if (name.includes('..')) return null
   const normalized = path.posix.normalize(name)
-  if (normalized !== name || normalized.startsWith('/') || normalized.includes('..')) return null
+  if (normalized !== name || normalized.startsWith('/') || normalized.includes('..'))
+    return null
   const parts = name.split('/')
   if (parts.some((part) => !part || part.startsWith('.'))) return null
   const file = path.join(checkout, '.personas', ...parts, 'PERSONA.md')

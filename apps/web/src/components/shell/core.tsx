@@ -65,9 +65,13 @@ export function Shell({ children }: { children: ReactNode }) {
   const [creating, setCreating] = useState(false)
   // The one menu that says where you are working: vault, project and profile together.
   const [whereMenu, setWhereMenu] = useState(false)
-  // The row the tree is holding open for a name. Set the moment a note is made, cleared
-  // whether the name arrives or not.
-  const [renaming, setRenaming] = useState<DocRef | null>(null)
+  // The document held open for a name, and where the field is: the row in the tree, or —
+  // when the rename was asked of the strip — the tab itself. Set the moment a note is
+  // made, cleared whether the name arrives or not.
+  const [renaming, setRenaming] = useState<{
+    ref: DocRef
+    where: 'tree' | 'tab'
+  } | null>(null)
   const [profiling, setProfiling] = useState(false)
   // The project whose row asked to be deleted, held until the confirmation answers.
   const [deleting, setDeleting] = useState<string | null>(null)
@@ -242,7 +246,7 @@ export function Shell({ children }: { children: ReactNode }) {
     void app.create(at, contents).then((failed) => {
       if (failed) return
       show(docRoute(at))
-      setRenaming(at)
+      setRenaming({ ref: at, where: 'tree' })
     })
   }
 
@@ -253,17 +257,14 @@ export function Shell({ children }: { children: ReactNode }) {
     newDoc(seed, DREAM_EXTENSION, serializeDream(emptyDream()))
 
   /**
-   * Opens a row as a field, a frame from now. Every rename is raised from a menu, and a
-   * menu that is still closing puts focus back where it was opened — onto a field that has
-   * just mounted and taken it. That blur is read as finishing the rename, so the field
-   * would commit the name the row already had and disappear before a key was pressed.
-   * A frame later the menu is gone and the field is the only thing asking for focus.
-   *
-   * A new note does not need this only because creating it is a round trip, which is
-   * already longer than the menu takes to go.
+   * Opens a row as a field, a frame from now. Opened in the same breath it would mount
+   * into the tail of the click that asked for it, and the focus still settling from that
+   * click blurs the field — which is how a rename ends. A frame later the click and the
+   * menu are gone, and the field is the only thing asking for focus. The menu holds up
+   * its half by not touching focus after a row acts (see `ContextMenu`).
    */
-  const startRename = (ref: DocRef) => {
-    requestAnimationFrame(() => setRenaming(ref))
+  const startRename = (ref: DocRef, where: 'tree' | 'tab') => {
+    requestAnimationFrame(() => setRenaming({ ref, where }))
   }
 
   /**
@@ -295,7 +296,7 @@ export function Shell({ children }: { children: ReactNode }) {
     }
     void app.createFolder(at).then((failed) => {
       if (failed) return
-      setRenaming(at)
+      setRenaming({ ref: at, where: 'tree' })
     })
   }
 
@@ -373,7 +374,7 @@ export function Shell({ children }: { children: ReactNode }) {
     if (command === 'create-folder') return newFolder(ref)
     // Renaming is the row turning into a field, not a dialog over the top of it — the same
     // thing a new note does the moment it exists, so there is one way to name anything.
-    if (command === 'rename') return startRename(ref)
+    if (command === 'rename') return startRename(ref, 'tree')
     if (command === 'delete-project') return setDeleting(projectOf(ref.root))
     setFlow(deleteFlow(ctx, ref, isFolder(entriesOf(ref.root), ref.path)))
   }
@@ -403,16 +404,21 @@ export function Shell({ children }: { children: ReactNode }) {
             onDelete={(name) => void app.deleteVault(name)}
             onCreateProject={() => setCreating(true)}
             onSettings={ctx.settings}
-            onDreams={ctx.dreams}
           />
         }
         foot={
-          <ProfileMenu
-            profiles={app.profiles}
-            active={app.profile?.name ?? null}
-            onSelect={(name) => void app.selectProfile(name)}
-            onAdd={() => setProfiling(true)}
-          />
+          <>
+            <button className="tree-dreams" onClick={ctx.dreams}>
+              <Icon name="moon-star" />
+              Dreams
+            </button>
+            <ProfileMenu
+              profiles={app.profiles}
+              active={app.profile?.name ?? null}
+              onSelect={(name) => void app.selectProfile(name)}
+              onAdd={() => setProfiling(true)}
+            />
+          </>
         }
         onOpen={ctx.open}
         // A folder is not a document, so the pane has nothing to show for one. The home
@@ -423,7 +429,7 @@ export function Shell({ children }: { children: ReactNode }) {
         onCommand={fromTree}
         onCreateProject={() => setCreating(true)}
         onMove={ctx.move}
-        renaming={renaming}
+        renaming={renaming?.where === 'tree' ? renaming.ref : null}
         onRename={renamed}
       />
       <Resizer axis="sidebar" size={sidebar} onSize={resize} />
@@ -438,10 +444,11 @@ export function Shell({ children }: { children: ReactNode }) {
             onPick={pick}
             onClose={closeTab}
             onNew={appPage ? undefined : newTab}
-            // A tab stands for a file, and the file's name is typed where the file is
-            // shown: this hands the rename to that row, opening whatever folders were
-            // shut around it on the way.
-            onRename={(tab) => tab.kind === 'doc' && startRename(tab.ref)}
+            // A rename asked of a tab opens on the tab: the name is typed where the
+            // gesture was made, the same way the tree's rows answer theirs.
+            onRename={(tab) => tab.kind === 'doc' && startRename(tab.ref, 'tab')}
+            renaming={renaming?.where === 'tab' ? renaming.ref : null}
+            onRenamed={renamed}
             onCloseMany={closeTabs}
           />
           {app.branches.length > 0 && (

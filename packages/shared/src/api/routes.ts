@@ -14,6 +14,8 @@ import type {
   GetLairDreams,
   GetLairSites,
   PostLairCheck,
+  PostLairDreamRun,
+  PostLairDreamStop,
   PostLairShare,
   PutLair,
   PutLairDream,
@@ -99,6 +101,9 @@ interface ApiRoutes {
   'GET /api/lair/dreams': GetLairDreams
   'GET /api/lair/sites': GetLairSites
   'PUT /api/lair/site': PutLairSite
+  'POST /api/lair/dream/run': PostLairDreamRun
+  'POST /api/lair/dream/stop': PostLairDreamStop
+  'POST /api/dream/stop': PostDreamRun
   'GET /api/personas': GetPersonas
   'GET /api/doc': GetDoc
   'PUT /api/doc': PutDoc
